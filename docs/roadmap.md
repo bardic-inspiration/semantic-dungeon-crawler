@@ -26,7 +26,7 @@ agents execute one at a time.
 | 1 | `packages/schema` — entity/protocol/ruleset types, CHANGELOG 0.1.0, example fixture | §6.2 | queued |
 | 2 | `packages/corpus-builder` — build-time pipeline → `graph.json` | §6.3 | not started |
 | 3 | `packages/rule-engine` — parser, solver, layer resolution, debug trace | §6.4 | not started |
-| 4 | `packages/server` + conformance fixtures | §6.5 | not started |
+| 4 | `packages/server` + `packages/client-cli` (testing interface) + conformance fixtures | §6.5 | not started |
 | 5 | `packages/client-threejs` — Three.js reference renderer | §6.6 | not started |
 | 6 | Production-alpha hardening + playable `README` path | §6.7 | not started |
 | 7+ | Post-alpha (rule editor, other adapters, persistence, WS) — **out of scope** | §6.8 | out of scope |

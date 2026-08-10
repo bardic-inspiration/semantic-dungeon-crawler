@@ -16,9 +16,12 @@ The project is an **authoring engine for semantic-space games** (SPEC §1) — a
 engine, not a single game. It ships two deliverables:
 
 - A **deterministic, headless backend**: corpus → embedding → graph → rule solver
-  → resolved JSON (SPEC §2).
-- A **Three.js reference client** that renders the resolved JSON and nothing else
-  (SPEC §5).
+  → resolved JSON, exposed over a REST API any frontend can be built against
+  (SPEC §2, §5.1).
+- A **Three.js reference client** — the first of potentially several graphical
+  adapters — that renders the resolved JSON and nothing else, plus a **terminal
+  reference client** (`client-cli`) for testing without a frontend at all
+  (SPEC §5.2, §5.4).
 
 The default zero-rules behavior is **relativistic drift** (nearest-neighbor
 movement in embedding space) — a valid mode, not a fallback.
@@ -35,8 +38,8 @@ if it passes tests.
   backend logic. Same inputs ⇒ **byte-identical** output. (SPEC §4.5)
 - **`INV-3` — Client sees only resolved JSON.** The client never receives the
   graph, embeddings, or rule definitions — only `ResolvedRoomResponse` (SPEC §3.2).
-  `packages/client-threejs` must not import `packages/rule-engine` or
-  `packages/corpus-builder`. (SPEC §5.2, §6.6)
+  `packages/client-threejs` and `packages/client-cli` must not import
+  `packages/rule-engine` or `packages/corpus-builder`. (SPEC §5.2, §5.4, §6.5, §6.6)
 - **`INV-4` — No taste-policing.** The engine validates *well-formedness*, not
   *coherence*. Contradictory or "bad" rulesets are legal and must run, not be
   rejected or auto-corrected. The solver must not throw on conflicting hard
@@ -48,7 +51,8 @@ if it passes tests.
 > The two easiest to break by accident: **`INV-2` (determinism)** — reach for a
 > seeded PRNG derived from `(session_seed, turn_count)`, never `Math.random()` or
 > `Date.now()`; and **`INV-3` (import boundary)** — enforced by an ESLint rule
-> (added in Phase 5, SPEC §6.6), but respect it from day one.
+> (added in Phase 4 for `client-cli`, SPEC §6.5; extended to `client-threejs` in
+> Phase 5, SPEC §6.6), but respect it from day one.
 
 ## 3. Repo layout (target — SPEC §2, §6.1)
 
@@ -62,6 +66,7 @@ if it passes tests.
 │   ├── corpus-builder/         # build-time pipeline (Phase 2)
 │   ├── rule-engine/            # parser + solver (Phase 3)
 │   ├── server/                 # HTTP/WS contract (Phase 4)
+│   ├── client-cli/             # terminal reference client, testing interface (Phase 4)
 │   ├── client-threejs/         # reference renderer (Phase 5)
 │   └── rule-editor/            # visual authoring (Phase 7+, post-alpha)
 ├── fixtures/                   # conformance data (SPEC §6.5)
@@ -82,7 +87,7 @@ are all met.** Each phase has Entry/Build/Exit conditions in the spec:
 | 1 | `packages/schema` — types + CHANGELOG + example fixture | §6.2 |
 | 2 | `packages/corpus-builder` — build-time pipeline → `graph.json` | §6.3 |
 | 3 | `packages/rule-engine` — parser, solver, layer resolution, debug trace | §6.4 |
-| 4 | `packages/server` + conformance fixtures | §6.5 |
+| 4 | `packages/server` + `packages/client-cli` + conformance fixtures | §6.5 |
 | 5 | `packages/client-threejs` — reference renderer | §6.6 |
 | 6 | Production-alpha hardening + `README` playable path | §6.7 |
 | 7+ | Post-alpha (rule editor, other adapters, persistence) — **out of scope** | §6.8 |

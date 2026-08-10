@@ -8,8 +8,11 @@ mediated by an authored rule layer. See [`SPEC.md`](SPEC.md) §1 for the full
 concept.
 
 The engine ships two things: a **deterministic, headless backend** (corpus →
-graph → rule solver → resolved JSON) and a **Three.js reference client** that
-renders whatever the backend sends and nothing else.
+graph → rule solver → resolved JSON) exposed over a REST API any frontend can
+be built against, and two reference adapters against that API — a **Three.js
+client** (the first of potentially several graphical frontends) that renders
+whatever the backend sends and nothing else, and a **terminal client** for
+running and testing the engine with no frontend at all.
 
 > **Status: pre-alpha.** This repository currently holds the specification and the
 > agentic development process. The buildable scaffold (Phase 0) and all packages

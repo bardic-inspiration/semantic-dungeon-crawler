@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.3.0`
+`spec-version: 0.6.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -14,7 +14,7 @@ This document is the authoritative build specification for an **authoring engine
 
 - `INV-1`: The traversal/rule engine (Section 4) never imports a rendering library. It is pure, headless, testable with no client attached.
 - `INV-2`: A game session is fully reproducible from `(seed, ruleset-file, input-log)`. No hidden state, no wall-clock dependence, no non-seeded randomness in backend logic.
-- `INV-3`: The client (Three.js reference adapter, Section 5) never receives the graph, embeddings, or rule definitions. It receives only resolved JSON matching the Entity Schema (Section 3).
+- `INV-3`: The client (Three.js and terminal reference adapters, Section 5) never receives the graph, embeddings, or rule definitions. It receives only resolved JSON matching the Entity Schema (Section 3).
 - `INV-4`: The engine does not validate ruleset *coherence* or *taste*. It validates ruleset *well-formedness* (parses, references exist, types match). Contradictory or "bad" rules are legal and must run, not be rejected.
 - `INV-5`: Every schema and protocol surface is versioned (Section 3.5). Breaking changes require a version bump and a changelog entry, not silent mutation.
 
@@ -28,8 +28,8 @@ The engine takes a text corpus, embeds it, and builds a weighted graph where nod
 
 The engine ships two things:
 
-1. **A backend** that owns the corpus, graph, embeddings, and rule evaluation, and exposes a small HTTP/WS contract.
-2. **A reference Three.js client** that renders whatever the backend sends, and nothing else.
+1. **A backend** that owns the corpus, graph, embeddings, and rule evaluation, and exposes a REST API (Section 5.1) any frontend can be built against.
+2. **A reference Three.js client** — the first of potentially several graphical frontends — that renders whatever the backend sends, and nothing else.
 
 The default behavior with zero authored rules is **relativistic drift**: the player moves to nearest-neighbor nodes in embedding space with no imposed structure. This is a valid, deliberate mode, not a fallback. All authored structure (Section 4) is opt-in refinement layered on top of this default.
 
@@ -60,11 +60,11 @@ The default behavior with zero authored rules is **relativistic drift**: the pla
 │         Resolved Entity Tree (Section 3 schema)                  │
 └─────────────────────────────────────────────────────────────────┘
                                     │
-                          HTTP/WS contract (Section 5.1)
+                              REST API (Section 5.1)
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  CLIENT (swappable, engine-specific — Three.js is the reference) │
+│  CLIENT (swappable — Three.js ships first, others build on 5.1)  │
 │                                                                   │
 │   Resolved JSON ──▶ ECS sync ──▶ Mesh resolution ──▶ Scene       │
 │                                                          │        │
@@ -80,9 +80,10 @@ The default behavior with zero authored rules is **relativistic drift**: the pla
 |---|---|---|
 | Build-time pipeline | `packages/corpus-builder` | Embedding, clustering, graph construction, tagging |
 | Rule DSL + solver | `packages/rule-engine` | Parser, layered constraint evaluator, DSL grammar |
-| Runtime backend | `packages/server` | HTTP/WS contract, session state, calls rule-engine |
+| Runtime backend | `packages/server` | REST API (5.1), session state, calls rule-engine |
 | Shared contract | `packages/schema` | TypeScript types for Entity Schema, imported by server AND client |
-| Three.js reference client | `packages/client-threejs` | ECS, mesh resolution, interaction capture |
+| Three.js reference client | `packages/client-threejs` | First graphical reference adapter — ECS, mesh resolution, interaction capture |
+| Terminal reference client | `packages/client-cli` | REPL adapter against the same REST API — text rendering, scripted input-log replay, testing/debug interface |
 | Authoring tool | `packages/rule-editor` | Visual flowchart UI, compiles to DSL text |
 
 ### 2.1 Supporting Systems (Developer Toolkit)
@@ -93,6 +94,7 @@ Cross-cutting infrastructure every package needs — not a phase of its own. Wir
 - **Metrics** — counters/gauges/histograms behind a small `Metrics` interface (`increment`/`observe`), in-memory default. Build-time: corpus size, build duration, embedding-call count (`corpus-builder`). Runtime: request latency, active session count, rule-evaluation duration per move (`server`). Diagnostic only — `resolve_move`/`populate` (§4.1/§4.4) MUST NOT read metrics state; letting output depend on prior instrumentation would violate `INV-2`.
 - **Debug** — one server-side flag gates both `DebugTrace` construction/exposure (§4.6, `GET /debug/trace`) and elevated log verbosity. The zero-overhead-when-disabled requirement in §4.6 extends to debug-level logging: gate before construct, never construct-then-discard.
 - **Config & errors** — swappable components (embedding provider, log sink, metrics backend) are selected through one environment-driven config convention rather than being hardcoded per package. Protocol-boundary errors (malformed ruleset, missing session, network failure) get a typed error taxonomy instead of ad hoc throws; built out in Phase 6 hardening (§6.7).
+- **Corpus↔graph traceability** — the build-time pipeline (`corpus-builder`, §6.3) is a supporting-systems consumer too, not just the runtime `server`. Every graph node carries `source_refs` back to the raw corpus documents it was built from, and each pipeline stage reports through the same `Logger`/`Metrics` interfaces above (input/output counts, duration, warnings) — build-time transparency and runtime transparency are the same mechanism, not two. This surfaces through `corpus-builder inspect` (§6.3), not `client-cli`: a client speaking the wire protocol has no business seeing graph/corpus internals (`INV-3`), so build-time inspection stays a `corpus-builder`-owned tool, structurally separate from the runtime testing interface in §5.4 even though the two share verbosity conventions.
 
 None of this introduces a new invariant — it operates entirely inside `INV-1`..`INV-5` as already stated.
 
@@ -217,6 +219,7 @@ type ScopeCondition = string;  // DSL expression evaluated once per move to dete
 - Adding a new `Archetype` or `Affordance` string literal is a MINOR bump (additive, non-breaking — the open-string extension points in 3.1 exist specifically so this doesn't require a schema restructure).
 - Adding or removing a modifier entry in an author's ruleset config requires no engine version bump — modifier entries are author content. Changing the modifier registry *mechanism* (how the engine parses or dispatches modifiers) is a MAJOR bump.
 - Renaming/removing any field in `Entity`, `ResolvedRoomResponse`, or `Ruleset` is a MAJOR bump.
+- Adding a REST endpoint (Section 5.1) is a MINOR bump; changing an existing endpoint's method, path, or response shape — or the base contract (headers, error envelope) — is a MAJOR bump, the same rule as a schema field change. This is what lets a third-party adapter (5.3) trust a MINOR version bump to be safe to ignore.
 - `packages/schema/CHANGELOG.md` is mandatory reading before any schema edit in Phase 2+. A coding agent modifying `packages/schema/src/*` MUST append a changelog entry in the same commit.
 - Conformance fixtures (Section 6.5) MUST be re-validated against any schema change before the change is considered complete.
 
@@ -397,20 +400,38 @@ Enabled via server config flag, never a client-supplied parameter (a client shou
 
 ---
 
-## 5. Client Contract (Three.js Reference Adapter)
+## 5. Adapter Contract (REST API + Reference Adapters)
 
-### 5.1 Wire Protocol
+The REST API (5.1) is the actual product surface — `INV-3` exists precisely so that every frontend, including this spec's own reference adapters, is just an HTTP client against it, with no privileged access to the engine internals. `client-threejs` (5.2) ships first because a 3D reference is the most convincing demo, but it is the *first* graphical adapter, not the only valid one: Unity, Godot, a 2D canvas, a VR shell, or anything else can be built against 5.1 with zero engine-side changes — exactly like `client-cli` (5.4), the terminal adapter, already is. Section 5.3 is what makes a third party's compatibility claim checkable without this project's involvement.
+
+### 5.1 REST API
+
+Normative for any adapter, not just the two reference ones (5.2, 5.4).
+
+**Base contract**:
+- JSON over HTTP; `Content-Type: application/json` on every request and response body.
+- Every response carries an `X-Spec-Version` header echoing the running `spec_version` (SPEC header, Section 3.5) — not a body field, so it doesn't touch the schemas in Section 3. An adapter MAY refuse to render a response whose major version it doesn't understand; the engine does not enforce this, adapters do.
+- Errors use one envelope regardless of endpoint: `{ error: { code: string, message: string } }`. No error body ever includes ruleset text, graph data, or a stack trace — `INV-3` applies to error paths, not just the happy path.
+- Status codes: `200` success, `204` no content (session deletion), `400` malformed request body, `404` unknown session/route or a disabled debug/metrics endpoint, `500` internal error (message only, via the envelope above).
+- Versioning: adding an endpoint is a MINOR bump; changing an existing endpoint's method, path, or response shape, or changing the base contract itself, is MAJOR (Section 3.5).
+
+**Endpoints**:
 
 ```
-GET  /room/current?session_id={id}          → ResolvedRoomResponse
-POST /interact                                → InteractRequest body → InteractResponse
-GET  /session/new?seed={optional}             → { session_id, seed }
-GET  /debug/trace?session_id={id}             → DebugTrace  (only if server debug mode on, else 404)
+GET    /session/new?seed={optional}           → { session_id, seed }
+GET    /room/current?session_id={id}          → ResolvedRoomResponse
+POST   /interact                               → InteractRequest body → InteractResponse
+DELETE /session/{session_id}                   → 204, frees in-memory session state; idempotent
+GET    /debug/trace?session_id={id}            → DebugTrace  (only if server debug mode on, else 404)
+GET    /health                                 → { status: "ok" }, liveness/readiness for deployment (6.7)
+GET    /metrics                                → { counters, gauges } snapshot from the 2.1 Metrics interface, or 404 if metrics disabled
 ```
+
+Session lifecycle: `GET /session/new` creates a session; `GET /room/current` and `POST /interact` operate on an existing one; `DELETE /session/{id}` explicitly tears one down (deleting an already-deleted or unknown session still returns `204`, not `404` — deletion is idempotent by design). Sessions are in-memory only (6.5) — nothing here is persistence, and a server restart drops all sessions, which is expected for alpha (Section 7).
 
 No websocket requirement for v0 — turn-based interaction tolerates request/response latency. This is a deliberate scope cut, not an oversight; revisit only if the alpha's interaction pacing demands it (Section 7, open question).
 
-### 5.2 ECS Mapping (Three.js adapter internal structure)
+### 5.2 ECS Mapping (Three.js Adapter — First Graphical Reference)
 
 Any coding agent building `packages/client-threejs` should structure it as a minimal hand-rolled ECS. The reference adapter has no external ECS library dependency — setup cost isn't justified until scene complexity demands it; a fork is free to graduate to a real ECS library:
 
@@ -427,7 +448,17 @@ Any coding agent building `packages/client-threejs` should structure it as a min
 
 ### 5.3 Conformance
 
-A conformance suite of fixed `ResolvedRoomResponse` JSON fixtures (Section 6.5) must render without error in the reference adapter. Any third-party adapter (Godot, Unity, future forks) claiming schema compatibility should be checkable against the same fixture set without needing this spec's author involved — this is what makes a plugin ecosystem of independent integrations viable, rather than one this project must own.
+A conformance suite of fixed `ResolvedRoomResponse` JSON fixtures (Section 6.5) must render without error in a reference adapter. Any third-party adapter (Godot, Unity, future forks) implementing 5.1 and claiming schema compatibility should be checkable against the same fixture set without needing this spec's author involved — this is what makes a plugin ecosystem of independent frontends viable, rather than one this project must own. `client-threejs` and `client-cli` are the two adapters this spec builds and holds to that bar itself; nothing about 5.1 assumes either of them exists.
+
+### 5.4 Terminal Reference Client (Testing Interface)
+
+The simplest possible adapter: a REPL that speaks the REST API (5.1) over stdin/stdout, nothing else. It exists so the engine is fully usable and testable without any graphical frontend — where `client-threejs` is a reference adapter for players, `client-cli` is a reference adapter for authors, testers, and CI.
+
+**Behavior**: `GET /session/new` on start → print the room (id, archetype, salience-ordered objects with affordances, exits) → read a line (`<object_id> <affordance>`) → `POST /interact` → print `new_room`, repeat. It also accepts a scripted input-log file (one action per line) for headless replay — the same input-log shape `INV-2` determinism already requires, so a recorded session can be replayed and diffed byte-for-byte with no one at the keyboard.
+
+**Verbosity**: a single `--verbosity` flag (or `SDC_LOG_LEVEL` env var) reusing the Section 2.1 `Logger` levels: `error` prints transitions only; `warn` (default) adds affordances and exits; `info` adds full entity fields as pretty JSON; `debug` adds the raw `DebugTrace` (4.6, when the server has debug mode on) plus a per-session summary — turns, requests, latency — read from the Section 2.1 `Metrics` interface on exit. This is the wiring point for both supporting systems from Section 2.1: the CLI does not reimplement logging or metrics, it is a display surface for them.
+
+**Constraints**: identical to `client-threejs` under `INV-3` — `packages/client-cli` imports wire-protocol types from `packages/schema` only, never `packages/rule-engine` or `packages/corpus-builder`. Because it has no rendering dependency, it can load and print `fixtures/rooms/*.json` directly (5.3) with nothing else running, making it the first conformance check exercised in the build order (6.5) — ahead of the graphical client (6.6).
 
 ---
 
@@ -457,6 +488,8 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 │   ├── corpus-builder/
 │   │   └── src/ (empty, Phase 2)
 │   ├── server/
+│   │   └── src/ (empty, Phase 4)
+│   ├── client-cli/
 │   │   └── src/ (empty, Phase 4)
 │   ├── client-threejs/
 │   │   └── src/ (empty, Phase 5)
@@ -489,12 +522,32 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 - Clustering step → node formation
 - Edge weight computation (cosine similarity threshold, configurable)
 - Tagging step → populates `semantic_tags` with structured tags (Section 3.6 grammar), `archetype` (initial heuristic assignment is acceptable for alpha; author-refined tagging is post-alpha)
+- Provenance: every graph node carries `source_refs: string[]` — the id(s) of the raw corpus document(s) it was built from — so any node is traceable back to input. Documented in `GRAPH_FORMAT.md` alongside the rest of the internal format.
+- Per-stage instrumentation: embedding, clustering, edge-weighting, and tagging each report through the §2.1 `Logger` (start/end, input/output counts, warnings) and `Metrics` (duration, counts) — the same interfaces `server` uses, not a parallel mechanism.
 - Output: `graph.json` — internal-only format, never sent to any client (INV-3), consumed exclusively by `rule-engine`. Also outputs `tag-registry.yaml` — the vocabulary of tag segment paths discovered from the corpus (Section 3.6.2).
 
+**Development transparency and testing**: the build-time pipeline gets the same inspectability `client-cli` (§5.4) and `DebugTrace` (§4.6) give the runtime — scoped to `corpus-builder` itself, since a client seeing graph/corpus internals would violate `INV-3`.
+- `corpus-builder inspect --graph <graph.json> --node <id>` prints a node's fields plus its `source_refs` chain back to raw documents. `corpus-builder inspect --graph <graph.json> --trace` prints the `BuildTrace` below, if the build that produced the graph was run with `--trace`. Both reuse the `--verbosity` levels from §5.4 for one consistent developer experience across the two tools.
+- `corpus-builder build --trace` is flag-gated, off by default, zero overhead when disabled (the same rule §4.6 sets for `DebugTrace`). It writes `build-trace.json`, the build-time analogue of `DebugTrace`:
+
+```typescript
+interface BuildTrace {
+  stages: {
+    stage: "embedding" | "clustering" | "edge_weighting" | "tagging";
+    input_count: number;
+    output_count: number;
+    duration_ms: number;
+    warnings: string[];
+  }[];
+  node_provenance: Record<string, string[]>;  // node id -> source document ids
+}
+```
+
 **Exit**:
-- Running the CLI against a small test corpus (fixture, ~20 documents) produces a valid `graph.json`.
-- `graph.json` schema is documented in `packages/corpus-builder/GRAPH_FORMAT.md`. As an internal format that never crosses the client boundary, it is versioned less strictly than the client-facing schema in Section 3.
-- Re-running the build with identical input produces byte-identical output (determinism extends to build-time, not just runtime).
+- Running the CLI against a small test corpus (fixture, ~20 documents) produces a valid `graph.json`, and every node in it has non-empty `source_refs` resolving to real documents in that fixture corpus.
+- `graph.json` schema, `source_refs`, and `BuildTrace` are documented in `packages/corpus-builder/GRAPH_FORMAT.md`. As internal formats that never cross the client boundary, they are versioned less strictly than the client-facing schema in Section 3.
+- Re-running the build with identical input produces byte-identical output — `graph.json` and, when `--trace` is set, `build-trace.json` too (determinism extends to build-time transparency artifacts, not just the graph).
+- `corpus-builder inspect --node <id>` and `corpus-builder inspect --trace` both run against the fixture without error.
 
 ### 6.4 Phase 3 — Rule Engine
 
@@ -512,11 +565,13 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 - A ruleset fixture with two `override`-mode layers producing contradictory hard decisions does NOT throw — it resolves via declaration order and logs a warning (INV-4 conformance test).
 - Null-ruleset case (empty `layers: []`) produces pure nearest-neighbor drift with no errors (the "ambiguous relativistic traversal" default is exercised as a real, tested code path, not assumed).
 
-### 6.5 Phase 4 — Server + Conformance Fixtures
+### 6.5 Phase 4 — Server + Terminal Client + Conformance Fixtures
 
 **Entry**: Phase 3 complete.
 
-**Build**: `packages/server/src/` — implements the wire protocol (5.1) exactly. Session management (in-memory acceptable for alpha; persistence is a post-alpha concern, flagged in Section 7). Calls `rule-engine` for all resolution; server itself contains no rule logic.
+**Build**: `packages/server/src/` — implements the REST API (5.1) exactly. Session management (in-memory acceptable for alpha; persistence is a post-alpha concern, flagged in Section 7). Calls `rule-engine` for all resolution; server itself contains no rule logic. Wires in the Section 2.1 `Logger` and `Metrics` interfaces and the debug-flag gate for `GET /debug/trace`.
+
+Also build `packages/client-cli/src/` per 5.4 — the terminal reference client. It is the cheapest way to exercise a live server manually, the display surface for the `Logger`/`Metrics` interfaces just wired into the server, and the first adapter validated against the fixtures below, ahead of Phase 5's graphical client.
 
 Simultaneously populate `fixtures/`:
 - `fixtures/rooms/*.json` — a set of ~10 hand-curated `ResolvedRoomResponse` payloads spanning archetype variety (at minimum: one `container` with 5+ objects, one near-empty room, one with all-soft-weighted population, one exercising `portal` archetype)
@@ -526,6 +581,8 @@ Simultaneously populate `fixtures/`:
 - All Section 5.1 endpoints respond with schema-valid payloads (validated against Phase 1 types).
 - `fixtures/` populated and referenced by an automated test that round-trips each fixture ruleset through the server and asserts the response validates against `ResolvedRoomResponse`.
 - This fixture set is what Section 5.3 conformance depends on — it must be genuinely engine-agnostic (no Three.js-specific assumptions baked into fixture content).
+- `packages/client-cli` renders all `fixtures/rooms/*.json` without error (5.3 conformance, exercised here first) and can drive a live server session end-to-end through its REPL, including a `--verbosity=debug` run that prints `DebugTrace` output when server debug mode is on.
+- No file in `packages/client-cli/src/` imports anything from `packages/rule-engine` or `packages/corpus-builder`, enforced by an ESLint import-boundary rule so `INV-3` holds from the first client built, not just the graphical one.
 
 ### 6.6 Phase 5 — Three.js Reference Client
 
@@ -535,8 +592,8 @@ Simultaneously populate `fixtures/`:
 
 **Exit**:
 - Running the client against the Phase 4 server, a player can: see a rendered room, click an object with an `enter`/`traverse` affordance, and observe a room transition (new objects render, matching a fresh `ResolvedRoomResponse`).
-- Client renders all fixtures from `fixtures/rooms/*.json` without error when pointed at them directly (server bypassed) — this is the conformance check from 5.3, exercised for the reference adapter itself first.
-- No file in `packages/client-threejs/src/` imports anything from `packages/rule-engine` or `packages/corpus-builder`, enforced by an ESLint import-boundary rule (not just convention) so `INV-3` holds permanently, independent of contributor awareness of this spec.
+- Client renders all fixtures from `fixtures/rooms/*.json` without error when pointed at them directly (server bypassed) — this is the conformance check from 5.3, already exercised once by `client-cli` in Phase 4 (6.5) and repeated here for the graphical adapter.
+- No file in `packages/client-threejs/src/` imports anything from `packages/rule-engine` or `packages/corpus-builder`, enforced by the same ESLint import-boundary rule introduced for `packages/client-cli` in Phase 4 (6.5) — so `INV-3` holds permanently across both reference adapters, independent of contributor awareness of this spec.
 
 ### 6.7 Phase 6 — Production Alpha Hardening
 
@@ -587,6 +644,8 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 | Zero-radius query | Room population (4.4), using the identical solver as movement with radius bounded to the room itself. |
 | Resolved (as in "Resolved Room Response") | Fully computed server-side; client performs no further filtering/sampling logic. |
 | Conformance fixtures | The fixed JSON dataset (6.5) any adapter must render correctly to claim schema compatibility. |
+| Adapter | Any frontend implementing the REST API (5.1). `client-threejs` and `client-cli` are the two this spec builds and holds to conformance (5.3); neither is privileged over a third-party adapter built the same way. |
+| Terminal reference client | The `client-cli` adapter (5.4): a REPL testing interface with no rendering dependency, built in Phase 4 ahead of the graphical client, display surface for the Logger/Metrics supporting systems (2.1). |
 | Structured tag | A `semantic_tags` entry conforming to the grammar in Section 3.6: `[modifier,]segment[:segment...][=value]`. |
 | Modifier registry | Author-configurable mapping of modifier names to behavior config. The engine provides the mechanism; authors define the entries (3.6.1). |
 | Tag registry | Keys-only nested tree of valid tag segment paths, produced by the corpus-builder as a vocabulary contract (3.6.2). |
