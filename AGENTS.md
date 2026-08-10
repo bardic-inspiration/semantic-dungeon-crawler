@@ -117,11 +117,15 @@ The live status of each phase and its issues is in [`docs/roadmap.md`](docs/road
 
 - **npm workspaces** — package manager and monorepo linking.
 - **Vitest** — test runner. Determinism tests (`INV-2`) and the
-  `evaluate_layers` function-identity test (SPEC §4.4) are required where the
+  `evaluateLayers` function-identity test (SPEC §4.4) are required where the
   phase calls for them.
 - **ESLint + Prettier** — lint and format. The `INV-3` import-boundary rule is a
   real ESLint rule (Phase 5, SPEC §6.6), not a convention.
 - **`tsc --noEmit`** — typecheck across packages.
+- **Naming** — [`docs/naming-conventions.md`](docs/naming-conventions.md) is
+  authoritative for identifier, file, package, and wire-field casing. SPEC.md
+  pseudocode function names (`resolveMove`, `evaluateLayers`) are literal
+  required identifiers, not illustrative — implement them verbatim.
 
 ## 7. When in doubt
 

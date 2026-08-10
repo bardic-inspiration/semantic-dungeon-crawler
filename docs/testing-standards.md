@@ -18,7 +18,7 @@ makes it pass.
   `src/foo.ts` → `src/foo.test.ts`, or under a package-local `test/` directory —
   be consistent within a package.
 - Use descriptive test names that state the behavior
-  (`resolve_move returns nearest-neighbor drift when layers is empty`).
+  (`resolveMove returns nearest-neighbor drift when layers is empty`).
 - **Fixtures live in `fixtures/`** (SPEC §6.5) and are engine-agnostic — no
   Three.js-specific assumptions. Provide a **minimal**, a **typical**, and a
   **maxed-out** fixture for each surface to exercise edge cases.
@@ -28,12 +28,12 @@ makes it pass.
 - **Schema validation** (Phase 1): required/optional fields, type guards, that
   `fixtures/entity.example.json` validates against `Entity` (SPEC §6.2 Exit).
 - **Determinism** (`INV-2`, SPEC §4.5): given identical
-  `(graph.json, ruleset.dsl, session_seed, input-log)`, `resolve_move` and
+  `(graph.json, ruleset.dsl, session_seed, input-log)`, `resolveMove` and
   `populate` produce **byte-identical** output across independent runs. Sampling
   uses a seeded PRNG derived from `(session_seed, turn_count)` — never wall-clock
   or unseeded randomness.
-- **Function identity** (SPEC §4.4): a test asserts `resolve_move` and `populate`
-  call the *same* `evaluate_layers` reference — not merely equivalent output.
+- **Function identity** (SPEC §4.4): a test asserts `resolveMove` and `populate`
+  call the *same* `evaluateLayers` reference — not merely equivalent output.
 - **`INV-4` conformance** (SPEC §4.3): two `override`-mode layers with
   contradictory hard decisions **do not throw** — resolution is by declaration
   order with a logged warning. The null-ruleset case (`layers: []`) produces pure

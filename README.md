@@ -61,8 +61,9 @@ the first delegated task creates.
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for branch/commit conventions and the
-TDD workflow, and [`docs/`](docs/) for testing, commit, documentation, and spec
-standards. All work is test-first, atomic, and Conventional-Commits formatted.
+TDD workflow, and [`docs/`](docs/) for testing, commit, documentation, naming,
+and spec standards. All work is test-first, atomic, and Conventional-Commits
+formatted.
 
 ## License
 

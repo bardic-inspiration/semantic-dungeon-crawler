@@ -41,7 +41,7 @@ phase's last issue).
 - **Phase 1:** All SPEC §3 interfaces exist verbatim; `CHANGELOG.md` has a `0.1.0`
   entry; `fixtures/entity.example.json` type-checks against `Entity`.
 - **Phases 2–6:** see SPEC §6.3–6.7 Exit blocks — including the determinism tests
-  (`INV-2`), the `evaluate_layers` function-identity test (§4.4), and the
+  (`INV-2`), the `evaluateLayers` function-identity test (§4.4), and the
   import-boundary ESLint rule (`INV-3`, §6.6).
 
 ## Scheduled agent wiring

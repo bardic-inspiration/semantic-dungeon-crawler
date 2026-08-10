@@ -31,3 +31,8 @@ Keep docs truthful and in sync with behavior. Documentation drift is a defect.
 - Use fenced code blocks for commands and payloads.
 - Reference invariants by name (`INV-3`) and spec sections (`SPEC §5.2`) so
   readers can trace claims back to the source of truth.
+- Naming — of code identifiers, files, packages, or wire fields — follows
+  [`docs/naming-conventions.md`](naming-conventions.md). When the same
+  function or field is named in more than one doc (e.g. `resolveMove` in
+  `SPEC.md`, `AGENTS.md`, and `docs/testing-standards.md`), every mention must
+  use the identical spelling; update all of them in the same PR.
