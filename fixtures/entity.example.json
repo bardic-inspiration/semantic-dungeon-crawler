@@ -1,0 +1,11 @@
+{
+  "id": "node-000",
+  "archetype": "container",
+  "semantic_tags": ["financial-abstract", "quarterly-report"],
+  "embedding_ref": "vec:graph#000",
+  "affordances": ["enter", "traverse", "inspect"],
+  "salience": 0.8,
+  "contains": ["node-001", "node-002"],
+  "layout_hint": { "scale": "large", "density": 0.6, "shape_bias": "radial" },
+  "state": { "coherence": 0.9, "visited": false }
+}
