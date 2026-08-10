@@ -16,9 +16,12 @@ The project is an **authoring engine for semantic-space games** (SPEC §1) — a
 engine, not a single game. It ships two deliverables:
 
 - A **deterministic, headless backend**: corpus → embedding → graph → rule solver
-  → resolved JSON (SPEC §2).
-- A **Three.js reference client** that renders the resolved JSON and nothing else
-  (SPEC §5).
+  → resolved JSON, exposed over a REST API any frontend can be built against
+  (SPEC §2, §5.1).
+- A **Three.js reference client** — the first of potentially several graphical
+  adapters — that renders the resolved JSON and nothing else, plus a **terminal
+  reference client** (`client-cli`) for testing without a frontend at all
+  (SPEC §5.2, §5.4).
 
 The default zero-rules behavior is **relativistic drift** (nearest-neighbor
 movement in embedding space) — a valid mode, not a fallback.

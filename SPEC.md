@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.4.0`
+`spec-version: 0.5.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -28,8 +28,8 @@ The engine takes a text corpus, embeds it, and builds a weighted graph where nod
 
 The engine ships two things:
 
-1. **A backend** that owns the corpus, graph, embeddings, and rule evaluation, and exposes a small HTTP/WS contract.
-2. **A reference Three.js client** that renders whatever the backend sends, and nothing else.
+1. **A backend** that owns the corpus, graph, embeddings, and rule evaluation, and exposes a REST API (Section 5.1) any frontend can be built against.
+2. **A reference Three.js client** — the first of potentially several graphical frontends — that renders whatever the backend sends, and nothing else.
 
 The default behavior with zero authored rules is **relativistic drift**: the player moves to nearest-neighbor nodes in embedding space with no imposed structure. This is a valid, deliberate mode, not a fallback. All authored structure (Section 4) is opt-in refinement layered on top of this default.
 
@@ -60,11 +60,11 @@ The default behavior with zero authored rules is **relativistic drift**: the pla
 │         Resolved Entity Tree (Section 3 schema)                  │
 └─────────────────────────────────────────────────────────────────┘
                                     │
-                          HTTP/WS contract (Section 5.1)
+                              REST API (Section 5.1)
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  CLIENT (swappable, engine-specific — Three.js is the reference) │
+│  CLIENT (swappable — Three.js ships first, others build on 5.1)  │
 │                                                                   │
 │   Resolved JSON ──▶ ECS sync ──▶ Mesh resolution ──▶ Scene       │
 │                                                          │        │
@@ -80,10 +80,10 @@ The default behavior with zero authored rules is **relativistic drift**: the pla
 |---|---|---|
 | Build-time pipeline | `packages/corpus-builder` | Embedding, clustering, graph construction, tagging |
 | Rule DSL + solver | `packages/rule-engine` | Parser, layered constraint evaluator, DSL grammar |
-| Runtime backend | `packages/server` | HTTP/WS contract, session state, calls rule-engine |
+| Runtime backend | `packages/server` | REST API (5.1), session state, calls rule-engine |
 | Shared contract | `packages/schema` | TypeScript types for Entity Schema, imported by server AND client |
-| Three.js reference client | `packages/client-threejs` | ECS, mesh resolution, interaction capture |
-| Terminal reference client | `packages/client-cli` | REPL wire-protocol driver — text rendering, scripted input-log replay, testing/debug interface |
+| Three.js reference client | `packages/client-threejs` | First graphical reference adapter — ECS, mesh resolution, interaction capture |
+| Terminal reference client | `packages/client-cli` | REPL adapter against the same REST API — text rendering, scripted input-log replay, testing/debug interface |
 | Authoring tool | `packages/rule-editor` | Visual flowchart UI, compiles to DSL text |
 
 ### 2.1 Supporting Systems (Developer Toolkit)
@@ -218,6 +218,7 @@ type ScopeCondition = string;  // DSL expression evaluated once per move to dete
 - Adding a new `Archetype` or `Affordance` string literal is a MINOR bump (additive, non-breaking — the open-string extension points in 3.1 exist specifically so this doesn't require a schema restructure).
 - Adding or removing a modifier entry in an author's ruleset config requires no engine version bump — modifier entries are author content. Changing the modifier registry *mechanism* (how the engine parses or dispatches modifiers) is a MAJOR bump.
 - Renaming/removing any field in `Entity`, `ResolvedRoomResponse`, or `Ruleset` is a MAJOR bump.
+- Adding a REST endpoint (Section 5.1) is a MINOR bump; changing an existing endpoint's method, path, or response shape — or the base contract (headers, error envelope) — is a MAJOR bump, the same rule as a schema field change. This is what lets a third-party adapter (5.3) trust a MINOR version bump to be safe to ignore.
 - `packages/schema/CHANGELOG.md` is mandatory reading before any schema edit in Phase 2+. A coding agent modifying `packages/schema/src/*` MUST append a changelog entry in the same commit.
 - Conformance fixtures (Section 6.5) MUST be re-validated against any schema change before the change is considered complete.
 
@@ -398,20 +399,38 @@ Enabled via server config flag, never a client-supplied parameter (a client shou
 
 ---
 
-## 5. Client Contract (Three.js Reference Adapter)
+## 5. Adapter Contract (REST API + Reference Adapters)
 
-### 5.1 Wire Protocol
+The REST API (5.1) is the actual product surface — `INV-3` exists precisely so that every frontend, including this spec's own reference adapters, is just an HTTP client against it, with no privileged access to the engine internals. `client-threejs` (5.2) ships first because a 3D reference is the most convincing demo, but it is the *first* graphical adapter, not the only valid one: Unity, Godot, a 2D canvas, a VR shell, or anything else can be built against 5.1 with zero engine-side changes — exactly like `client-cli` (5.4), the terminal adapter, already is. Section 5.3 is what makes a third party's compatibility claim checkable without this project's involvement.
+
+### 5.1 REST API
+
+Normative for any adapter, not just the two reference ones (5.2, 5.4).
+
+**Base contract**:
+- JSON over HTTP; `Content-Type: application/json` on every request and response body.
+- Every response carries an `X-Spec-Version` header echoing the running `spec_version` (SPEC header, Section 3.5) — not a body field, so it doesn't touch the schemas in Section 3. An adapter MAY refuse to render a response whose major version it doesn't understand; the engine does not enforce this, adapters do.
+- Errors use one envelope regardless of endpoint: `{ error: { code: string, message: string } }`. No error body ever includes ruleset text, graph data, or a stack trace — `INV-3` applies to error paths, not just the happy path.
+- Status codes: `200` success, `204` no content (session deletion), `400` malformed request body, `404` unknown session/route or a disabled debug/metrics endpoint, `500` internal error (message only, via the envelope above).
+- Versioning: adding an endpoint is a MINOR bump; changing an existing endpoint's method, path, or response shape, or changing the base contract itself, is MAJOR (Section 3.5).
+
+**Endpoints**:
 
 ```
-GET  /room/current?session_id={id}          → ResolvedRoomResponse
-POST /interact                                → InteractRequest body → InteractResponse
-GET  /session/new?seed={optional}             → { session_id, seed }
-GET  /debug/trace?session_id={id}             → DebugTrace  (only if server debug mode on, else 404)
+GET    /session/new?seed={optional}           → { session_id, seed }
+GET    /room/current?session_id={id}          → ResolvedRoomResponse
+POST   /interact                               → InteractRequest body → InteractResponse
+DELETE /session/{session_id}                   → 204, frees in-memory session state; idempotent
+GET    /debug/trace?session_id={id}            → DebugTrace  (only if server debug mode on, else 404)
+GET    /health                                 → { status: "ok" }, liveness/readiness for deployment (6.7)
+GET    /metrics                                → { counters, gauges } snapshot from the 2.1 Metrics interface, or 404 if metrics disabled
 ```
+
+Session lifecycle: `GET /session/new` creates a session; `GET /room/current` and `POST /interact` operate on an existing one; `DELETE /session/{id}` explicitly tears one down (deleting an already-deleted or unknown session still returns `204`, not `404` — deletion is idempotent by design). Sessions are in-memory only (6.5) — nothing here is persistence, and a server restart drops all sessions, which is expected for alpha (Section 7).
 
 No websocket requirement for v0 — turn-based interaction tolerates request/response latency. This is a deliberate scope cut, not an oversight; revisit only if the alpha's interaction pacing demands it (Section 7, open question).
 
-### 5.2 ECS Mapping (Three.js adapter internal structure)
+### 5.2 ECS Mapping (Three.js Adapter — First Graphical Reference)
 
 Any coding agent building `packages/client-threejs` should structure it as a minimal hand-rolled ECS. The reference adapter has no external ECS library dependency — setup cost isn't justified until scene complexity demands it; a fork is free to graduate to a real ECS library:
 
@@ -428,11 +447,11 @@ Any coding agent building `packages/client-threejs` should structure it as a min
 
 ### 5.3 Conformance
 
-A conformance suite of fixed `ResolvedRoomResponse` JSON fixtures (Section 6.5) must render without error in the reference adapter. Any third-party adapter (Godot, Unity, future forks) claiming schema compatibility should be checkable against the same fixture set without needing this spec's author involved — this is what makes a plugin ecosystem of independent integrations viable, rather than one this project must own.
+A conformance suite of fixed `ResolvedRoomResponse` JSON fixtures (Section 6.5) must render without error in a reference adapter. Any third-party adapter (Godot, Unity, future forks) implementing 5.1 and claiming schema compatibility should be checkable against the same fixture set without needing this spec's author involved — this is what makes a plugin ecosystem of independent frontends viable, rather than one this project must own. `client-threejs` and `client-cli` are the two adapters this spec builds and holds to that bar itself; nothing about 5.1 assumes either of them exists.
 
 ### 5.4 Terminal Reference Client (Testing Interface)
 
-The simplest possible adapter: a REPL that speaks the wire protocol (5.1) over stdin/stdout, nothing else. It exists so the engine is fully usable and testable without any graphical frontend — where `client-threejs` is the reference adapter for players, `client-cli` is the reference adapter for authors, testers, and CI.
+The simplest possible adapter: a REPL that speaks the REST API (5.1) over stdin/stdout, nothing else. It exists so the engine is fully usable and testable without any graphical frontend — where `client-threejs` is a reference adapter for players, `client-cli` is a reference adapter for authors, testers, and CI.
 
 **Behavior**: `GET /session/new` on start → print the room (id, archetype, salience-ordered objects with affordances, exits) → read a line (`<object_id> <affordance>`) → `POST /interact` → print `new_room`, repeat. It also accepts a scripted input-log file (one action per line) for headless replay — the same input-log shape `INV-2` determinism already requires, so a recorded session can be replayed and diffed byte-for-byte with no one at the keyboard.
 
@@ -529,7 +548,7 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 
 **Entry**: Phase 3 complete.
 
-**Build**: `packages/server/src/` — implements the wire protocol (5.1) exactly. Session management (in-memory acceptable for alpha; persistence is a post-alpha concern, flagged in Section 7). Calls `rule-engine` for all resolution; server itself contains no rule logic. Wires in the Section 2.1 `Logger` and `Metrics` interfaces and the debug-flag gate for `GET /debug/trace`.
+**Build**: `packages/server/src/` — implements the REST API (5.1) exactly. Session management (in-memory acceptable for alpha; persistence is a post-alpha concern, flagged in Section 7). Calls `rule-engine` for all resolution; server itself contains no rule logic. Wires in the Section 2.1 `Logger` and `Metrics` interfaces and the debug-flag gate for `GET /debug/trace`.
 
 Also build `packages/client-cli/src/` per 5.4 — the terminal reference client. It is the cheapest way to exercise a live server manually, the display surface for the `Logger`/`Metrics` interfaces just wired into the server, and the first adapter validated against the fixtures below, ahead of Phase 5's graphical client.
 
@@ -604,6 +623,7 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 | Zero-radius query | Room population (4.4), using the identical solver as movement with radius bounded to the room itself. |
 | Resolved (as in "Resolved Room Response") | Fully computed server-side; client performs no further filtering/sampling logic. |
 | Conformance fixtures | The fixed JSON dataset (6.5) any adapter must render correctly to claim schema compatibility. |
+| Adapter | Any frontend implementing the REST API (5.1). `client-threejs` and `client-cli` are the two this spec builds and holds to conformance (5.3); neither is privileged over a third-party adapter built the same way. |
 | Terminal reference client | The `client-cli` adapter (5.4): a REPL testing interface with no rendering dependency, built in Phase 4 ahead of the graphical client, display surface for the Logger/Metrics supporting systems (2.1). |
 | Structured tag | A `semantic_tags` entry conforming to the grammar in Section 3.6: `[modifier,]segment[:segment...][=value]`. |
 | Modifier registry | Author-configurable mapping of modifier names to behavior config. The engine provides the mechanism; authors define the entries (3.6.1). |
