@@ -18,11 +18,10 @@ predicates), the client (mesh resolution), and debug tooling — but the spec
 provides no grammar, no vocabulary contract, and no way to query tags beyond
 exact string matching (`CONTAINS`).
 
-Tags are token addresses that can be read in volume to create rich slices of
-precedent for procedural generation. A flat, unstructured string array limits
-this: authors cannot write rules that match categories of tags, the pipeline
-cannot distinguish rendering hints from semantic identity, and there is no
-shared vocabulary between the corpus-builder (producer) and its consumers.
+A flat, unstructured string array limits what tags can express: authors
+cannot write rules that match categories of tags, the pipeline cannot
+distinguish rendering hints from semantic identity, and there is no shared
+vocabulary between the corpus-builder (producer) and its consumers.
 
 ## 2. Source: dnd-hirelings tag system
 
@@ -386,10 +385,13 @@ The auto-tagger's responsibilities:
 Authors who want to pre-define categories can provide a seed registry that the
 pipeline merges with its discovered categories.
 
-## 5. Example configurations
+## 5. Example configuration
 
-These illustrate how different game domains would configure the tag system.
-They are not engine defaults — they are author content.
+This illustrates how a game domain would configure the tag system. It is not
+an engine default — it is author content, and the same pattern (modifiers +
+seed registry) applies equally to other domains, e.g. a sci-fi exploration
+corpus (`scan,radiation=4.2`, `structure:wreck`) or a literary corpus
+(`theme:mortality:decay`, `tone,mood:melancholic`).
 
 ### 5.1 Fantasy dungeon crawler
 
@@ -425,62 +427,6 @@ theme:
 
 Example tags: `environment:terrain:cave`, `viz,lighting:dim=0.3`,
 `creature:hostile:undead`, `lore,origin:ancient-empire`.
-
-### 5.2 Sci-fi exploration
-
-```yaml
-modifiers:
-  scan:
-    description: "Sensor-detectable properties"
-  hazard:
-    description: "Environmental hazards"
-
-environment:
-  biome:
-    desert:
-    ocean:
-    volcanic:
-  gravity:
-  radiation:
-structure:
-  station:
-  wreck:
-  colony:
-tech-level:
-  primitive:
-  advanced:
-  alien:
-```
-
-Example tags: `environment:biome:volcanic`, `scan,radiation=4.2`,
-`hazard,atmosphere:toxic`, `structure:wreck`.
-
-### 5.3 Literary/abstract corpus
-
-```yaml
-modifiers:
-  tone:
-    description: "Narrative tone markers"
-  ref:
-    description: "Intertextual references"
-
-theme:
-  mortality:
-  power:
-  identity:
-  isolation:
-style:
-  dense:
-  sparse:
-  lyrical:
-period:
-  modernist:
-  victorian:
-  contemporary:
-```
-
-Example tags: `theme:mortality:decay`, `tone,mood:melancholic`,
-`ref,author:kafka`, `style:dense`, `period:modernist`.
 
 ## 6. Conformance implications
 
@@ -549,6 +495,6 @@ without any of it.
 ### 7.4 Typed per-node schema
 
 Registry nodes declare a value type (`enum`, `string`, `number`, `none`).
-Deferred: the most machinery to build for expressiveness no current feature
-needs. Compatible as a future sidecar annotation — a schema layer could
-later annotate the same keys-only tree from a separate file.
+Deferred: this is more machinery than any current feature needs. It remains
+compatible as a future sidecar annotation — a schema layer could later
+annotate the same keys-only tree from a separate file.

@@ -31,7 +31,7 @@ The engine ships two things:
 1. **A backend** that owns the corpus, graph, embeddings, and rule evaluation, and exposes a small HTTP/WS contract.
 2. **A reference Three.js client** that renders whatever the backend sends, and nothing else.
 
-The default behavior with zero authored rules is **relativistic drift**: the player moves to nearest-neighbor nodes in embedding space with no imposed structure. This is considered a valid, "pure" mode, not a fallback to be ashamed of. All authored structure (Section 4) is opt-in refinement layered on top of this default.
+The default behavior with zero authored rules is **relativistic drift**: the player moves to nearest-neighbor nodes in embedding space with no imposed structure. This is a valid, deliberate mode, not a fallback. All authored structure (Section 4) is opt-in refinement layered on top of this default.
 
 ---
 
@@ -93,7 +93,7 @@ These are the literal contracts. Implementations must match field names and type
 
 ### 3.1 Entity Schema
 
-The unified representation for both "rooms" and "objects" — there is no structural distinction between them (see design rationale in conversation history; a room is an entity whose `archetype` implies containment).
+The unified representation for both "rooms" and "objects" — there is no structural distinction between them. A room is simply an entity whose `archetype` implies containment.
 
 ```typescript
 // packages/schema/src/entity.ts
@@ -195,7 +195,7 @@ interface RuleBlock {
 type Effect =
   | { kind: "hard_allow" }
   | { kind: "hard_forbid" }
-  | { kind: "soft_reweight"; factor: number };   // multiplicative, applied once per move-decision (confirmed discrete, not continuous)
+  | { kind: "soft_reweight"; factor: number };   // multiplicative, applied once per move-decision (discrete, not continuous)
 
 type ScopeCondition = string;  // DSL expression evaluated once per move to determine layer activation
 ```
@@ -344,10 +344,10 @@ The DSL is intentionally small. It is NOT Turing-complete by design — no loops
 
 Given `layer.mode`:
 
-1. Layers with explicit `{priority: N}` sort by N descending (higher priority evaluated first, per author confirmation that override should be author-controlled, not engine-assumed).
+1. Layers with explicit `{priority: N}` sort by N descending (higher priority evaluated first) — override order is author-controlled, not engine-assumed.
 2. Among layers without explicit priority: `override` layers are inserted immediately above the layer they were scoped under (locally-scoped overrides beat their enclosing global layer); `yield` layers are inserted at the bottom of the stack, only applying if no decision has been made.
-3. **First hard decision (`hard_allow` or `hard_forbid`) encountered while walking the ordered stack top-to-bottom wins and is not overridden by lower layers**, EXCEPT that a lower layer explicitly declared `override` re-opens the decision (this is the intentional "messy is allowed" escape hatch — two `override` layers disagreeing produce declaration-order-wins with a warning logged, never an error).
-4. All `soft_reweight` effects from every layer are collected and multiplied together regardless of hard-decision locking — soft effects always stack (per author confirmation, soft nudges are never cancelled by hard decisions elsewhere).
+3. **First hard decision (`hard_allow` or `hard_forbid`) encountered while walking the ordered stack top-to-bottom wins and is not overridden by lower layers**, EXCEPT that a lower layer explicitly declared `override` re-opens the decision. This is the intentional "messy is allowed" escape hatch: two `override` layers disagreeing resolve by declaration order, with a warning logged, never an error.
+4. All `soft_reweight` effects from every layer are collected and multiplied together regardless of hard-decision locking — soft effects always stack and are never cancelled by hard decisions elsewhere.
 
 ### 4.4 Room Population as Zero-Radius Query
 
@@ -397,11 +397,11 @@ GET  /session/new?seed={optional}             → { session_id, seed }
 GET  /debug/trace?session_id={id}             → DebugTrace  (only if server debug mode on, else 404)
 ```
 
-No websocket requirement for v0 — turn-based interaction tolerates request/response latency per the architecture discussion; this is an explicit scope cut, not an oversight. Revisit only if the alpha's interaction pacing demands it (Section 7, open question).
+No websocket requirement for v0 — turn-based interaction tolerates request/response latency. This is a deliberate scope cut, not an oversight; revisit only if the alpha's interaction pacing demands it (Section 7, open question).
 
 ### 5.2 ECS Mapping (Three.js adapter internal structure)
 
-Any coding agent building `packages/client-threejs` should structure it as a minimal hand-rolled ECS (no external ECS library dependency in the reference adapter — see rationale: setup cost isn't justified until scene complexity demands it; a fork is free to graduate to a real ECS library):
+Any coding agent building `packages/client-threejs` should structure it as a minimal hand-rolled ECS. The reference adapter has no external ECS library dependency — setup cost isn't justified until scene complexity demands it; a fork is free to graduate to a real ECS library:
 
 | Concept | Implementation |
 |---|---|
@@ -416,7 +416,7 @@ Any coding agent building `packages/client-threejs` should structure it as a min
 
 ### 5.3 Conformance
 
-A conformance suite of fixed `ResolvedRoomResponse` JSON fixtures (Section 6.5) must render without error in the reference adapter. Any third-party adapter (Godot, Unity, future forks) claiming schema compatibility should be checkable against the same fixture set without needing this spec's author involved — this is what makes the "plugin ecosystem, not owned integrations" model (per design discussion) actually work in practice rather than remaining aspirational.
+A conformance suite of fixed `ResolvedRoomResponse` JSON fixtures (Section 6.5) must render without error in the reference adapter. Any third-party adapter (Godot, Unity, future forks) claiming schema compatibility should be checkable against the same fixture set without needing this spec's author involved — this is what makes a plugin ecosystem of independent integrations viable, rather than one this project must own.
 
 ---
 
@@ -482,7 +482,7 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 
 **Exit**:
 - Running the CLI against a small test corpus (fixture, ~20 documents) produces a valid `graph.json`.
-- `graph.json` schema is documented in `packages/corpus-builder/GRAPH_FORMAT.md` (internal format, distinct from and not bound by the same versioning strictness as the client-facing schema in Section 3, since it never crosses the client boundary).
+- `graph.json` schema is documented in `packages/corpus-builder/GRAPH_FORMAT.md`. As an internal format that never crosses the client boundary, it is versioned less strictly than the client-facing schema in Section 3.
 - Re-running the build with identical input produces byte-identical output (determinism extends to build-time, not just runtime).
 
 ### 6.4 Phase 3 — Rule Engine
@@ -525,7 +525,7 @@ Simultaneously populate `fixtures/`:
 **Exit**:
 - Running the client against the Phase 4 server, a player can: see a rendered room, click an object with an `enter`/`traverse` affordance, and observe a room transition (new objects render, matching a fresh `ResolvedRoomResponse`).
 - Client renders all fixtures from `fixtures/rooms/*.json` without error when pointed at them directly (server bypassed) — this is the conformance check from 5.3, exercised for the reference adapter itself first.
-- No file in `packages/client-threejs/src/` imports anything from `packages/rule-engine` or `packages/corpus-builder` (mechanically checkable via import-boundary lint rule — add this as an actual ESLint rule, not just a convention, since INV-3 depends on it holding permanently, including after this alpha, under future contributors who haven't read this spec).
+- No file in `packages/client-threejs/src/` imports anything from `packages/rule-engine` or `packages/corpus-builder`, enforced by an ESLint import-boundary rule (not just convention) so `INV-3` holds permanently, independent of contributor awareness of this spec.
 
 ### 6.7 Phase 6 — Production Alpha Hardening
 
@@ -548,7 +548,7 @@ Listed here so a coding agent doesn't accidentally scope-creep into these during
 - Ruleset marketplace / sharing infrastructure
 - Persistent session storage, auth, multiplayer
 - WebSocket upgrade for the wire protocol
-- Batch-run tooling for "emergent rules from test-run analysis" workflow (mentioned in design discussion as a future authoring aid — requires Phase 4's server plus a harness that runs many null-ruleset sessions and clusters resulting traces; not required for alpha)
+- Batch-run tooling for an "emergent rules from test-run analysis" workflow — a future authoring aid requiring Phase 4's server plus a harness that runs many null-ruleset sessions and clusters resulting traces; not required for alpha
 
 ---
 
