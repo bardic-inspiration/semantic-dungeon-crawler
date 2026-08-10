@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Build specification (SPEC.md)
+    url: https://github.com/bardic-inspiration/semantic-dungeon-crawler/blob/main/SPEC.md
+    about: The authoritative source of truth for engine behavior. Read the relevant section before filing.
+  - name: Roadmap & build process
+    url: https://github.com/bardic-inspiration/semantic-dungeon-crawler/blob/main/docs/roadmap.md
+    about: How phases map to issues and how the hands-off agentic build runs.

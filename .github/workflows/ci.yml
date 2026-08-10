@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Guarded so CI is green on the process-only baseline (no package.json yet) and
+  # self-activates once the Phase 0 scaffold lands. Once package.json exists, the
+  # lint/typecheck/test steps run for real; until then the job is a passing no-op.
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect workspace scaffold
+        id: scaffold
+        shell: bash
+        run: |
+          if [ -f package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No package.json yet — Phase 0 scaffold not merged; skipping build steps."
+          fi
+
+      - name: Set up Node
+        if: steps.scaffold.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install
+        if: steps.scaffold.outputs.present == 'true'
+        run: npm ci
+
+      - name: Lint
+        if: steps.scaffold.outputs.present == 'true'
+        run: npm run lint
+
+      - name: Typecheck
+        if: steps.scaffold.outputs.present == 'true'
+        run: npm run typecheck
+
+      - name: Test
+        if: steps.scaffold.outputs.present == 'true'
+        run: npm test
