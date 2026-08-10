@@ -22,9 +22,9 @@ agents execute one at a time.
 
 | Phase | Deliverable | SPEC | Status |
 |---|---|---|---|
-| 0 | Repository scaffold — npm workspaces, `tsconfig.base.json`, empty `packages/*` | §6.1 | **active** |
-| 1 | `packages/schema` — entity/protocol/ruleset types, CHANGELOG 0.1.0, example fixture | §6.2 | queued |
-| 2 | `packages/corpus-builder` — build-time pipeline → `graph.json` | §6.3 | not started |
+| 0 | Repository scaffold — npm workspaces, `tsconfig.base.json`, empty `packages/*` | §6.1 | done (#1) |
+| 1 | `packages/schema` — entity/protocol/ruleset types, CHANGELOG 0.1.0, example fixture | §6.2 | done (#2) |
+| 2 | `packages/corpus-builder` — build-time pipeline → `graph.json` | §6.3 | **active** |
 | 3 | `packages/rule-engine` — parser, solver, layer resolution, debug trace | §6.4 | not started |
 | 4 | `packages/server` + conformance fixtures | §6.5 | not started |
 | 5 | `packages/client-threejs` — Three.js reference renderer | §6.6 | not started |
