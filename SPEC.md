@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.6.1`
+`spec-version: 0.7.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -520,6 +520,7 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 **Entry**: Phase 1 complete.
 
 **Build**: `packages/corpus-builder/` — CLI tool: `corpus-builder build --input <dir> --output graph.json`.
+- Corpus retrieval step (pluggable — see §6.3.1; resolves a manifest of source documents into raw text before embedding begins)
 - Embedding step (pluggable — spec does not mandate a specific model/provider, but MUST be swappable via config, not hardcoded to one vendor)
 - Clustering step → node formation
 - Edge weight computation (cosine similarity threshold, configurable)
@@ -527,6 +528,79 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 - Provenance: every graph node carries `source_refs: string[]` — the id(s) of the raw corpus document(s) it was built from — so any node is traceable back to input. Documented in `GRAPH_FORMAT.md` alongside the rest of the internal format.
 - Per-stage instrumentation: embedding, clustering, edge-weighting, and tagging each report through the §2.1 `Logger` (start/end, input/output counts, warnings) and `Metrics` (duration, counts) — the same interfaces `server` uses, not a parallel mechanism.
 - Output: `graph.json` — internal-only format, never sent to any client (INV-3), consumed exclusively by `rule-engine`. Also outputs `tag-registry.yaml` — the vocabulary of tag segment paths discovered from the corpus (Section 3.6.2).
+
+#### 6.3.1 Corpus Source Adapters
+
+Corpus retrieval is a pluggable stage ahead of embedding, behind a `CorpusSource`
+interface — the same swappability convention §6.3 already requires of the
+embedding provider:
+
+```typescript
+// packages/corpus-builder/src/sources/types.ts
+interface CorpusSource {
+  resolve(manifest: CorpusManifestEntry[]): Promise<ResolvedDocument[]>;
+}
+
+interface ResolvedDocument {
+  source_id: string;                  // e.g. "gutenberg:11"
+  title: string;
+  raw_text: string;                   // boilerplate-stripped
+  metadata: Record<string, unknown>;  // subjects, authors, etc. — passed through for tagging
+}
+```
+
+**First adapter — Gutendex** (`packages/corpus-builder/src/sources/gutendex.ts`):
+resolves book metadata and plaintext URLs from [Gutendex](https://gutendex.com),
+a free, unauthenticated, community-run JSON API over the Project Gutenberg
+catalog. Plaintext is fetched directly from Project Gutenberg's own file hosts —
+never proxied through Gutendex — and no text is committed to the repo; the
+corpus definition checked into the repo is a small manifest of Gutenberg IDs,
+resolved at build time. This keeps the repo small and holds `INV-1`/`INV-2`:
+corpus retrieval is fully decoupled from the deterministic runtime, which only
+ever consumes the resulting `graph.json`.
+
+- Metadata resolution: `GET https://gutendex.com/books?ids=<comma-separated>`.
+- Plaintext fetch: each book's `formats["text/plain; charset=utf-8"]` URL
+  (fallback: nearest key matching `/^text\/plain/`).
+- Boilerplate stripping: Project Gutenberg's standard
+  `*** START OF ... ***` / `*** END OF ... ***` markers.
+- Local build-time cache of fetched text (gitignored, e.g. `.cache/corpus/`) so
+  repeated builds against the same manifest make no network calls.
+- **Reliability caveat**: Gutendex is a community-run, best-effort service
+  (recent measurements show roughly 50% error rate, ~4.5s avg response time).
+  This is acceptable for a build-time, cacheable, retryable step and is **not**
+  acceptable in the runtime request/response loop — `packages/server` and the
+  client packages MUST NOT reference Gutendex or Gutenberg file hosts, directly
+  or transitively. `corpus-builder` is the only caller.
+
+**Manifest schema** (`corpus-manifest.json`) declares which documents a build
+pulls in:
+
+```json
+{
+  "source": "gutendex",
+  "restructure": null,
+  "entries": [
+    { "id": 11, "note": "Alice's Adventures in Wonderland — Carroll" },
+    { "id": 1228, "note": "On the Origin of Species — Darwin" }
+  ]
+}
+```
+
+`restructure` is reserved for future corpus restructuring strategies
+(chunk-by-paragraph, shuffling, register pre-tagging, cross-corpus stitching) —
+explicitly out of scope for this adapter and tracked separately; the field
+exists so the schema does not need a breaking change to add it later.
+
+`CorpusSource` anticipates non-Gutenberg sources (local filesystem, other
+APIs) but this phase implements Gutendex only.
+
+`fixtures/corpus-manifest.default.json` is the checked-in default test corpus:
+a small, register-varied set (narrative, poetic, expository) so
+clustering/tagging heuristics are exercised across more than one register.
+Exact Gutenberg IDs are verified against `GET /books?ids=...` before being
+locked into the fixture, since a wrong ID silently pulls the wrong book or
+none at all.
 
 **Development transparency and testing**: the build-time pipeline gets the same inspectability `client-cli` (§5.4) and `DebugTrace` (§4.6) give the runtime — scoped to `corpus-builder` itself, since a client seeing graph/corpus internals would violate `INV-3`.
 - `corpus-builder inspect --graph <graph.json> --node <id>` prints a node's fields plus its `source_refs` chain back to raw documents. `corpus-builder inspect --graph <graph.json> --trace` prints the `BuildTrace` below, if the build that produced the graph was run with `--trace`. Both reuse the `--verbosity` levels from §5.4 for one consistent developer experience across the two tools.
@@ -550,6 +624,10 @@ interface BuildTrace {
 - `graph.json` schema, `source_refs`, and `BuildTrace` are documented in `packages/corpus-builder/GRAPH_FORMAT.md`. As internal formats that never cross the client boundary, they are versioned less strictly than the client-facing schema in Section 3.
 - Re-running the build with identical input produces byte-identical output — `graph.json` and, when `--trace` is set, `build-trace.json` too (determinism extends to build-time transparency artifacts, not just the graph).
 - `corpus-builder inspect --node <id>` and `corpus-builder inspect --trace` both run against the fixture without error.
+- `GutendexSource` (§6.3.1) resolves metadata and boilerplate-stripped plaintext for a manifest of Gutenberg IDs; stripping is verified against at least 3 different books (header/footer format has minor historical variation).
+- The local cache (§6.3.1) is verified: a second build run against an unchanged manifest makes zero network calls.
+- `fixtures/corpus-manifest.default.json` is checked in with verified Gutenberg IDs; unit tests mock the Gutendex/Gutenberg responses — no live network calls in CI, consistent with Gutendex's best-effort/community-run reliability caveat.
+- No file in `packages/server` or `packages/client-threejs` references Gutendex or a Gutenberg file host, directly or transitively (import-boundary check, same discipline as `INV-3`).
 
 ### 6.4 Phase 3 — Rule Engine
 
