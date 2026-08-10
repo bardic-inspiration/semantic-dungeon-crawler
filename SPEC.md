@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.5.0`
+`spec-version: 0.6.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -94,6 +94,7 @@ Cross-cutting infrastructure every package needs — not a phase of its own. Wir
 - **Metrics** — counters/gauges/histograms behind a small `Metrics` interface (`increment`/`observe`), in-memory default. Build-time: corpus size, build duration, embedding-call count (`corpus-builder`). Runtime: request latency, active session count, rule-evaluation duration per move (`server`). Diagnostic only — `resolve_move`/`populate` (§4.1/§4.4) MUST NOT read metrics state; letting output depend on prior instrumentation would violate `INV-2`.
 - **Debug** — one server-side flag gates both `DebugTrace` construction/exposure (§4.6, `GET /debug/trace`) and elevated log verbosity. The zero-overhead-when-disabled requirement in §4.6 extends to debug-level logging: gate before construct, never construct-then-discard.
 - **Config & errors** — swappable components (embedding provider, log sink, metrics backend) are selected through one environment-driven config convention rather than being hardcoded per package. Protocol-boundary errors (malformed ruleset, missing session, network failure) get a typed error taxonomy instead of ad hoc throws; built out in Phase 6 hardening (§6.7).
+- **Corpus↔graph traceability** — the build-time pipeline (`corpus-builder`, §6.3) is a supporting-systems consumer too, not just the runtime `server`. Every graph node carries `source_refs` back to the raw corpus documents it was built from, and each pipeline stage reports through the same `Logger`/`Metrics` interfaces above (input/output counts, duration, warnings) — build-time transparency and runtime transparency are the same mechanism, not two. This surfaces through `corpus-builder inspect` (§6.3), not `client-cli`: a client speaking the wire protocol has no business seeing graph/corpus internals (`INV-3`), so build-time inspection stays a `corpus-builder`-owned tool, structurally separate from the runtime testing interface in §5.4 even though the two share verbosity conventions.
 
 None of this introduces a new invariant — it operates entirely inside `INV-1`..`INV-5` as already stated.
 
@@ -521,12 +522,32 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 - Clustering step → node formation
 - Edge weight computation (cosine similarity threshold, configurable)
 - Tagging step → populates `semantic_tags` with structured tags (Section 3.6 grammar), `archetype` (initial heuristic assignment is acceptable for alpha; author-refined tagging is post-alpha)
+- Provenance: every graph node carries `source_refs: string[]` — the id(s) of the raw corpus document(s) it was built from — so any node is traceable back to input. Documented in `GRAPH_FORMAT.md` alongside the rest of the internal format.
+- Per-stage instrumentation: embedding, clustering, edge-weighting, and tagging each report through the §2.1 `Logger` (start/end, input/output counts, warnings) and `Metrics` (duration, counts) — the same interfaces `server` uses, not a parallel mechanism.
 - Output: `graph.json` — internal-only format, never sent to any client (INV-3), consumed exclusively by `rule-engine`. Also outputs `tag-registry.yaml` — the vocabulary of tag segment paths discovered from the corpus (Section 3.6.2).
 
+**Development transparency and testing**: the build-time pipeline gets the same inspectability `client-cli` (§5.4) and `DebugTrace` (§4.6) give the runtime — scoped to `corpus-builder` itself, since a client seeing graph/corpus internals would violate `INV-3`.
+- `corpus-builder inspect --graph <graph.json> --node <id>` prints a node's fields plus its `source_refs` chain back to raw documents. `corpus-builder inspect --graph <graph.json> --trace` prints the `BuildTrace` below, if the build that produced the graph was run with `--trace`. Both reuse the `--verbosity` levels from §5.4 for one consistent developer experience across the two tools.
+- `corpus-builder build --trace` is flag-gated, off by default, zero overhead when disabled (the same rule §4.6 sets for `DebugTrace`). It writes `build-trace.json`, the build-time analogue of `DebugTrace`:
+
+```typescript
+interface BuildTrace {
+  stages: {
+    stage: "embedding" | "clustering" | "edge_weighting" | "tagging";
+    input_count: number;
+    output_count: number;
+    duration_ms: number;
+    warnings: string[];
+  }[];
+  node_provenance: Record<string, string[]>;  // node id -> source document ids
+}
+```
+
 **Exit**:
-- Running the CLI against a small test corpus (fixture, ~20 documents) produces a valid `graph.json`.
-- `graph.json` schema is documented in `packages/corpus-builder/GRAPH_FORMAT.md`. As an internal format that never crosses the client boundary, it is versioned less strictly than the client-facing schema in Section 3.
-- Re-running the build with identical input produces byte-identical output (determinism extends to build-time, not just runtime).
+- Running the CLI against a small test corpus (fixture, ~20 documents) produces a valid `graph.json`, and every node in it has non-empty `source_refs` resolving to real documents in that fixture corpus.
+- `graph.json` schema, `source_refs`, and `BuildTrace` are documented in `packages/corpus-builder/GRAPH_FORMAT.md`. As internal formats that never cross the client boundary, they are versioned less strictly than the client-facing schema in Section 3.
+- Re-running the build with identical input produces byte-identical output — `graph.json` and, when `--trace` is set, `build-trace.json` too (determinism extends to build-time transparency artifacts, not just the graph).
+- `corpus-builder inspect --node <id>` and `corpus-builder inspect --trace` both run against the fixture without error.
 
 ### 6.4 Phase 3 — Rule Engine
 
