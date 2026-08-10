@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.1.0`
+`spec-version: 0.2.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -101,7 +101,7 @@ The unified representation for both "rooms" and "objects" — there is no struct
 interface Entity {
   id: string;                          // stable node id, matches graph.json node id
   archetype: Archetype;                // determines renderer interpretation
-  semantic_tags: string[];             // free-form tags from build-time tagging
+  semantic_tags: string[];             // structured tags — grammar in Section 3.6
   embedding_ref: string;               // pointer to vector in graph.json, NEVER the raw vector
   affordances: Affordance[];           // legal interaction verbs
   salience: number;                    // 0.0–1.0, informs render prominence / population weight
@@ -204,9 +204,70 @@ type ScopeCondition = string;  // DSL expression evaluated once per move to dete
 
 - `spec_version` in every wire payload and ruleset file follows semver.
 - Adding a new `Archetype` or `Affordance` string literal is a MINOR bump (additive, non-breaking — the open-string extension points in 3.1 exist specifically so this doesn't require a schema restructure).
+- Adding or removing a modifier entry in an author's ruleset config requires no engine version bump — modifier entries are author content. Changing the modifier registry *mechanism* (how the engine parses or dispatches modifiers) is a MAJOR bump.
 - Renaming/removing any field in `Entity`, `ResolvedRoomResponse`, or `Ruleset` is a MAJOR bump.
 - `packages/schema/CHANGELOG.md` is mandatory reading before any schema edit in Phase 2+. A coding agent modifying `packages/schema/src/*` MUST append a changelog entry in the same commit.
 - Conformance fixtures (Section 6.5) MUST be re-validated against any schema change before the change is considered complete.
+
+### 3.6 Structured Tag Grammar
+
+Tags in `semantic_tags` follow a uniform grammar. Tags remain `string[]` on the wire — the grammar defines well-formedness validation, not a type change. Existing single-segment strings are valid under this grammar.
+
+**EBNF**:
+
+```
+tag           = [ modifier "," ] segment_path [ "=" value ] ;
+modifier      = identifier ;
+segment_path  = segment { ":" segment } ;
+segment       = seg_start { seg_char } ;
+seg_start     = LOWER | DIGIT ;
+seg_char      = LOWER | DIGIT | "-" | "_" ;
+value         = value_char { value_char } ;
+value_char    = ? any character except NUL ? ;
+identifier    = seg_start { seg_char } ;
+```
+
+**Parse output**: `{ modifier: string | null, segments: string[], value: string | null, raw: string }`.
+
+**Examples**: `environment:terrain:forest` (hierarchical path), `density=0.7` (scalar value), `viz,material:stone` (modifier-prefixed).
+
+Per `INV-4`, the engine validates tag *syntax* only. It MUST NOT reject tags for unregistered modifiers, unknown segment paths, or absent registry entries. Well-formed tags are legal regardless of registry state.
+
+#### 3.6.1 Modifier Registry
+
+The engine provides a grammar slot for an optional `modifier,` prefix, a parser that extracts the modifier token, and a modifier registry data structure (`Record<string, ModifierConfig>`). **No modifiers are built into the engine** — zero is a valid configuration. Authors populate the registry in their ruleset config to define what modifiers mean and how they affect tag routing, filtering, and resolution.
+
+Modifier entries can carry expression-based rules using the same DSL grammar from Section 4.2. These expressions configure how the engine treats tags carrying that modifier — the engine evaluates them, but authors write them.
+
+#### 3.6.2 Tag Registry
+
+A keys-only nested tree of valid segment paths — no values, no metadata, pure structural skeleton. Leaves are `{}`. YAML format: bare `key:` for leaves. The registry validator MUST reject any YAML that contains values, lists, or keys outside the segment charset (`/^[a-z0-9][a-z0-9_-]*$/`).
+
+The registry is a **vocabulary contract** between pipeline stages:
+- **Produced** by `packages/corpus-builder` as `tag-registry.yaml` alongside `graph.json`
+- **Consumed** by `packages/rule-engine` and `packages/client-threejs` as a vocabulary reference
+- **Extended** by authors who can merge their own entries
+- **Advisory** — unregistered tags are syntactically valid but orphaned; the pipeline warns, never rejects
+
+#### 3.6.3 Registry-Bounded Values
+
+Three rules resolve the structure-vs-data boundary:
+
+1. Every segment path is registrable (vocabulary). The pipeline auto-registers paths for every tag it produces.
+2. Explicit `=value` scalars are never registered. Values are runtime data.
+3. A registered leaf (childless node) carries an implied value, resolved per use case by a pluggable resolver.
+
+The **resolver dispatch** is engine machinery; the **resolver set** is configurable. Three default resolvers ship with the engine:
+
+| Resolver | Explicit `=value` | Leaf terminal | Non-leaf |
+|---|---|---|---|
+| `match` | the value string | `true` (presence) | `true` |
+| `display` | the value string | terminal segment string | `null` |
+| `numeric` | coerced to Number | `1.0` (presence) | `null` |
+
+Authors can add custom resolvers or override defaults. A resolver is a function `(parsedTag, registry) → resolvedValue`. The engine guarantees the three defaults exist at startup but does not prevent replacement.
+
+Full design rationale: `docs/tag-system-design.md`.
 
 ---
 
@@ -248,17 +309,36 @@ operand      := property | literal | function_call
 property     := "static." IDENT  |  "dynamic." IDENT
 function_call:= IDENT "(" (operand ("," operand)*)? ")"
 OPERATOR     := ">" | "<" | ">=" | "<=" | "==" | "!=" | "IN" | "NOT IN"
+             | "CONTAINS" | "MATCHES"
 ```
 
 **Reserved `static.*` properties** (read from the current candidate entity/edge): `static.embedding_distance`, `static.archetype`, `static.tags` (array), `static.edge_weight`, `static.cluster_id`.
 
 **Reserved `dynamic.*` properties** (read from run state): `dynamic.visited_set` (array of ids), `dynamic.trace_centroid` (vector), `dynamic.momentum` (vector), `dynamic.turn_count`, `dynamic.coherence`.
 
-**Reserved functions**: `contains(array, value)`, `distance(vec, vec)`, `recent(dynamic.visited_set, n)`.
+**Reserved functions**: `contains(array, value)`, `distance(vec, vec)`, `recent(dynamic.visited_set, n)`, `matches(array, pattern)`.
 
-Example predicate: `static.tags CONTAINS "financial-abstract" AND dynamic.turn_count > 5`
+**`MATCHES` pattern grammar** (asymmetric — wildcards on pattern side only):
 
-The DSL is intentionally small in v0. It is NOT Turing-complete by design — no loops, no user-defined functions beyond the reserved set. Extending the grammar is a MAJOR version change to `packages/schema` (3.5) and requires a new grammar section here, not silent parser extension.
+```
+pattern       = [ mod_pattern "," ] seg_pattern [ "=" val_pattern ] ;
+mod_pattern   = IDENT | "*" ;
+seg_pattern   = seg_or_wild { ":" seg_or_wild } ;
+seg_or_wild   = IDENT | "*" | "**" ;
+val_pattern   = VALUE | "*" ;
+```
+
+`*` matches exactly one segment; `**` matches zero or more. Wildcards exist only in patterns. `CONTAINS` performs exact string comparison (backward-compatible); `MATCHES` parses both pattern and tag via the structured tag grammar (Section 3.6) and applies glob matching on parsed segments.
+
+Example predicates:
+
+```
+static.tags CONTAINS "mood:tense" AND dynamic.turn_count > 5
+static.tags MATCHES "theme:*" AND static.archetype == "container"
+static.tags MATCHES "creature:hostile:**" OR static.tags MATCHES "environment:terrain:cave"
+```
+
+The DSL is intentionally small. It is NOT Turing-complete by design — no loops, no user-defined functions beyond the reserved set. Extending the grammar is a MAJOR version change to `packages/schema` (3.5) and requires a new grammar section here, not silent parser extension. `MATCHES` is the sole grammar extension since v0.1.0.
 
 ### 4.3 Layer Resolution Order
 
@@ -328,7 +408,7 @@ Any coding agent building `packages/client-threejs` should structure it as a min
 | Entity | `id: string`, matches `Entity.id` from schema verbatim |
 | Components | Plain object keyed by entity id: `{ archetype, semantic_tags, affordances, salience, layout_hint, state }` — direct copy of schema fields, no client-side reinterpretation |
 | `LayoutSystem` | Pure function: `(Entity[], layout_hint) → Map<id, THREE.Vector3>`. This is the primary creative surface for adapter authors — same schema, different LayoutSystem = different spatial feel |
-| `MeshResolutionSystem` | Pure function: `(archetype, semantic_tags) → THREE.Object3D`. Lookup table, extensible, is the "archetype → matter" mapping |
+| `MeshResolutionSystem` | Pure function: `(archetype, semantic_tags) → THREE.Object3D`. Lookup table, extensible, is the "archetype → matter" mapping. Adapter authors can filter `semantic_tags` by modifier (e.g. tags carrying an author-defined rendering-hint modifier) to separate visual hints from semantic identity — see Section 3.6.1 |
 | `InteractionSystem` | Raycast on click → resolve target entity id + affordance → `POST /interact` → await → hand result to `SyncSystem` |
 | `SyncSystem` | `InteractResponse → mutate components → trigger LayoutSystem + MeshResolutionSystem re-run for changed entities only` |
 
@@ -397,8 +477,8 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 - Embedding step (pluggable — spec does not mandate a specific model/provider, but MUST be swappable via config, not hardcoded to one vendor)
 - Clustering step → node formation
 - Edge weight computation (cosine similarity threshold, configurable)
-- Tagging step → populates `semantic_tags`, `archetype` (initial heuristic assignment is acceptable for alpha; author-refined tagging is post-alpha)
-- Output: `graph.json` — internal-only format, never sent to any client (INV-3), consumed exclusively by `rule-engine`.
+- Tagging step → populates `semantic_tags` with structured tags (Section 3.6 grammar), `archetype` (initial heuristic assignment is acceptable for alpha; author-refined tagging is post-alpha)
+- Output: `graph.json` — internal-only format, never sent to any client (INV-3), consumed exclusively by `rule-engine`. Also outputs `tag-registry.yaml` — the vocabulary of tag segment paths discovered from the corpus (Section 3.6.2).
 
 **Exit**:
 - Running the CLI against a small test corpus (fixture, ~20 documents) produces a valid `graph.json`.
@@ -477,7 +557,7 @@ Listed here so a coding agent doesn't accidentally scope-creep into these during
 Flagged explicitly rather than silently decided, for resolution during or after alpha:
 
 - **Latency/perceived responsiveness**: request/response movement (5.1) was accepted knowingly given turn-based pacing; revisit if alpha playtesting shows it feels laggy rather than deliberate.
-- **Tagging quality**: Phase 2's heuristic auto-tagging is an alpha stand-in. What does author-refinement tooling for `semantic_tags`/`archetype` assignment look like? (Likely a Phase 7+ concern, possibly folded into the rule editor.)
+- **Tagging quality**: Phase 2's heuristic auto-tagging is an alpha stand-in using the structured tag grammar (Section 3.6). The tag registry (3.6.2) and configurable modifier registry (3.6.1) provide the machinery for author-refined tagging; what does the refinement *tooling* look like? (Likely a Phase 7+ concern, possibly folded into the rule editor. See `docs/tag-system-design.md` for the full design rationale.)
 - **`graph.json` scale limits**: no sharding/pagination strategy is specified for very large corpora. Fine for alpha-scale corpora; needs design work before "production" means more than "alpha."
 - **Embedding provider choice**: Phase 2 mandates swappability but does not mandate a default. Pick one for the first real corpus run (Phase 6) and document the choice + rationale in `packages/corpus-builder/GRAPH_FORMAT.md`.
 
@@ -495,3 +575,7 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 | Zero-radius query | Room population (4.4), using the identical solver as movement with radius bounded to the room itself. |
 | Resolved (as in "Resolved Room Response") | Fully computed server-side; client performs no further filtering/sampling logic. |
 | Conformance fixtures | The fixed JSON dataset (6.5) any adapter must render correctly to claim schema compatibility. |
+| Structured tag | A `semantic_tags` entry conforming to the grammar in Section 3.6: `[modifier,]segment[:segment...][=value]`. |
+| Modifier registry | Author-configurable mapping of modifier names to behavior config. The engine provides the mechanism; authors define the entries (3.6.1). |
+| Tag registry | Keys-only nested tree of valid tag segment paths, produced by the corpus-builder as a vocabulary contract (3.6.2). |
+| Tag pattern | A glob-style string used with the `MATCHES` operator: `*` matches one segment, `**` matches zero or more (4.2). |
