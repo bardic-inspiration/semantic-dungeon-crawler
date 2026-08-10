@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.2.0`
+`spec-version: 0.3.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -84,6 +84,17 @@ The default behavior with zero authored rules is **relativistic drift**: the pla
 | Shared contract | `packages/schema` | TypeScript types for Entity Schema, imported by server AND client |
 | Three.js reference client | `packages/client-threejs` | ECS, mesh resolution, interaction capture |
 | Authoring tool | `packages/rule-editor` | Visual flowchart UI, compiles to DSL text |
+
+### 2.1 Supporting Systems (Developer Toolkit)
+
+Cross-cutting infrastructure every package needs — not a phase of its own. Wired in as each package is built; hardened in Phase 6 (§6.7).
+
+- **Logging** — structured, leveled (`debug`/`info`/`warn`/`error`) events via a small `Logger` interface (`log(level, event, fields)`), one instance per package. Pluggable sink; console-only is an acceptable default pre-alpha, same swappability convention as the embedding provider (§6.3). Logging is a side channel: it MUST NOT influence control flow (`INV-2`) and MUST NOT be a path by which graph/rule/embedding internals reach the client (`INV-3`) — it is a server-operator-only surface, never wire-protocol output. The §4.3 "messy resolution" warning (conflicting `override` layers) is emitted through this system at `warn`.
+- **Metrics** — counters/gauges/histograms behind a small `Metrics` interface (`increment`/`observe`), in-memory default. Build-time: corpus size, build duration, embedding-call count (`corpus-builder`). Runtime: request latency, active session count, rule-evaluation duration per move (`server`). Diagnostic only — `resolve_move`/`populate` (§4.1/§4.4) MUST NOT read metrics state; letting output depend on prior instrumentation would violate `INV-2`.
+- **Debug** — one server-side flag gates both `DebugTrace` construction/exposure (§4.6, `GET /debug/trace`) and elevated log verbosity. The zero-overhead-when-disabled requirement in §4.6 extends to debug-level logging: gate before construct, never construct-then-discard.
+- **Config & errors** — swappable components (embedding provider, log sink, metrics backend) are selected through one environment-driven config convention rather than being hardcoded per package. Protocol-boundary errors (malformed ruleset, missing session, network failure) get a typed error taxonomy instead of ad hoc throws; built out in Phase 6 hardening (§6.7).
+
+None of this introduces a new invariant — it operates entirely inside `INV-1`..`INV-5` as already stated.
 
 ---
 
@@ -533,6 +544,7 @@ Simultaneously populate `fixtures/`:
 
 **Build**: Not new features — hardening of the existing surface:
 - Error handling at every protocol boundary (malformed ruleset, missing session, network failure client-side)
+- Logging, metrics, and debug-flag wiring per §2.1 across all packages (structured `Logger` and `Metrics` interfaces, debug-gated trace/log verbosity)
 - `GRAPH_FORMAT.md` and this spec's Section 3–5 reconciled with any drift discovered during Phases 2–5 (update `packages/schema/CHANGELOG.md` accordingly per INV-5)
 - A first real (non-fixture) corpus run end-to-end, author-selected, small enough to sanity-check by hand
 - Minimal deployment path documented (even if just "run server locally + open client" for alpha — production infra is explicitly out of scope, see Section 7)
