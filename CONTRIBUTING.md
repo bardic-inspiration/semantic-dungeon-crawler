@@ -63,4 +63,5 @@ contract (fixtures, determinism, import-boundary checks).
 - [`docs/testing-standards.md`](docs/testing-standards.md) — TDD contract.
 - [`docs/commit-standards.md`](docs/commit-standards.md) — commit format.
 - [`docs/documentation-standards.md`](docs/documentation-standards.md) — keeping docs in sync.
+- [`docs/naming-conventions.md`](docs/naming-conventions.md) — casing rules for code, files, schema fields, and the DSL.
 - [`docs/spec-guidelines.md`](docs/spec-guidelines.md) — how to amend `SPEC.md`.

@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.6.0`
+`spec-version: 0.6.1`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -91,7 +91,7 @@ The default behavior with zero authored rules is **relativistic drift**: the pla
 Cross-cutting infrastructure every package needs — not a phase of its own. Wired in as each package is built; hardened in Phase 6 (§6.7).
 
 - **Logging** — structured, leveled (`debug`/`info`/`warn`/`error`) events via a small `Logger` interface (`log(level, event, fields)`), one instance per package. Pluggable sink; console-only is an acceptable default pre-alpha, same swappability convention as the embedding provider (§6.3). Logging is a side channel: it MUST NOT influence control flow (`INV-2`) and MUST NOT be a path by which graph/rule/embedding internals reach the client (`INV-3`) — it is a server-operator-only surface, never wire-protocol output. The §4.3 "messy resolution" warning (conflicting `override` layers) is emitted through this system at `warn`.
-- **Metrics** — counters/gauges/histograms behind a small `Metrics` interface (`increment`/`observe`), in-memory default. Build-time: corpus size, build duration, embedding-call count (`corpus-builder`). Runtime: request latency, active session count, rule-evaluation duration per move (`server`). Diagnostic only — `resolve_move`/`populate` (§4.1/§4.4) MUST NOT read metrics state; letting output depend on prior instrumentation would violate `INV-2`.
+- **Metrics** — counters/gauges/histograms behind a small `Metrics` interface (`increment`/`observe`), in-memory default. Build-time: corpus size, build duration, embedding-call count (`corpus-builder`). Runtime: request latency, active session count, rule-evaluation duration per move (`server`). Diagnostic only — `resolveMove`/`populate` (§4.1/§4.4) MUST NOT read metrics state; letting output depend on prior instrumentation would violate `INV-2`.
 - **Debug** — one server-side flag gates both `DebugTrace` construction/exposure (§4.6, `GET /debug/trace`) and elevated log verbosity. The zero-overhead-when-disabled requirement in §4.6 extends to debug-level logging: gate before construct, never construct-then-discard.
 - **Config & errors** — swappable components (embedding provider, log sink, metrics backend) are selected through one environment-driven config convention rather than being hardcoded per package. Protocol-boundary errors (malformed ruleset, missing session, network failure) get a typed error taxonomy instead of ad hoc throws; built out in Phase 6 hardening (§6.7).
 - **Corpus↔graph traceability** — the build-time pipeline (`corpus-builder`, §6.3) is a supporting-systems consumer too, not just the runtime `server`. Every graph node carries `source_refs` back to the raw corpus documents it was built from, and each pipeline stage reports through the same `Logger`/`Metrics` interfaces above (input/output counts, duration, warnings) — build-time transparency and runtime transparency are the same mechanism, not two. This surfaces through `corpus-builder inspect` (§6.3), not `client-cli`: a client speaking the wire protocol has no business seeing graph/corpus internals (`INV-3`), so build-time inspection stays a `corpus-builder`-owned tool, structurally separate from the runtime testing interface in §5.4 even though the two share verbosity conventions.
@@ -102,7 +102,7 @@ None of this introduces a new invariant — it operates entirely inside `INV-1`.
 
 ## 3. Core Data Schemas
 
-These are the literal contracts. Implementations must match field names and types exactly. All schemas live in `packages/schema/src/` as the single source of truth, imported (not duplicated) by every other package.
+These are the literal contracts. Implementations must match field names and types exactly. All schemas live in `packages/schema/src/` as the single source of truth, imported (not duplicated) by every other package. Field names below are `snake_case` by design — see `docs/naming-conventions.md` for the full split between wire-data casing and TypeScript-identifier casing used everywhere else in this spec.
 
 ### 3.1 Entity Schema
 
@@ -292,25 +292,27 @@ Full design rationale: `docs/tag-system-design.md`.
 Pseudocode, normative (implementation in `packages/rule-engine/src/solver.ts` must match this control flow):
 
 ```
-resolve_move(state, graph, layer_stack):
+resolveMove(state, graph, layerStack):
     candidates = graph.neighbors(state.position)  // or k-NN if no discrete edges authored
-    active_layers = layer_stack.filter(l => l.scope == "global" OR evaluate(l.scope, state))
-    ordered = active_layers.sort_by(resolution_order)  // see 4.3
+    activeLayers = layerStack.filter(l => l.scope == "global" OR evaluate(l.scope, state))
+    ordered = activeLayers.sortBy(resolutionOrder)  // see 4.3
 
     for layer in ordered:
         for rule in layer.rules:
             if evaluate(rule.predicate, state, graph, candidates):
                 apply(rule.effect, candidates)
                 if rule.effect.kind in ["hard_allow","hard_forbid"] and layer.mode == "override":
-                    lock_remaining_lower_layers_out_of_hard_decisions()
+                    lockRemainingLowerLayersOutOfHardDecisions()
 
-    if candidates.hard_decisions.is_empty():
+    if candidates.hardDecisions.isEmpty():
         candidates = graph.neighbors(state.position)  // fall through to null/relativistic (INV — see 1)
 
-    return sample(candidates, weighted_by = soft_scores)
+    return sample(candidates, weightedBy = softScores)
 ```
 
 Per `INV-4`, this function MUST NOT throw, reject, or auto-correct when layers produce contradictory hard decisions. Resolution order (4.3) determines the outcome; a "bad" outcome is a valid outcome.
+
+Naming: `resolveMove`, `populate`, and every other TypeScript identifier in this section follow `docs/naming-conventions.md`. Wire-facing fields (`layout_hint`, effect kinds like `hard_allow`) keep the `snake_case` SPEC §3 already defines — the split is deliberate, not a typo.
 
 ### 4.2 DSL Grammar (v0)
 
@@ -368,18 +370,18 @@ Given `layer.mode`:
 Population of a room's `objects[]` (Section 3.2) uses the **identical** solver as movement, called with the room itself as both origin and destination, radius bounded by embedding proximity/cluster membership rather than graph edges:
 
 ```
-populate(room_entity, layer_stack, graph):
-    candidates = graph.neighbors_within_radius(room_entity, mode="embedding_proximity")
-    // then IDENTICAL layer-evaluation loop as resolve_move (4.1)
-    return sample(candidates, n = round(room_entity.layout_hint.density * MAX_ROOM_OBJECTS), weighted=True)
+populate(roomEntity, layerStack, graph):
+    candidates = graph.neighborsWithinRadius(roomEntity, mode="embedding_proximity")
+    // then IDENTICAL layer-evaluation loop as resolveMove (4.1)
+    return sample(candidates, n = round(roomEntity.layout_hint.density * MAX_ROOM_OBJECTS), weighted=True)
 ```
 
-This is not an approximation of shared logic — `resolve_move` and `populate` MUST call the same underlying `evaluate_layers()` function in `packages/rule-engine/src/solver.ts`. A test that asserts this (same function reference, not just same output) belongs in Phase 3 (Section 6.3).
+This is not an approximation of shared logic — `resolveMove` and `populate` MUST call the same underlying `evaluateLayers()` function in `packages/rule-engine/src/solver.ts`. A test that asserts this (same function reference, not just same output) belongs in Phase 3 (Section 6.3).
 
 ### 4.5 Determinism (implements INV-2)
 
 - All sampling (`sample()` in 4.1/4.4) uses a seeded PRNG. The seed is derived deterministically from `(session_seed, turn_count)` — never from wall-clock or external entropy.
-- Given identical `(graph.json, ruleset.dsl, session_seed, input-log)`, `resolve_move` and `populate` MUST produce byte-identical output across runs. This is a Phase 3 test requirement (Section 6.5), not a nice-to-have.
+- Given identical `(graph.json, ruleset.dsl, session_seed, input-log)`, `resolveMove` and `populate` MUST produce byte-identical output across runs. This is a Phase 3 test requirement (Section 6.5), not a nice-to-have.
 
 ### 4.6 Debug Trace (optional, off by default)
 
@@ -555,12 +557,12 @@ interface BuildTrace {
 
 **Build**: `packages/rule-engine/src/`
 - `parser.ts` — DSL grammar (4.2) → AST
-- `solver.ts` — `evaluate_layers()`, `resolve_move()`, `populate()` per 4.1/4.4 pseudocode, normatively
+- `solver.ts` — `evaluateLayers()`, `resolveMove()`, `populate()` per 4.1/4.4 pseudocode, normatively
 - `layer-resolution.ts` — 4.3 ordering logic
 - `debug-trace.ts` — 4.6, flag-gated
 
 **Exit**:
-- `resolve_move` and `populate` both call the identical `evaluate_layers()` function (checked by a test that asserts function identity, not just output equivalence — per 4.4 requirement).
+- `resolveMove` and `populate` both call the identical `evaluateLayers()` function (checked by a test that asserts function identity, not just output equivalence — per 4.4 requirement).
 - Determinism test passes: same `(graph.json, ruleset.dsl, seed, input-log)` in, byte-identical output across 2 independent runs (INV-2, 4.5).
 - A ruleset fixture with two `override`-mode layers producing contradictory hard decisions does NOT throw — it resolves via declaration order and logs a warning (INV-4 conformance test).
 - Null-ruleset case (empty `layers: []`) produces pure nearest-neighbor drift with no errors (the "ambiguous relativistic traversal" default is exercised as a real, tested code path, not assumed).
