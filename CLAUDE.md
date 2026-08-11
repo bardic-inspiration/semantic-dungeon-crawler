@@ -24,37 +24,10 @@ file only adds Claude-Code specifics.
 - One build-order concern per PR; fill in the PR template.
 - If you edit `packages/schema/src/*`, add a `packages/schema/CHANGELOG.md` entry
   in the same commit (`INV-5`).
-
-## Open questions & sub-issues
-
-Cold-start sessions surface things beyond the one issue you were scoped to —
-edge cases, ambiguities, follow-on work. Resolve them without losing scope or
-traceability:
-
-- **Don't solve it inline.** Finish the issue you were given. An open question
-  is not license to widen the current PR — that breaks "one build-order
-  concern per PR."
-- **Spec ambiguity or defect** (the acceptance criteria conflict with `SPEC.md`,
-  or the spec looks wrong) → do not silently invent behavior. Follow
-  [`docs/spec-guidelines.md`](docs/spec-guidelines.md) / AGENTS.md §7: raise it
-  and, if it's a genuine defect, amend `SPEC.md` deliberately before writing
-  code that guesses.
-- **Everything else** (edge case out of scope, deferred feature, tech debt,
-  later-phase idea) → file it as a **new GitHub issue**, not a `TODO` comment
-  or a note buried in a PR description that will rot.
-  - Use the repo's issue templates so it carries a spec reference and testable
-    acceptance criteria like any other task.
-  - Label it with the phase it belongs to (`phase:N`), or leave unlabeled /
-    flag as out-of-scope if it falls under SPEC §6.8 (post-alpha).
-  - Reference the originating issue/PR in its body (e.g. "Surfaced while
-    working #N") so the chain is traceable later.
-- **Link back once.** In the PR that surfaced the question, add a single line
-  noting the new issue number (e.g. "opened #N for X, out of scope here").
-  Don't re-explain it in every subsequent PR that touches nearby code — the
-  issue link is the record.
-- **Don't block on it.** An unresolved sub-issue should not stall the current
-  issue's merge unless it's the spec-ambiguity case above, where guessing
-  would risk violating an invariant (`INV-1`..`INV-5`).
+- Picking up an issue, filing one, and handling open questions or sub-issues
+  that surface mid-work are all covered in
+  [`docs/issue-standards.md`](docs/issue-standards.md) — read it before your
+  first cold start.
 
 ## Useful commands
 
