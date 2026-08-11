@@ -6,3 +6,6 @@ contact_links:
   - name: Roadmap & build process
     url: https://github.com/bardic-inspiration/semantic-dungeon-crawler/blob/main/docs/roadmap.md
     about: How phases map to issues and how the hands-off agentic build runs.
+  - name: Issue standards
+    url: https://github.com/bardic-inspiration/semantic-dungeon-crawler/blob/main/docs/issue-standards.md
+    about: How to scope, label, and link an issue before filing it.

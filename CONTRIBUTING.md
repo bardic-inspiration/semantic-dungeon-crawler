@@ -39,7 +39,9 @@ work-in-progress commits (amend / interactive rebase) before requesting review.
 
 ## Development workflow (TDD — required)
 
-1. Claim the lowest-numbered open issue in the active phase (`phase:N`).
+1. Claim the lowest-numbered open issue in the active phase (`phase:N`). See
+   [`docs/issue-standards.md`](docs/issue-standards.md) for how to pick up,
+   file, and scope issues.
 2. Read the SPEC section the issue references.
 3. Write a failing Vitest test that encodes an acceptance criterion (**red**).
 4. Write the minimal code to pass it (**green**), then **refactor**.
@@ -60,6 +62,8 @@ contract (fixtures, determinism, import-boundary checks).
 ## Standards docs
 
 - [`docs/roadmap.md`](docs/roadmap.md) — phases → issues, the build process.
+- [`docs/issue-standards.md`](docs/issue-standards.md) — filing, scoping, and
+  closing issues; handling open questions and sub-issues.
 - [`docs/testing-standards.md`](docs/testing-standards.md) — TDD contract.
 - [`docs/commit-standards.md`](docs/commit-standards.md) — commit format.
 - [`docs/documentation-standards.md`](docs/documentation-standards.md) — keeping docs in sync.

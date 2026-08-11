@@ -24,6 +24,10 @@ file only adds Claude-Code specifics.
 - One build-order concern per PR; fill in the PR template.
 - If you edit `packages/schema/src/*`, add a `packages/schema/CHANGELOG.md` entry
   in the same commit (`INV-5`).
+- Picking up an issue, filing one, and handling open questions or sub-issues
+  that surface mid-work are all covered in
+  [`docs/issue-standards.md`](docs/issue-standards.md) — read it before your
+  first cold start.
 
 ## Useful commands
 

@@ -101,6 +101,10 @@ The live status of each phase and its issues is in [`docs/roadmap.md`](docs/road
 
 ## 5. Working loop (do this for every issue)
 
+See [`docs/issue-standards.md`](docs/issue-standards.md) for the full contract
+on picking up, filing, scoping, and closing issues — including how to handle
+open questions or follow-on work that surfaces mid-issue. Summary:
+
 1. **Take one issue.** Pick the lowest-numbered open issue labeled with the active
    phase (`phase:0`, then `phase:1`, …). Scope your work to that issue only.
 2. **Read the spec.** Read the SPEC section the issue references before touching
@@ -140,3 +144,6 @@ The live status of each phase and its issues is in [`docs/roadmap.md`](docs/road
   (versioned) rather than diverging in code.
 - Stay in scope. SPEC §6.8 lists things that look tempting but are explicitly
   post-alpha — do not scope-creep into them.
+- Anything else that comes up mid-issue — an edge case, a follow-on idea, a
+  question that isn't a spec defect — gets filed as its own issue per
+  [`docs/issue-standards.md`](docs/issue-standards.md), not solved inline.
