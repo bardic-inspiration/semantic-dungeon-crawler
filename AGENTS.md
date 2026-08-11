@@ -35,7 +35,12 @@ if it passes tests.
   library. It is headless and testable with no client attached. (SPEC §2, §4)
 - **`INV-2` — Determinism.** A session is fully reproducible from
   `(seed, ruleset-file, input-log)`. No wall-clock, no unseeded randomness in
-  backend logic. Same inputs ⇒ **byte-identical** output. (SPEC §4.5)
+  backend logic. Same inputs ⇒ **byte-identical** output. (SPEC §4.5) Under the
+  §0.8.0 three-tier model this is a *replay* guarantee: substrate queries
+  (Tier 2) are stochastic across seeds by design, but seeded from
+  `(session_seed, turn_count, query)`, so replaying one input-log still
+  reproduces byte-identical output; overlay state (Tier 3) is deterministic
+  outright. (SPEC §3.7, §4.5)
 - **`INV-3` — Client sees only resolved JSON.** The client never receives the
   graph, embeddings, or rule definitions — only `ResolvedRoomResponse` (SPEC §3.2).
   `packages/client-threejs` and `packages/client-cli` must not import

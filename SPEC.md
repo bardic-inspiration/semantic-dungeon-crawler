@@ -1,8 +1,16 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.7.0`
+`spec-version: 0.8.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
+
+> **§0.8.0 — three-tier data model.** The world is framed as three tiers with
+> different guarantees: **Bedrock** (the corpus, build-time only), **Substrate**
+> (a live-queried embedding surface, not a fixed node/edge graph), and
+> **Overlay** (an inert Address Registry plus a small closed set of primitive
+> operations). See §3.7 for the overlay contract, §4.5 for how determinism
+> splits across the tiers, and `docs/design/0001-three-tier-data-model.md` for
+> the decisions behind it (resolves issue #11).
 
 ## 0. Purpose and Reading Order
 
@@ -13,7 +21,7 @@ This document is the authoritative build specification for an **authoring engine
 **Non-negotiable invariants** (referenced throughout as `INV-n`, must hold at every phase boundary):
 
 - `INV-1`: The traversal/rule engine (Section 4) never imports a rendering library. It is pure, headless, testable with no client attached.
-- `INV-2`: A game session is fully reproducible from `(seed, ruleset-file, input-log)`. No hidden state, no wall-clock dependence, no non-seeded randomness in backend logic.
+- `INV-2`: A game session is fully reproducible from `(seed, ruleset-file, input-log)`. No hidden state, no wall-clock dependence, no non-seeded randomness in backend logic. Substrate queries (§3.7 Tier 2) are *stochastic across seeds* by design, but their randomness is drawn from a PRNG seeded from `(session_seed, turn_count, query)`, so replaying an identical input-log reproduces every result byte-for-byte — determinism is a replay guarantee, not a same-question-twice guarantee (§4.5).
 - `INV-3`: The client (Three.js and terminal reference adapters, Section 5) never receives the graph, embeddings, or rule definitions. It receives only resolved JSON matching the Entity Schema (Section 3).
 - `INV-4`: The engine does not validate ruleset *coherence* or *taste*. It validates ruleset *well-formedness* (parses, references exist, types match). Contradictory or "bad" rules are legal and must run, not be rejected.
 - `INV-5`: Every schema and protocol surface is versioned (Section 3.5). Breaking changes require a version bump and a changelog entry, not silent mutation.
@@ -108,6 +116,13 @@ These are the literal contracts. Implementations must match field names and type
 
 The unified representation for both "rooms" and "objects" — there is no structural distinction between them. A room is simply an entity whose `archetype` implies containment.
 
+Under the three-tier model (§0.8.0, §3.7), an `Entity` is an **interpretation-tier**
+artifact: it is what a resolved substrate query or Address Registry entry *looks
+like* once `archetype`, `semantic_tags`, `layout_hint`, and `salience` have been
+applied to it. It is minted on demand, not read from a fixed build-time node
+table (§6.3). The fields below remain the literal client-facing contract (`INV-3`);
+what changed is that they describe a resolved view, not a permanent structural node.
+
 ```typescript
 // packages/schema/src/entity.ts
 
@@ -118,7 +133,9 @@ interface Entity {
   embedding_ref: string;               // pointer to vector in graph.json, NEVER the raw vector
   affordances: Affordance[];           // legal interaction verbs
   salience: number;                    // 0.0–1.0, informs render prominence / population weight
-  contains: string[];                  // child entity ids (empty for leaf/prop entities)
+  contains: string[];                  // member tags of the entity's `composite` Address Registry entry (§3.7),
+                                       // resolved to concrete entities at interpretation time — NOT a structural
+                                       // substrate property (empty for leaf/prop entities)
   layout_hint: LayoutHint;
   state: EntityState;
 }
@@ -255,6 +272,14 @@ Modifier entries can carry expression-based rules using the same DSL grammar fro
 
 #### 3.6.2 Tag Registry
 
+> **Name disambiguation (§0.8.0).** This *Tag Registry* — a keys-only vocabulary
+> tree — is distinct from the **Address Registry** in §3.7, which maps specific
+> tag strings to substrate references. The two coexist and do different jobs: the
+> Tag Registry constrains the *vocabulary* of tag strings; the Address Registry
+> records *what specific strings point to*. The three-tier proposal (issue #11)
+> originally called the §3.7 structure a "Tag Registry"; it was renamed here to
+> avoid the collision.
+
 A keys-only nested tree of valid segment paths — no values, no metadata, pure structural skeleton. Leaves are `{}`. YAML format: bare `key:` for leaves. The registry validator MUST reject any YAML that contains values, lists, or keys outside the segment charset (`/^[a-z0-9][a-z0-9_-]*$/`).
 
 The registry is a **vocabulary contract** between pipeline stages:
@@ -282,6 +307,125 @@ The **resolver dispatch** is engine machinery; the **resolver set** is configura
 Authors can add custom resolvers or override defaults. A resolver is a function `(parsedTag, registry) → resolvedValue`. The engine guarantees the three defaults exist at startup but does not prevent replacement.
 
 Full design rationale: `docs/tag-system-design.md`.
+
+### 3.7 Overlay Layer — Address Registry and Primitives
+
+The overlay (Tier 3 of the §0.8.0 model) is **not a place** — it is the interface
+through which the stochastic substrate (Tier 2) becomes navigable and memorable.
+Unlike the substrate, the overlay is **fully deterministic and reversible**: every
+overlay write is recorded in the same input-log as moves and replays exactly
+(`INV-2`). It has two parts: an inert **Address Registry** and a small closed set
+of **primitive operations** that act on it.
+
+Design rationale and the resolution of the open questions this raised:
+`docs/design/0001-three-tier-data-model.md`.
+
+#### 3.7.1 Address Registry
+
+A pure name→reference map. It answers "what does this name point to" and nothing
+else — no embedded behavior, no computation, no derived positions. It is
+serializable, diffable, cacheable, and independently testable.
+
+```typescript
+// packages/schema/src/overlay.ts
+
+interface AddressRegistryEntry {
+  tag: string;                 // the address/name (a structured tag, §3.6 grammar)
+  points_to: EntryReference;
+  provenance: Provenance;
+}
+
+type Provenance = "build" | "author_runtime" | "player";
+
+type EntryReference =
+  | { kind: "coordinate"; vector_ref: string }   // a point in substrate; vector by ref, never raw (INV-3)
+  | { kind: "snapshot"; snapshot: Snapshot }     // a frozen, resolved substrate query result (§3.7.3)
+  | { kind: "composite"; member_tags: string[] };// a name for a SET of other tags — grouping, not computation
+
+interface Snapshot {
+  substrate_version: string;   // the substrate-build id this resolution was bound to (§3.7.3, §6.3)
+  resolved_payload: Entity[];  // self-contained frozen result; readable regardless of later rebuilds
+}
+```
+
+`composite` is the entire extent of "hierarchy" in the registry: grouping only.
+The registry never merges, computes derived positions, or resolves composites — any
+consumer (renderer, rule engine) that wants a composite's effective position does
+that resolution itself, externally. `Entity.contains` (§3.1) is exactly a
+`composite` entry's `member_tags`, resolved to concrete entities at interpretation
+time.
+
+Object types (room, item, …) are **not** registry entry kinds — they are
+interpretations applied to a resolved reference at render/rule-evaluation time, via
+the same `archetype` lookup keyed by tag that §3.1 already uses.
+
+#### 3.7.2 Links
+
+`Link` is a **separate relationship record**, not a form of `composite` (decision
+D2, `docs/design/0001`). `composite` groups an unordered set; a `Link` is a
+directed, typed edge between two addresses. Links live in a parallel, equally inert
+table and are equally deterministic overlay writes.
+
+```typescript
+interface LinkRecord {
+  from: string;        // an address (tag) in the registry
+  to: string;          // an address (tag) in the registry
+  kind: string;        // open string — interpretation-defined (see 3.5 versioning)
+  provenance: Provenance;
+}
+```
+
+#### 3.7.3 Snapshot staleness
+
+A `snapshot` freezes one re-approximation of a stochastic substrate query as
+canonical (decision D3). It binds to the `substrate_version` current at creation
+time. On a corpus rebuild that changes `substrate_version`:
+
+- the snapshot **remains valid and readable** — `resolved_payload` is
+  self-contained; that self-containment is the point of pinning;
+- consumers may derive `stale = (snapshot.substrate_version != live_substrate_version)`;
+- the engine **surfaces** staleness but MUST NOT auto-invalidate or auto-refresh —
+  silent re-resolution would violate `INV-2` (hidden state) and judging a pin
+  "out of date" would violate `INV-4` (no taste-policing). Re-resolution is an
+  explicit `Snapshot` primitive call.
+
+#### 3.7.4 Primitive operations
+
+A minimal, closed vocabulary — **not hardcoded gameplay, but reordered and
+exposure-gated per game**:
+
+| Primitive | Effect on the registry |
+|---|---|
+| `Pin` | write a `coordinate` entry naming a substrate point |
+| `Bookmark` | write an entry naming the player's current resolved position |
+| `Snapshot` | write a `snapshot` entry freezing a resolved query (§3.7.3) |
+| `Link` | write a `LinkRecord` (§3.7.2) |
+| `Query` | resolve a substrate query (stochastic, seeded per §4.5); read-only, records the query in the input-log |
+| `Compose` | write a `composite` entry grouping member tags |
+
+Every primitive:
+
+- is **deterministic and reversible** (in contrast to Tier 2's stochastic
+  resolution) — this is the overlay's defining property;
+- is **exposure-gated per ruleset** using the §4.2 predicate grammar rather than a
+  parallel permission system:
+
+  ```typescript
+  interface PrimitiveExposure {
+    primitive: "pin" | "bookmark" | "snapshot" | "link" | "query" | "compose";
+    exposure: "player" | "author_only" | "both";
+    when?: string;   // optional §4.2 DSL predicate, e.g. "dynamic.turn_count > 5"
+  }
+  ```
+
+- is usable by both author (design time, to hand-build initial registry structure)
+  and player (runtime, if exposed) — same primitive, same effect, distinguished
+  only by the `provenance` of the entry it writes;
+- appends its write to the **same input-log as moves** — replaying a session means
+  replaying both where the player went and what they named/connected along the way.
+
+Per `INV-4`, exposure gating validates well-formedness only; it does not judge
+whether a given exposure configuration is sensible.
 
 ---
 
@@ -378,10 +522,40 @@ populate(roomEntity, layerStack, graph):
 
 This is not an approximation of shared logic — `resolveMove` and `populate` MUST call the same underlying `evaluateLayers()` function in `packages/rule-engine/src/solver.ts`. A test that asserts this (same function reference, not just same output) belongs in Phase 3 (Section 6.3).
 
+Under the §0.8.0 substrate model, `graph.neighborsWithinRadius(...)` is a **live
+substrate query at the player's current position** rather than a lookup of
+pre-clustered neighbors. The zero-radius-query mechanism survives intact: the
+identical-`evaluateLayers()` requirement is unchanged, and query stochasticity is
+seed-controlled per §4.5, so the determinism test still holds.
+
 ### 4.5 Determinism (implements INV-2)
 
 - All sampling (`sample()` in 4.1/4.4) uses a seeded PRNG. The seed is derived deterministically from `(session_seed, turn_count)` — never from wall-clock or external entropy.
 - Given identical `(graph.json, ruleset.dsl, session_seed, input-log)`, `resolveMove` and `populate` MUST produce byte-identical output across runs. This is a Phase 3 test requirement (Section 6.5), not a nice-to-have.
+
+**Determinism across the three tiers (§0.8.0 precision amendment).** The §0.8.0
+model splits determinism cleanly rather than weakening it:
+
+- **Overlay (Tier 3, §3.7)** — fully deterministic and reversible. Every overlay
+  write is a logged, replayable record. Unchanged, fully required.
+- **Substrate (Tier 2)** — queries are *stochastic across seeds by design*
+  (re-approximable "vibes," not noise to engineer out), but their randomness is
+  drawn from the same seeded PRNG rule above, extended to
+  `(session_seed, turn_count, normalized_query)`. Consequences:
+  - Replaying an identical `(graph.json, ruleset.dsl, session_seed, input-log)`
+    reproduces every substrate result **byte-for-byte** — the `INV-2` replay
+    guarantee holds unchanged.
+  - The "same question twice yields a similar-but-not-identical place" property is
+    **seed-relative**: it appears across *different* invocations (a new turn
+    advances `turn_count`; a new session changes `session_seed`) and across a
+    corpus rebuild (a new `substrate_version`, §3.7.3/§6.3) — never within a
+    replay of one log.
+
+This is a precision fix to `INV-2`, not a relaxation: the substrate sits one layer
+below the solver's hard/soft decision logic, but its *seeded* results remain
+replay-deterministic. Local coherence (a fixed property of the corpus) is
+precomputed at build time (§6.3), so it contributes nothing nondeterministic to a
+query.
 
 ### 4.6 Debug Trace (optional, off by default)
 
@@ -519,14 +693,30 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 
 **Entry**: Phase 1 complete.
 
+> **§0.8.0 re-scoping (three-tier model).** This phase no longer produces a fixed
+> node/edge graph. It builds a **substrate index** (Tier 2): the `graph.json`
+> artifact keeps its filename (vestigial, to avoid churning cross-references) but
+> its contents are redefined to embedding vectors + an ANN index for live
+> querying + a source-span provenance table + a precomputed **local-coherence
+> field** (a fixed property of the corpus, computed once here rather than
+> per-query, decision D4) + a `substrate_version` build-id header (used by
+> snapshot staleness, §3.7.3). It does **not** contain pre-computed nodes or
+> edges — "nodes" are ephemeral substrate-query results minted at runtime (§3.1,
+> decision D1). The pipeline stage contract (hard validation, fail-loud on
+> degenerate output) still applies but now validates *substrate-construction
+> parameters* — is the embedding space well-formed, is there enough source
+> material for meaningful queries — not a fixed clustering output. See
+> `docs/design/0001-three-tier-data-model.md`.
+
 **Build**: `packages/corpus-builder/` — CLI tool: `corpus-builder build --input <dir> --output graph.json`.
 - Corpus retrieval step (pluggable — see §6.3.1; resolves a manifest of source documents into raw text before embedding begins)
 - Embedding step (pluggable — spec does not mandate a specific model/provider, but MUST be swappable via config, not hardcoded to one vendor)
-- Clustering step → node formation
-- Edge weight computation (cosine similarity threshold, configurable)
-- Tagging step → populates `semantic_tags` with structured tags (Section 3.6 grammar), `archetype` (initial heuristic assignment is acceptable for alpha; author-refined tagging is post-alpha)
-- Provenance: every graph node carries `source_refs: string[]` — the id(s) of the raw corpus document(s) it was built from — so any node is traceable back to input. Documented in `GRAPH_FORMAT.md` alongside the rest of the internal format.
-- Per-stage instrumentation: embedding, clustering, edge-weighting, and tagging each report through the §2.1 `Logger` (start/end, input/output counts, warnings) and `Metrics` (duration, counts) — the same interfaces `server` uses, not a parallel mechanism.
+- Index construction step → ANN index over source-span embeddings (replaces fixed clustering/node formation; the substrate is queried live, §3.7 Tier 2)
+- Local-coherence precomputation → the coherence field stored in the substrate bundle (decision D4)
+- `substrate_version` stamping → a content-hash/build-id in the `graph.json` header, consumed by snapshot staleness (§3.7.3)
+- Tagging step → populates `semantic_tags` with structured tags (Section 3.6 grammar), `archetype` (initial heuristic assignment is acceptable for alpha; author-refined tagging is post-alpha). Under §0.8.0, tags are interpretation-tier metadata attached to source spans, applied to resolved query results at runtime (§3.1).
+- Provenance: every source span carries `source_refs: string[]` — the id(s) of the raw corpus document(s) it was built from — so any resolved query result is traceable back to input. Documented in `GRAPH_FORMAT.md` alongside the rest of the internal format.
+- Per-stage instrumentation: embedding, index-construction, coherence-precompute, and tagging each report through the §2.1 `Logger` (start/end, input/output counts, warnings) and `Metrics` (duration, counts) — the same interfaces `server` uses, not a parallel mechanism.
 - Output: `graph.json` — internal-only format, never sent to any client (INV-3), consumed exclusively by `rule-engine`. Also outputs `tag-registry.yaml` — the vocabulary of tag segment paths discovered from the corpus (Section 3.6.2).
 
 #### 6.3.1 Corpus Source Adapters
@@ -609,18 +799,19 @@ none at all.
 ```typescript
 interface BuildTrace {
   stages: {
-    stage: "embedding" | "clustering" | "edge_weighting" | "tagging";
+    stage: "embedding" | "index_construction" | "coherence_precompute" | "tagging";
     input_count: number;
     output_count: number;
     duration_ms: number;
     warnings: string[];
   }[];
-  node_provenance: Record<string, string[]>;  // node id -> source document ids
+  span_provenance: Record<string, string[]>;  // source-span id -> source document ids
 }
 ```
 
 **Exit**:
-- Running the CLI against a small test corpus (fixture, ~20 documents) produces a valid `graph.json`, and every node in it has non-empty `source_refs` resolving to real documents in that fixture corpus.
+- Running the CLI against a small test corpus (fixture, ~20 documents) produces a valid `graph.json` **substrate index** — well-formed enough to answer queries (§0.8.0 re-scoping above), not a fixed node/edge set — and every source span in it has non-empty `source_refs` resolving to real documents in that fixture corpus. (`corpus-builder inspect --node <id>` below inspects a source-span/index entry, not a pre-clustered node.)
+- The substrate bundle carries a `substrate_version` header and a local-coherence field; a second build of an unchanged manifest yields an identical `substrate_version` (determinism extends to the build-id, §4.5).
 - `graph.json` schema, `source_refs`, and `BuildTrace` are documented in `packages/corpus-builder/GRAPH_FORMAT.md`. As internal formats that never cross the client boundary, they are versioned less strictly than the client-facing schema in Section 3.
 - Re-running the build with identical input produces byte-identical output — `graph.json` and, when `--trace` is set, `build-trace.json` too (determinism extends to build-time transparency artifacts, not just the graph).
 - `corpus-builder inspect --node <id>` and `corpus-builder inspect --trace` both run against the fixture without error.
@@ -709,6 +900,7 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 - **Tagging quality**: Phase 2's heuristic auto-tagging is an alpha stand-in using the structured tag grammar (Section 3.6). The tag registry (3.6.2) and configurable modifier registry (3.6.1) provide the machinery for author-refined tagging; what does the refinement *tooling* look like? (Likely a Phase 7+ concern, possibly folded into the rule editor. See `docs/tag-system-design.md` for the full design rationale.)
 - **`graph.json` scale limits**: no sharding/pagination strategy is specified for very large corpora. Fine for alpha-scale corpora; needs design work before "production" means more than "alpha."
 - **Embedding provider choice**: Phase 2 mandates swappability but does not mandate a default. Pick one for the first real corpus run (Phase 6) and document the choice + rationale in `packages/corpus-builder/GRAPH_FORMAT.md`.
+- **Substrate re-approximation tolerance** (§0.8.0, decision D5): the `substrate.reapproximation_tolerance` parameter — "how similar is similar enough" for two re-approximations of the same query to count as "the same kind of place" — is an empirical/tunable value, deliberately not fixed at the design-doc level. Tune it against a real corpus in Phase 6. See `docs/design/0001-three-tier-data-model.md`.
 
 ---
 
@@ -716,7 +908,14 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 
 | Term | Definition |
 |---|---|
-| Entity | Unified schema for both rooms and objects (Section 3.1). No structural room/object distinction. |
+| Bedrock | Tier 1 of the §0.8.0 model: the corpus itself, ingested at build time, never client-visible (`INV-3`). Ground truth for the other tiers. |
+| Substrate | Tier 2: a continuous embedding surface queried live (not a fixed node/edge graph). Queries are stochastic across seeds but replay-deterministic (§4.5). |
+| Overlay | Tier 3: the deterministic, reversible interface (Address Registry + primitives, §3.7) through which the substrate becomes navigable and memorable. |
+| Address Registry | The overlay's inert name→reference map (§3.7.1). Distinct from the Tag Registry (§3.6.2), which is a vocabulary tree. |
+| Primitive (overlay) | One of the closed set `Pin`/`Bookmark`/`Snapshot`/`Link`/`Query`/`Compose` (§3.7.4): deterministic, reversible, exposure-gated per ruleset. |
+| Snapshot | An overlay entry freezing one re-approximation of a stochastic substrate query as canonical, bound to a `substrate_version` (§3.7.3). |
+| Substrate query | A live lookup against the substrate (nearest-neighbor, region, gradient); seeded per §4.5, re-approximable across seeds. |
+| Entity | Unified schema for both rooms and objects (Section 3.1). No structural room/object distinction. Under §0.8.0, an interpretation-tier view of a resolved substrate query or registry entry, minted on demand. |
 | Archetype | Entity field determining renderer interpretation and typical affordance set. |
 | Layer | A scoped, prioritized set of rule-blocks (Section 3.4). Concurrent, not mutually exclusive. |
 | Ruleset | A full authored file: `spec_version` + `layers[]`. The unit an author shares/forks/versions. |
