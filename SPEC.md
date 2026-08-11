@@ -49,10 +49,10 @@ The default behavior with zero authored rules is **relativistic drift**: the pla
 ┌─────────────────────────────────────────────────────────────────┐
 │  BUILD-TIME (offline, run once or incrementally, cached)         │
 │                                                                   │
-│  Corpus ──▶ Embedding ──▶ Clustering ──▶ Graph ──▶ Tagging       │
-│                                            │                      │
-│                                            ▼                      │
-│                                    graph.json (cached artifact)  │
+│  Corpus ──▶ Embedding ──▶ Index + coherence ──▶ Tagging          │
+│                                  │                               │
+│                                  ▼                               │
+│                    graph.json — substrate index (cached)         │
 └─────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -82,11 +82,18 @@ The default behavior with zero authored rules is **relativistic drift**: the pla
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+Under the §0.8.0 three-tier model, build-time no longer clusters the corpus into
+a fixed node/edge graph: it constructs a **substrate index** (embeddings + ANN
+index + local-coherence field) that the runtime queries live. The artifact keeps
+the filename `graph.json` for continuity (§6.3), but its contents are the
+substrate index, not a precomputed graph; the "nodes" the runtime resolves are
+ephemeral query results (§3.1, §3.7).
+
 **Directory-to-layer mapping** (see Section 6.1 for full repo layout):
 
 | Layer | Package | Owns |
 |---|---|---|
-| Build-time pipeline | `packages/corpus-builder` | Embedding, clustering, graph construction, tagging |
+| Build-time pipeline | `packages/corpus-builder` | Embedding, substrate-index construction, local-coherence precompute, tagging |
 | Rule DSL + solver | `packages/rule-engine` | Parser, layered constraint evaluator, DSL grammar |
 | Runtime backend | `packages/server` | REST API (5.1), session state, calls rule-engine |
 | Shared contract | `packages/schema` | TypeScript types for Entity Schema, imported by server AND client |
