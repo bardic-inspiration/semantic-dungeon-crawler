@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.8.0`
+`spec-version: 0.9.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -12,6 +12,33 @@
 > splits across the tiers, and `docs/design/0001-three-tier-data-model.md` for
 > the decisions behind it (resolves issue #11).
 
+> **§0.9.0 — A-series resolution (player-facing runtime & engine semantics).**
+> Resolves the thirteen Tier-A spec gaps (issues #15–#27) as one interdependent
+> model; see `docs/design/0003-a-series-resolution.md` for the decisions and
+> rationale. Summary of what this amendment changes:
+> - **Identity & navigation.** `state.position` is a substrate coordinate;
+>   durable memory is an append-only tree of opaque overlay **address-tokens**
+>   (parent→children grouping = `Entity.contains`). `Entity.id` is ephemeral
+>   per-resolution; the durable handle is the address-token. Backtracking =
+>   truncate to an ancestor token and re-resolve fresh; `visited_set` holds
+>   address-tokens (A2/A3/A8).
+> - **Corpus text reaches the player.** `Entity` gains client-facing `prose` +
+>   `source_span` metadata (A1). INV-3 is refined (below) to name these, and
+>   overlay registry names/labels, as *output* rather than internals.
+> - **Interaction has consequence.** Traversal-capable objects *are* the exits
+>   (A4); the `Effect` taxonomy gains **write** and **emit** kinds applied in a
+>   deterministic post-decision commit phase (A5); local interactions are pure
+>   author-rules with a structured `interaction_result` (A6).
+> - **Authoring surface.** The ruleset is one JSON/YAML bundle (DSL only in
+>   expression strings) carrying layers + registries + interpretation lookup +
+>   primitive exposure + movement affordances (A11/A13); primitives are invoked
+>   via affordances through `POST /interact` plus a client-facing registry read
+>   (A10); ruleset binding is developer-mode-gated, substrate is server-wide
+>   (A12). New schema types: **session state** (A8) and **input-log** (A9).
+> - **Boundary.** The engine ships *mechanism*, not gameplay *meaning*: no
+>   built-in goals/score/inventory; an author-triggered `ended` flag; state via
+>   the overlay and a per-session scratch store (A7).
+
 ## 0. Purpose and Reading Order
 
 This document is the authoritative build specification for an **authoring engine for semantic-space games** — not a single game. It is written to drive a phased, iterative Claude Code development process. Each phase in Section 6 is independently checkable: it lists file paths to create, exact schemas to implement, and pass/fail done-criteria.
@@ -22,7 +49,7 @@ This document is the authoritative build specification for an **authoring engine
 
 - `INV-1`: The traversal/rule engine (Section 4) never imports a rendering library. It is pure, headless, testable with no client attached.
 - `INV-2`: A game session is fully reproducible from `(seed, ruleset-file, input-log)`. No hidden state, no wall-clock dependence, no non-seeded randomness in backend logic. Substrate queries (§3.7 Tier 2) are *stochastic across seeds* by design, but their randomness is drawn from a PRNG seeded from `(session_seed, turn_count, query)`, so replaying an identical input-log reproduces every result byte-for-byte — determinism is a replay guarantee, not a same-question-twice guarantee (§4.5).
-- `INV-3`: The client (Three.js and terminal reference adapters, Section 5) never receives the graph, embeddings, or rule definitions. It receives only resolved JSON matching the Entity Schema (Section 3).
+- `INV-3`: The client (Three.js and terminal reference adapters, Section 5) never receives the graph, embeddings, or rule definitions. It receives only resolved JSON matching the Entity Schema (Section 3). **(§0.9.0 refinement.)** "Resolved output" explicitly includes two things the client *does* receive: an entity's resolved `prose` and its `source_span` positional metadata (§3.1, A1), and overlay Address Registry **names/labels** of player-provenance entries (§3.7, §5.1, A10). INV-3 still forbids the client from receiving embedding vectors, the ANN index, rule definitions, internal ids, or raw snapshot payloads beyond their resolved entities. The line is *resolved output vs. engine internals*, not *text vs. no-text*.
 - `INV-4`: The engine does not validate ruleset *coherence* or *taste*. It validates ruleset *well-formedness* (parses, references exist, types match). Contradictory or "bad" rules are legal and must run, not be rejected.
 - `INV-5`: Every schema and protocol surface is versioned (Section 3.5). Breaking changes require a version bump and a changelog entry, not silent mutation.
 
@@ -134,17 +161,32 @@ what changed is that they describe a resolved view, not a permanent structural n
 // packages/schema/src/entity.ts
 
 interface Entity {
-  id: string;                          // stable node id, matches graph.json node id
-  archetype: Archetype;                // determines renderer interpretation
+  id: string;                          // §0.9.0 (A2): EPHEMERAL per-resolution id, replay-stable via the seed
+                                       // (§4.5) — NOT a durable/graph node id (nodes were removed in §0.8.0/D1).
+                                       // The durable handle for a place is its overlay address-token (§3.7, A3).
+  archetype: Archetype;                // determines renderer interpretation; default set supplied by the
+                                       // author interpretation lookup at resolution (§3.4, A13)
   semantic_tags: string[];             // structured tags — grammar in Section 3.6
   embedding_ref: string;               // pointer to vector in graph.json, NEVER the raw vector
-  affordances: Affordance[];           // legal interaction verbs
-  salience: number;                    // 0.0–1.0, informs render prominence / population weight
-  contains: string[];                  // member tags of the entity's `composite` Address Registry entry (§3.7),
-                                       // resolved to concrete entities at interpretation time — NOT a structural
-                                       // substrate property (empty for leaf/prop entities)
-  layout_hint: LayoutHint;
+  affordances: Affordance[];           // legal interaction verbs; default set from the interpretation lookup (A13)
+  salience: number;                    // 0.0–1.0, render prominence / population weight; produced by the
+                                       // interpretation lookup at resolution (§3.4, A13)
+  prose: string;                       // §0.9.0 (A1): verbatim source-span excerpt — CLIENT-FACING resolved
+                                       // output (INV-3 refinement). "Just data": DSL/front-end treat it as a
+                                       // string. Empty string if the resolved entity has no source text.
+  source_span: SourceSpan;             // §0.9.0 (A1): positional provenance for `prose` — CLIENT-FACING
+  contains: string[];                  // §0.9.0 (A3): the child address-tokens of this entity's `composite`
+                                       // Address Registry entry (§3.7), resolved to concrete entities at
+                                       // interpretation time. This is exactly the exploration/history tree's
+                                       // parent→children grouping — NOT a structural substrate property
+                                       // (empty for leaf/prop entities).
+  layout_hint: LayoutHint;             // produced by the interpretation lookup at resolution (§3.4, A13)
   state: EntityState;
+}
+
+interface SourceSpan {                 // §0.9.0 (A1) — client-facing positional provenance
+  source: string;                      // human/machine-legible source id (e.g. "gutenberg:11")
+  char_ranges: string;                 // CSV of character range(s) in the source document, e.g. "1024-1330,1450-1502"
 }
 
 type Archetype =
@@ -165,8 +207,11 @@ interface LayoutHint {
 }
 
 interface EntityState {
-  coherence: number;       // 0.0–1.0, decay/stability scalar, author-defined meaning
-  visited: boolean;
+  coherence: number;       // 0.0–1.0; §0.9.0 (A13): producer is the D4 build-time local-coherence field
+                           // (interpolated at the resolved point). Its precise semantics/naming are deferred
+                           // to B5 (#32), which owns the "three quantities called coherence" disambiguation.
+  visited: boolean;        // §0.9.0 (A3): runtime-derived — true iff this entity's overlay address-token is in
+                           // `dynamic.visited_set`. Engine-owned; not a stored per-entity field.
 }
 ```
 
@@ -185,11 +230,20 @@ interface ResolvedRoomResponse {
 }
 
 interface ResolvedExit {
-  target_entity_id: string;
+  target_entity_id: string;          // §0.9.0 (A2): a resolvable query/address TOKEN, not a materialized
+                                     // destination. Taking the exit re-runs that query on arrival (seeded,
+                                     // §4.5) — a re-approximation unless snapshotted. The client echoes it back.
   affordance_required: Affordance;   // which interaction on which object triggers this
   via_object_id: string;             // which object in `objects[]` is the trigger
   weight: number;                    // soft-bias hint, client MAY use for visual affordance strength, MUST NOT use to alter server decision
 }
+
+// §0.9.0 (A4) — EXIT DERIVATION. Exits are not a separate graph. During room resolution the server emits one
+// `ResolvedExit` per populated object whose affordance set includes a MOVEMENT affordance (author-designated in
+// the ruleset; engine defaults `enter`/`traverse`, plus the `portal` archetype). For such an object:
+// via_object_id = that object's id, affordance_required = its movement affordance, target_entity_id = a query
+// token seeded from that object, weight = its soft-score. "Movement is an emergent consequence of environmental
+// interaction" (§1) is exactly this: to move, the player interacts with a traversal-capable object.
 ```
 
 ### 3.3 Session / Move Request
@@ -206,15 +260,62 @@ interface InteractRequest {
 interface InteractResponse {
   new_room: ResolvedRoomResponse;   // full re-resolution, same shape as GET /room/current
   transition_occurred: boolean;      // false if interaction was local (e.g. "read" a book, no movement)
+  interaction_result: InteractionResult;  // §0.9.0 (A6): per-interaction output, esp. when nothing moved
+  session_ended?: boolean;           // §0.9.0 (A7): true once an author rule has fired the `end` effect; the
+                                     // engine surfaces the flag, the author owns the trigger. Omitted/false otherwise.
+}
+
+// §0.9.0 (A6). Local (non-movement) interactions run the SAME evaluateLayers + commit-phase pipeline (§4) for
+// (object, affordance). The engine assigns NO intrinsic meaning to read/take/inspect/speak — those are engine
+// DEFAULTS, not hardcoded behavior, and `Affordance` is an open string so authors may add/redefine verbs. If no
+// rule matches, the interaction is a no-op returning the unchanged room. `interaction_result` is populated by the
+// author `emit` effect (§3.4); `effects_summary` is auto-derived from the commit-phase writes for debug/UX.
+interface InteractionResult {
+  text?: string;                     // author-emitted text (e.g. the fuller passage a `read` returns)
+  revealed?: string[];               // entity ids surfaced by the interaction, if any
+  effects_summary?: string[];        // human-readable summary of commit-phase writes (debug/UX), auto-derived
 }
 ```
 
 ### 3.4 Ruleset DSL — Data Shape (grammar in Section 4.2)
 
+> **§0.9.0 (A11) — surface syntax & one-bundle.** A ruleset file is **structured
+> data (JSON/YAML)** matching the `Ruleset` interface below; the DSL (§4.2) appears
+> **only** inside `predicate`/`scope`/value strings. `parser.ts` parses those
+> expression strings, not a file-level grammar. The ruleset is the single authored
+> bundle — "the unit an author shares/forks/versions" (§8) — so it carries not just
+> `layers` but the modifier registry (§3.6.1), resolver overrides (§3.6.3), the
+> archetype/interpretation lookup (A13), primitive exposure (§3.7.4), and the
+> movement-affordance designation (A4). Ruleset fixtures use a data extension
+> (`.json`/`.yaml`); the historical `fixtures/rulesets/*.dsl` naming is retired.
+
 ```typescript
 interface Ruleset {
   spec_version: string;             // must match packages/schema version, see 3.5
   layers: Layer[];
+  // §0.9.0 (A11) — the rest of the authored bundle. All author content; adding/removing entries is NOT an
+  // engine version bump (§3.5), only changing the engine mechanism that reads them is.
+  modifier_registry?: Record<string, ModifierConfig>;   // §3.6.1 — author-defined modifier behavior
+  resolvers?: Record<string, string>;                   // §3.6.3 — resolver overrides/additions (name → def)
+  interpretation_lookup?: InterpretationLookup;         // §0.9.0 (A13) — tag/archetype → archetype, affordances,
+                                                        // layout_hint, salience defaults (engine ships defaults)
+  primitive_exposure?: PrimitiveExposure[];             // §3.7.4 — which overlay primitives players may invoke
+  movement_affordances?: Affordance[];                  // §0.9.0 (A4) — affordances that trigger movement;
+                                                        // engine default = ["enter","traverse"] (+ portal archetype)
+}
+
+// §0.9.0 (A13). Author content (with engine defaults), keyed by archetype and/or tag pattern (§4.2 MATCHES
+// grammar). Supplies the interpretation applied to a resolved substrate result at render/rule time (§3.7.1).
+interface InterpretationLookup {
+  by_archetype?: Record<string, InterpretationEntry>;
+  by_tag?: { pattern: string; interpretation: InterpretationEntry }[];  // first match wins, in array order
+}
+
+interface InterpretationEntry {
+  archetype?: Archetype;
+  affordances?: Affordance[];
+  layout_hint?: Partial<LayoutHint>;
+  salience?: number;                 // 0.0–1.0 default salience for matches
 }
 
 interface Layer {
@@ -230,9 +331,21 @@ interface RuleBlock {
 }
 
 type Effect =
+  // Traversal-control effects (unchanged from ≤0.8.0) — filter/weight the move decision, evaluated in §4.3.
   | { kind: "hard_allow" }
   | { kind: "hard_forbid" }
-  | { kind: "soft_reweight"; factor: number };   // multiplicative, applied once per move-decision (discrete, not continuous)
+  | { kind: "soft_reweight"; factor: number }   // multiplicative, applied once per move-decision (discrete, not continuous)
+  // §0.9.0 (A5/A6/A7) — WRITE effects. Collected across active layers and applied in a SEPARATE, deterministic
+  // COMMIT PHASE *after* the §4.3 traversal decision, in declaration order, last-write-wins, NEVER throwing
+  // (INV-4). They cannot influence the same move's candidate filtering, so §4.3 hard/soft logic is unchanged and
+  // INV-2 holds trivially (writes are a pure function of the decided move + seed + ruleset).
+  | { kind: "write"; target: string; value: string }   // set a scratch key (`dynamic.vars.<key>`, A8) to an
+                                                        // evaluated §4.2 expression/literal
+  | { kind: "primitive"; primitive: PrimitiveExposure["primitive"]; args?: Record<string, string> } // invoke an
+                                                        // overlay primitive (§3.7.4); same primitive/effect as a
+                                                        // player invocation, distinguished only by provenance
+  | { kind: "emit"; text?: string; reveal?: string[] } // append to InteractResponse.interaction_result (§3.3, A6)
+  | { kind: "end" };                                   // fire the author-triggered session-ended flag (§3.3, A7)
 
 type ScopeCondition = string;  // DSL expression evaluated once per move to determine layer activation
 ```
@@ -434,6 +547,72 @@ Every primitive:
 Per `INV-4`, exposure gating validates well-formedness only; it does not judge
 whether a given exposure configuration is sensible.
 
+> **§0.9.0 (A10) — how a primitive is invoked at runtime.** The only client input
+> is `{object_id, affordance}` (§3.3). A **player** invokes a primitive by
+> interacting with an object whose affordance an author rule maps to a
+> `{ kind: "primitive" }` effect (§3.4); `exposure` gates whether the player may.
+> **Rules** invoke the same primitives directly via that effect (A5) — same
+> primitive, same effect, distinguished only by the `provenance` of the entry
+> written. There is no separate primitive endpoint or permission system. Registry
+> *contents* remain server-internal; a client-facing **names/labels** view of
+> player-provenance entries is exposed via `GET /session/{id}/registry` (§5.1),
+> within the INV-3 refinement (§0). The registry is owned per §3.8 (layered:
+> shared build/author base + per-session player overlay).
+
+### 3.8 Session State (§0.9.0, A8)
+
+The in-memory run-state object the solver reads (`state` in §4.1) and every
+`dynamic.*` predicate (§4.2) resolves against. A `packages/schema` type,
+**server-internal** — never sent to the client (INV-3), except the derived
+`ended` flag surfaced on `InteractResponse` (§3.3). This is the in-memory shape,
+not persistence (durability is post-alpha, §6.8).
+
+```typescript
+// packages/schema/src/session.ts
+interface SessionState {
+  session_id: string;
+  session_seed: number;              // the only entropy source (§4.5)
+  position: CoordinateRef;           // §0.9.0 (A3): live substrate coordinate, by ref (INV-3), never a raw vector
+  turn_count: number;                // dynamic.turn_count
+  trace_centroid: number[] | null;   // dynamic.trace_centroid (vector, server-internal)
+  momentum: number[] | null;         // dynamic.momentum
+  coherence: number;                 // dynamic.coherence (see B5)
+  visited_set: string[];             // dynamic.visited_set — overlay ADDRESS-TOKENS (A3), not ephemeral ids
+  vars: Record<string, string>;      // §0.9.0 (A8): dynamic.vars.* scratch — write target for `write` effects (A5),
+                                     // readable in the DSL (§4.2). Values are strings; coerce per predicate use.
+  registry: AddressRegistryEntry[];  // §0.9.0: the PLAYER-overlay layer (provenance "player"); reads merge this
+                                     // over the shared build/author_runtime base bound to the world (§3.7.1)
+  links: LinkRecord[];               // player-overlay links (§3.7.2)
+  ended: boolean;                    // §0.9.0 (A7): set by the `end` effect; surfaced as InteractResponse.session_ended
+  input_log: InputLogEntry[];        // §0.9.0 (A9): accumulated player inputs (§3.9)
+}
+
+type CoordinateRef = { vector_ref: string };  // a reference into the substrate index, never a raw vector (INV-3)
+```
+
+The **Address Registry is layered** (A8): build- and author_runtime-provenance
+entries are shared per-world and immutable during play; player-provenance writes
+live in `SessionState.registry`; a read is the merge (player over base).
+
+### 3.9 Input Log (§0.9.0, A9)
+
+The artifact `INV-2` is defined against: replaying `(session_seed, ruleset,
+input_log)` reproduces a session byte-for-byte. It records **only player/author
+inputs**; rule-driven scratch/overlay writes are deterministic consequences and
+are **not** logged (they re-derive on replay).
+
+```typescript
+// packages/schema/src/session.ts
+type InputLogEntry =
+  | { kind: "interact"; action: { object_id: string; affordance: Affordance } }
+  | { kind: "primitive"; primitive: PrimitiveExposure["primitive"]; args?: Record<string, string> };
+```
+
+The server accumulates the log per session and exposes it at
+`GET /session/{id}/log` (§5.1). **Replay** = create a session with the same seed
+and re-POST the logged `interact`/primitive actions in order; there is no
+dedicated replay endpoint and no durable storage (sessions are in-memory, §5.1).
+
 ---
 
 ## 4. Rule Engine Specification
@@ -463,6 +642,23 @@ resolveMove(state, graph, layerStack):
 
 Per `INV-4`, this function MUST NOT throw, reject, or auto-correct when layers produce contradictory hard decisions. Resolution order (4.3) determines the outcome; a "bad" outcome is a valid outcome.
 
+> **§0.9.0 amendments to the control flow (A4/A5).** Two additions, neither of
+> which changes the hard/soft decision logic above:
+> 1. **Exit-anchored candidates.** When a move is initiated by interacting with a
+>    traversal-capable object (§3.2, A4), that object's seeded query **anchors**
+>    `candidates` — `resolveMove` resolves the destination of the chosen exit
+>    rather than sampling freely among all neighbors. `sample()` is still seeded
+>    (§4.5), so determinism holds; the null-ruleset drift path (candidates =
+>    `graph.neighbors`) is unchanged.
+> 2. **Post-decision commit phase.** After the decision is made and `sample()`
+>    returns, the engine runs a separate commit phase: collect every `write` /
+>    `primitive` / `emit` / `end` effect (§3.4) fired by active layers and apply
+>    them in declaration order, **last-write-wins, never throwing** (INV-4).
+>    Writes cannot affect this move's candidate filtering. This is where authored
+>    state (`dynamic.vars.*`, overlay entries) and `interaction_result` are
+>    produced. Local (non-movement) interactions (§3.3, A6) run the identical
+>    `evaluateLayers` + commit phase with no transition.
+
 Naming: `resolveMove`, `populate`, and every other TypeScript identifier in this section follow `docs/naming-conventions.md`. Wire-facing fields (`layout_hint`, effect kinds like `hard_allow`) keep the `snake_case` SPEC §3 already defines — the split is deliberate, not a typo.
 
 ### 4.2 DSL Grammar (v0)
@@ -479,9 +675,9 @@ OPERATOR     := ">" | "<" | ">=" | "<=" | "==" | "!=" | "IN" | "NOT IN"
              | "CONTAINS" | "MATCHES"
 ```
 
-**Reserved `static.*` properties** (read from the current candidate entity/edge): `static.embedding_distance`, `static.archetype`, `static.tags` (array), `static.edge_weight`, `static.cluster_id`.
+**Reserved `static.*` properties** (read from the current candidate entity/edge): `static.embedding_distance`, `static.archetype`, `static.tags` (array), `static.edge_weight`, `static.cluster_id`, and (§0.9.0 A1) `static.prose` (string) and `static.source` (string, the `source_span.source` id). Prose is "just data"; string tooling in the grammar (beyond `CONTAINS`/`MATCHES`) may grow in later versioned amendments.
 
-**Reserved `dynamic.*` properties** (read from run state): `dynamic.visited_set` (array of ids), `dynamic.trace_centroid` (vector), `dynamic.momentum` (vector), `dynamic.turn_count`, `dynamic.coherence`.
+**Reserved `dynamic.*` properties** (read from run state, §3.8): `dynamic.visited_set` (array of overlay address-tokens, §0.9.0 A3), `dynamic.trace_centroid` (vector), `dynamic.momentum` (vector), `dynamic.turn_count`, `dynamic.coherence`, and **`dynamic.vars.<key>`** (§0.9.0 A8 — the per-session scratch store; any author-chosen key, string-valued, written by `write` effects §3.4). Prose (§3.1 `static.*`, below) is likewise readable as string data (A1); the reserved `static.*` set is extended with **`static.prose`** and **`static.source`**.
 
 **Reserved functions**: `contains(array, value)`, `distance(vec, vec)`, `recent(dynamic.visited_set, n)`, `matches(array, pattern)`.
 
@@ -534,6 +730,15 @@ substrate query at the player's current position** rather than a lookup of
 pre-clustered neighbors. The zero-radius-query mechanism survives intact: the
 identical-`evaluateLayers()` requirement is unchanged, and query stochasticity is
 seed-controlled per §4.5, so the determinism test still holds.
+
+> **§0.9.0 (A4) — exits derived from the populated set.** After `objects[]` is
+> populated, the server derives `exits[]` (§3.2) in the same resolution pass: for
+> each populated object whose affordance set includes a movement affordance
+> (`Ruleset.movement_affordances`, default `enter`/`traverse`, plus `portal`),
+> emit a `ResolvedExit` bound to that object (via_object_id), its movement
+> affordance (affordance_required), a query token seeded from it
+> (target_entity_id), and its soft-score (weight). No separate exit graph or
+> edge table exists.
 
 ### 4.5 Determinism (implements INV-2)
 
@@ -601,14 +806,33 @@ Normative for any adapter, not just the two reference ones (5.2, 5.4).
 **Endpoints**:
 
 ```
-GET    /session/new?seed={optional}           → { session_id, seed }
+GET    /session/new?seed={optional}           → { session_id, seed }   (uses the server-wide ruleset)
+POST   /session/new                            → { seed?, ruleset_ref?, ruleset? } → { session_id, seed }
+                                                  §0.9.0 (A12): DEV-MODE ONLY. Bind a ruleset per session —
+                                                  ruleset_ref names a server-registered ruleset (by reference),
+                                                  ruleset inlines a full bundle (by value). 404/403 if dev mode off.
 GET    /room/current?session_id={id}          → ResolvedRoomResponse
 POST   /interact                               → InteractRequest body → InteractResponse
+GET    /session/{session_id}/log              → InputLogEntry[]  (§0.9.0 A9; for replay/diff)
+GET    /session/{session_id}/registry         → AddressLabel[]   (§0.9.0 A10; player-provenance names/labels only,
+                                                  never internals — INV-3 refinement §0)
 DELETE /session/{session_id}                   → 204, frees in-memory session state; idempotent
 GET    /debug/trace?session_id={id}            → DebugTrace  (only if server debug mode on, else 404)
 GET    /health                                 → { status: "ok" }, liveness/readiness for deployment (6.7)
 GET    /metrics                                → { counters, gauges } snapshot from the 2.1 Metrics interface, or 404 if metrics disabled
 ```
+
+> **§0.9.0 (A12) — substrate & ruleset lifecycle.** The substrate bundle
+> (`graph.json`) is a **server-wide startup config** (e.g. `--graph <path>`); a
+> corpus rebuild means a server restart, consistent with in-memory,
+> one-world-per-server sessions. Ruleset binding is gated by a **developer-mode
+> server flag** (a sibling of the debug flag, §2.1/§4.6): with dev mode **off**
+> (a shipped game) the server loads one ruleset at boot and every session uses it
+> — `POST /session/new` is unavailable; with dev mode **on** a session may bind
+> its own ruleset by reference or value via `POST /session/new`, which is what
+> lets the Phase-4 exit criteria round-trip each fixture ruleset. `AddressLabel`
+> is `{ tag: string; label: string }` — a player-provenance name and its
+> display label, no references or payloads (INV-3).
 
 Session lifecycle: `GET /session/new` creates a session; `GET /room/current` and `POST /interact` operate on an existing one; `DELETE /session/{id}` explicitly tears one down (deleting an already-deleted or unknown session still returns `204`, not `404` — deletion is idempotent by design). Sessions are in-memory only (6.5) — nothing here is persistence, and a server restart drops all sessions, which is expected for alpha (Section 7).
 
@@ -689,7 +913,7 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 
 **Entry**: Phase 0 complete.
 
-**Build**: Implement Section 3.1–3.4 verbatim in `packages/schema/src/`. No logic, no runtime code — types and minimal validation helpers only (e.g., a `isValidEntity()` type guard is in scope; a solver is not).
+**Build**: Implement Section 3.1–3.4 verbatim in `packages/schema/src/`, **plus the §0.9.0 additions**: `SourceSpan` (§3.1), `InteractionResult` (§3.3), the expanded `Ruleset`/`InterpretationLookup`/`Effect` (§3.4), and the new **session-state** (§3.8) and **input-log** (§3.9) types. No logic, no runtime code — types and minimal validation helpers only (e.g., a `isValidEntity()` type guard is in scope; a solver is not).
 
 **Exit**: 
 - All interfaces in Section 3 exist with matching field names/types.
@@ -853,7 +1077,7 @@ Also build `packages/client-cli/src/` per 5.4 — the terminal reference client.
 
 Simultaneously populate `fixtures/`:
 - `fixtures/rooms/*.json` — a set of ~10 hand-curated `ResolvedRoomResponse` payloads spanning archetype variety (at minimum: one `container` with 5+ objects, one near-empty room, one with all-soft-weighted population, one exercising `portal` archetype)
-- `fixtures/rulesets/*.dsl` — at least: null ruleset, single-global-layer ruleset, multi-layer-with-conflict ruleset (exercises 4.3's messy-resolution path deliberately)
+- `fixtures/rulesets/*` — ruleset bundles as structured data (`.json`/`.yaml`, §0.9.0 A11; the historical `.dsl` extension is retired), at least: null ruleset, single-global-layer ruleset, multi-layer-with-conflict ruleset (exercises 4.3's messy-resolution path deliberately)
 
 **Exit**:
 - All Section 5.1 endpoints respond with schema-valid payloads (validated against Phase 1 types).
@@ -936,3 +1160,10 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 | Modifier registry | Author-configurable mapping of modifier names to behavior config. The engine provides the mechanism; authors define the entries (3.6.1). |
 | Tag registry | Keys-only nested tree of valid tag segment paths, produced by the corpus-builder as a vocabulary contract (3.6.2). |
 | Tag pattern | A glob-style string used with the `MATCHES` operator: `*` matches one segment, `**` matches zero or more (4.2). |
+| Address-token (§0.9.0) | An opaque, engine-minted overlay id that is the *durable* handle for a place. Forms an append-only nested tree (parent→children = `Entity.contains`); the unit of `visited_set` and of backtracking by truncation (A2/A3). |
+| Position (§0.9.0) | `SessionState.position`: the player's live substrate coordinate (by ref, INV-3), distinct from the address-token tree that records history (A3/A8). |
+| Interpretation lookup (§0.9.0) | Author content (with engine defaults) in the ruleset mapping archetype/tags → archetype, affordances, `layout_hint`, and `salience` default, applied to a resolved query result (A13, §3.4). |
+| Interaction result (§0.9.0) | `InteractResponse.interaction_result`: structured per-interaction output (`text`/`revealed`/`effects_summary`) produced by the author `emit` effect; how a local interaction reports what happened (A6). |
+| Write effect / commit phase (§0.9.0) | `write`/`primitive`/`emit`/`end` effects (§3.4) applied in a deterministic post-decision commit phase, last-write-wins, never throwing — the only way rules change state (A5). |
+| Developer mode (§0.9.0) | A server flag (sibling of the debug flag) that enables per-session ruleset binding via `POST /session/new`; off in a shipped game, where one boot-loaded ruleset serves all sessions (A12). |
+| Input-log (§0.9.0) | The ordered list of player/author inputs (§3.9) that, with `(seed, ruleset)`, reproduces a session byte-for-byte (`INV-2`); server-accumulated, exported at `GET /session/{id}/log` (A9). |
