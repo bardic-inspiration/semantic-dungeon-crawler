@@ -1,65 +1,58 @@
 # Roadmap
 
-This is the process engine for hands-off, iterative development. It turns
-[`SPEC.md`](../SPEC.md) §6 into a queue of small, verifiable work items that
-agents execute one at a time.
+**Status: the build queue is intentionally empty. The project is in a design and
+definition phase that predates the build order.**
 
-## How the build runs
+This file is a placeholder. It will be repopulated with a phase-by-phase issue
+queue once the design track closes — see "Repopulating this file" below.
 
-1. **Phases come from the spec.** [`SPEC.md`](../SPEC.md) §6 defines Phases 0–7,
-   each with Entry / Build / Exit criteria.
-2. **Each phase's work is tracked as GitHub issues** labeled `phase:N` and `task`,
-   each sized for a single PR (use the
-   [Feature / build task](../.github/ISSUE_TEMPLATE/feature_task.md) template).
-3. **Scheduled agents pull the lowest-numbered open issue in the active phase**,
-   follow the working loop in [`AGENTS.md`](../AGENTS.md), and open **one PR per
-   issue**.
-4. **A phase closes** when all its issues are resolved **and** the spec's Exit
-   criteria for that phase hold. Only then does the next phase become active — do
-   not start phase N+1 early (`AGENTS.md` §4).
+## Where the project actually is
 
-## Phase status
+[`SPEC.md`](../SPEC.md) §6 defines Phases 0–7 with Entry / Build / Exit criteria,
+and that structure stands. What does not yet stand is the assumption underneath
+it: that the spec is settled enough to slice into build tasks.
 
-| Phase | Deliverable | SPEC | Status |
-|---|---|---|---|
-| 0 | Repository scaffold — npm workspaces, `tsconfig.base.json`, empty `packages/*` | §6.1 | **active** |
-| 1 | `packages/schema` — entity/protocol/ruleset types, CHANGELOG 0.1.0, example fixture | §6.2 | queued |
-| 2 | `packages/corpus-builder` — build-time pipeline → `graph.json` | §6.3 | not started |
-| 3 | `packages/rule-engine` — parser, solver, layer resolution, debug trace | §6.4 | not started |
-| 4 | `packages/server` + `packages/client-cli` (testing interface) + conformance fixtures | §6.5 | not started |
-| 5 | `packages/client-threejs` — Three.js reference renderer | §6.6 | not started |
-| 6 | Production-alpha hardening + playable `README` path | §6.7 | not started |
-| 7+ | Post-alpha (rule editor, other adapters, persistence, WS) — **out of scope** | §6.8 | out of scope |
+It is not. [`docs/design/open-scope.md`](design/open-scope.md) surveys the areas
+where the spec is undefined, inferred, or self-contradicting — including several
+that block Phase 0 and Phase 1. Building against them would mean inventing
+spec-defined behavior, which [`issue-standards.md`](issue-standards.md) exists to
+prevent.
 
-Keep this table in sync as phases advance (update it in the PR that closes a
-phase's last issue).
+So the build order is paused rather than in progress. No phase is active, and no
+phase status is tracked here until one is.
 
-## Exit criteria (summary — the spec is authoritative)
+## Active work — the design track
 
-- **Phase 0:** `npm install` succeeds at root; all packages resolve
-  workspace-internal deps; `packages/schema` compiles standalone with zero errors.
-- **Phase 1:** All SPEC §3 interfaces exist verbatim; `CHANGELOG.md` has a `0.1.0`
-  entry; `fixtures/entity.example.json` type-checks against `Entity`.
-- **Phases 2–6:** see SPEC §6.3–6.7 Exit blocks — including the determinism tests
-  (`INV-2`), the `evaluateLayers` function-identity test (§4.4), and the
-  import-boundary ESLint rule (`INV-3`, §6.6).
+All current work is spec refinement, tracked as issues labeled `design`,
+`spec-revision`, and `needs-discussion`, deliberately carrying **no `phase:N`
+label**. The index is [`docs/design/open-scope.md`](design/open-scope.md); each
+entry names the phase it blocks.
 
-## Scheduled agent wiring
+Resolving an entry means amending `SPEC.md` per
+[`spec-guidelines.md`](spec-guidelines.md) — the amendment, not the discussion, is
+what unblocks a phase.
 
-The "hands-off" driver is a **scheduled task/trigger** that periodically launches
-an agent with a prompt equivalent to:
+## Design gates
 
-> Read `AGENTS.md`. Find the lowest-numbered open issue labeled with the active
-> phase (`phase:0`, then `phase:1`, …). Follow the working loop: read the SPEC
-> section it references, write failing tests first, implement minimally, run
-> `npm run lint && npm run typecheck && npm test`, commit atomically, and open one
-> PR that closes that issue. Do not start work belonging to a later phase.
+A phase must not be declared active while an open design entry blocks it. That is
+the whole reason this file is empty rather than optimistic: a queue that lists
+Phase 0 as active is an instruction to an agent to start, and starting is exactly
+what the design gates are for.
 
-Wire this up with whichever scheduler you use for agent runs (e.g. a Claude Code
-scheduled task / cron trigger, or a GitHub Actions `schedule:` job that invokes
-an agent). The repository itself is scheduler-agnostic; the contract the agent
-must satisfy is fully defined by `AGENTS.md` + the issue it claims + `SPEC.md`.
+## Repopulating this file
 
-To keep the queue full, ensure the active phase always has at least one open
-`task` issue; when a phase's issues are exhausted and its Exit criteria hold,
-open the next phase's issues from the corresponding SPEC §6.x Build list.
+When the design track has closed far enough that the spec is buildable again:
+
+1. Confirm no open design-track issue blocks the phase being opened.
+2. Open that phase's issues from the corresponding `SPEC.md` §6.x **Build** list,
+   each sized for one PR, labeled `phase:N` + `task`, using the
+   [Feature / build task](../.github/ISSUE_TEMPLATE/feature_task.md) template.
+3. Restore a phase status table here — deliverable, SPEC reference, and status per
+   phase — and keep it in sync in the PR that closes each phase's last issue.
+4. A phase closes when all its issues are resolved **and** the spec's Exit
+   criteria hold. Only then does the next phase become active
+   ([`AGENTS.md`](../AGENTS.md) §4).
+
+The working loop itself is unchanged and lives in [`AGENTS.md`](../AGENTS.md) §5;
+the contract a delegated agent must satisfy is defined by `AGENTS.md` + the issue
+it claims + `SPEC.md`, not by this file.
