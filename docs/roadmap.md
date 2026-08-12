@@ -34,6 +34,19 @@ agents execute one at a time.
 Keep this table in sync as phases advance (update it in the PR that closes a
 phase's last issue).
 
+## Design gates
+
+Not all open work is build work. Areas where [`SPEC.md`](../SPEC.md) is undefined
+or self-contradicting are surveyed in
+[`docs/design/open-scope.md`](design/open-scope.md) and tracked as issues labeled
+`design` / `spec-revision` / `needs-discussion` — deliberately **without** a
+`phase:N` label, so scheduled build agents never claim an unresolved design
+question as build work.
+
+Each entry names the phase it blocks. Resolving one means amending `SPEC.md` per
+[`spec-guidelines.md`](spec-guidelines.md) — that amendment, not the discussion,
+is what unblocks the phase.
+
 ## Exit criteria (summary — the spec is authoritative)
 
 - **Phase 0:** `npm install` succeeds at root; all packages resolve
