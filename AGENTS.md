@@ -45,6 +45,12 @@ if it passes tests.
   graph, embeddings, or rule definitions — only `ResolvedRoomResponse` (SPEC §3.2).
   `packages/client-threejs` and `packages/client-cli` must not import
   `packages/rule-engine` or `packages/corpus-builder`. (SPEC §5.2, §5.4, §6.5, §6.6)
+  **§0.9.0 refinement (issues #15/#24):** "resolved output" explicitly includes an
+  entity's `prose` + `source_span` positional metadata (SPEC §3.1) and overlay
+  registry **names/labels** of player-provenance entries (SPEC §3.7, §5.1). Still
+  hidden: embeddings, the ANN index, rule definitions, internal ids, raw snapshot
+  payloads. The line is *resolved output vs. engine internals*, not *text vs.
+  no-text*. See `docs/design/0003-a-series-resolution.md`.
 - **`INV-4` — No taste-policing.** The engine validates *well-formedness*, not
   *coherence*. Contradictory or "bad" rulesets are legal and must run, not be
   rejected or auto-corrected. The solver must not throw on conflicting hard

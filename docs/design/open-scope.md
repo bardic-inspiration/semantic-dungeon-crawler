@@ -1,7 +1,11 @@
 # Open Scope — Undefined and Under-Defined Areas of `SPEC.md`
 
-`status: open`
+`status: open (Tier A resolved)`
 `spec-version reviewed: 0.8.0`
+
+> **Update (spec 0.9.0).** All thirteen **Tier A** entries (A1–A13, #15–#27) are
+> resolved together in [`0003-a-series-resolution.md`](0003-a-series-resolution.md)
+> and amended into `SPEC.md` §0.9.0. Tier B and Tier C remain open.
 
 This is a **survey**, not a proposal. It names the places where
 [`SPEC.md`](../../SPEC.md) is silent, inferred, or self-contradicting, so each one
@@ -66,6 +70,11 @@ answers produce materially different engines.*
 ---
 
 ## Tier A — blocks building or playing the engine
+
+> **Resolved in spec 0.9.0** — every entry below (A1–A13) is decided in
+> [`0003-a-series-resolution.md`](0003-a-series-resolution.md). The summaries are
+> retained as the survey record of what was open; the decision record and
+> `SPEC.md` §0.9.0 are now authoritative.
 
 ### A1 — No corpus text ever reaches the player (#15)
 
