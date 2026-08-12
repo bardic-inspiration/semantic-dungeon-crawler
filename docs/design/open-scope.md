@@ -303,16 +303,14 @@ session may outlive a rebuild.
 
 [`AGENTS.md`](../../AGENTS.md) §5 and [`roadmap.md`](../roadmap.md) route agents
 to `phase:N` issues only, so design-track issues (#11 is the precedent) have no
-owner, no ordering, and no gate preventing a build phase from starting over an
-unresolved question. Separately, issues #1 (Phase 0 scaffold) and #2 (Phase 1
-schema) are closed as completed with no PR and no code in the tree, while
-`roadmap.md` still lists Phase 0 as **active** — the roadmap and the issue state
-disagree about where the project is.
+owner and no ordering. Separately, issues #1 (Phase 0 scaffold) and #2 (Phase 1
+schema) are closed as completed with no PR and no code in the tree, so the issue
+record claims work that does not exist.
 
 **Touches** [`AGENTS.md`](../../AGENTS.md) §5, [`roadmap.md`](../roadmap.md),
 [`issue-standards.md`](../issue-standards.md) · **Blocks** Phase 0
 
-> This document plus the "Design gates" pointer added to
-> [`roadmap.md`](../roadmap.md) are a partial answer to C6's first half. The
-> issue remains open for the ordering/gating rule itself and for the roadmap
-> state reconciliation.
+> Partly addressed: [`roadmap.md`](../roadmap.md) has been cleared to a
+> placeholder that declares no active phase, states the design-gate rule, and
+> points here. Still open — who works design-track issues and in what order, and
+> reconciling the closed-but-unbuilt state of issues #1 and #2.

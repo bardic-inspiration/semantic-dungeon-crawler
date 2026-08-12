@@ -13,8 +13,10 @@ npm install     # once the Phase 0 scaffold is merged
 npm test
 ```
 
-Until the Phase 0 scaffold lands the workspace and scripts don't exist yet — see
-[`docs/roadmap.md`](docs/roadmap.md) for what the first delegated task creates.
+Until the Phase 0 scaffold lands the workspace and scripts don't exist yet. The
+build order is currently paused pending spec design work — see
+[`docs/roadmap.md`](docs/roadmap.md) and
+[`docs/design/open-scope.md`](docs/design/open-scope.md).
 
 ## Branching
 

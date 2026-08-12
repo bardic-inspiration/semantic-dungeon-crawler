@@ -14,10 +14,12 @@ client** (the first of potentially several graphical frontends) that renders
 whatever the backend sends and nothing else, and a **terminal client** for
 running and testing the engine with no frontend at all.
 
-> **Status: pre-alpha.** This repository currently holds the specification and the
-> agentic development process. The buildable scaffold (Phase 0) and all packages
-> are being built incrementally by delegated agents — see
-> [`docs/roadmap.md`](docs/roadmap.md).
+> **Status: pre-alpha, design phase.** This repository currently holds the
+> specification and the agentic development process. The build order is paused
+> while open design questions in the spec are resolved — see
+> [`docs/design/open-scope.md`](docs/design/open-scope.md). No packages exist
+> yet; [`docs/roadmap.md`](docs/roadmap.md) is a placeholder until the build
+> queue reopens.
 
 ## How this repo is built (hands-off, iterative agentic process)
 
@@ -55,8 +57,8 @@ npm run lint           # eslint + prettier --check
 npm run typecheck      # tsc --noEmit across packages
 ```
 
-Until Phase 0 is merged these scripts do not yet exist; see the roadmap for what
-the first delegated task creates.
+Until the Phase 0 scaffold is merged these scripts do not yet exist, and Phase 0
+has not been opened for work — see [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Contributing
 
