@@ -50,3 +50,5 @@ makes it pass.
   test that fails before the fix.
 - Determinism and import-boundary tests, where applicable to the phase, pass.
 - CI runs lint + typecheck + the test matrix; all must be green before merge.
+  Exception: changes touching only Markdown skip this gate entirely — see
+  [`docs-only-changes.md`](docs-only-changes.md).

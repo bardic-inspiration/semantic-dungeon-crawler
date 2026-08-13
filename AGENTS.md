@@ -128,6 +128,10 @@ open questions or follow-on work that surfaces mid-issue. Summary:
 6. **One issue per PR.** Fill in the PR template; link the issue with `Closes #N`.
    Linear history — rebase, don't merge (see [`CONTRIBUTING.md`](CONTRIBUTING.md)).
 
+Changing only Markdown (`SPEC.md`, docs, `AGENTS.md`, etc.) — no code? Steps
+3–4 don't apply; use the leaner path in
+[`docs/docs-only-changes.md`](docs/docs-only-changes.md) instead.
+
 ## 6. Toolchain
 
 - **npm workspaces** — package manager and monorepo linking.
