@@ -60,6 +60,7 @@ answers produce materially different engines.*
 | [#30](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/30) | B3 — What a substrate query *is* | Phase 2 |
 | [#31](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/31) | B4 — Auto-tagging strategy | Phase 2 |
 | [#32](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/32) | B5 — Three quantities called coherence | Phase 2 |
+| [#44](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/44) | B6 — Span composition / discontinuous spans | Phase 2 |
 | [#33](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/33) | C1 — No scale or performance budget | Phase 6 |
 | [#34](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/34) | C2 — Degenerate-state semantics | Phase 3 |
 | [#35](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/35) | C3 — Server trust model | Phase 6 |
@@ -258,6 +259,20 @@ declared author-defined. Three quantities share one name across the spec.
 
 **Touches** §3.1, §4.2, §6.3, [`0001` D4](0001-three-tier-data-model.md) ·
 **Blocks** Phase 2
+
+### B6 — Span composition / discontinuous spans (#44)
+
+Segmentation (B1) produces continuous, linear, position-ordered spans. Nothing
+provides for a *discontinuous* span — an aggregate of non-adjacent strings, or a
+slice grouped by semantic proximity or thematic relevance rather than position —
+though such constructions are legal (`INV-4`) and useful. Because grouping by
+meaning needs embeddings and tags, it cannot live in the pre-embedding
+segmentation stage; it belongs at a distinct composition stage, the `restructure`
+slot §6.3.1 reserves but never shapes. Undefined: that stage's interface, a
+composite span's provenance/embedding/index representation, and how one resolves
+to a room. A later addition to this survey, not part of the original 0.8.0 pass.
+
+**Touches** §6.3, §6.3.1, §3.1, §3.7 · **Blocks** Phase 2
 
 ---
 
