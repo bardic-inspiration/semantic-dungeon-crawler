@@ -49,9 +49,11 @@ treat it as a code change.
 - **Skip:** TDD, `npm run lint && npm run typecheck && npm test` locally,
   and the code checklist items in the PR template.
 - **Still required:** correct content, links that resolve, cross-references
-  updated in the same PR when a shared term or section number changes
-  ([`documentation-standards.md`](documentation-standards.md)), and
-  `spec-guidelines.md` versioning if `SPEC.md` changed.
+  updated in the same PR when a shared term or section number changes, and
+  no chat/conversation/process references in the doc content itself — those
+  go in the PR description, not the doc
+  ([`documentation-standards.md`](documentation-standards.md), "Product docs,
+  not process") — plus `spec-guidelines.md` versioning if `SPEC.md` changed.
 - Use the "Docs/spec-only" checklist in
   [`.github/pull_request_template.md`](../.github/pull_request_template.md)
   instead of the code checklist.
