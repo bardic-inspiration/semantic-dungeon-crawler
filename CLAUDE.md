@@ -12,6 +12,14 @@ file only adds Claude-Code specifics.
 - Read the relevant section of [`SPEC.md`](SPEC.md) before touching code. The
   invariants `INV-1`..`INV-5` (AGENTS.md §2) are non-negotiable.
 
+## Asking questions
+
+- When you need to ask the user a question, ask **one question at a time**,
+  through regular chat, with a few suggested options they can pick from or
+  riff on.
+- **Never** use the app's multiple-choice/question-picker widgets — always
+  ask in plain chat text instead.
+
 ## Workflow
 
 - **TDD, always.** Failing Vitest test first
