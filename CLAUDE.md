@@ -28,6 +28,9 @@ file only adds Claude-Code specifics.
   that surface mid-work are all covered in
   [`docs/issue-standards.md`](docs/issue-standards.md) — read it before your
   first cold start.
+- Changing only Markdown (`SPEC.md`, `docs/**`, `AGENTS.md`, ...) and no code?
+  None of the above applies — use
+  [`docs/docs-only-changes.md`](docs/docs-only-changes.md) instead.
 
 ## Useful commands
 

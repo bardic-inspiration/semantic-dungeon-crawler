@@ -50,10 +50,19 @@ Other requirements, both templates:
   under-scoped, not license to expand the PR — file the extra ground as its
   own issue (see below) and keep the PR narrow.
 
+## Docs-only issues & PRs
+
+Changes that touch only Markdown — no code, schema, fixtures, or CI/config —
+follow a leaner path than the rest of this doc: lighter issue filing, no
+TDD/CI gate. See [`docs-only-changes.md`](docs-only-changes.md) for the full
+protocol and the [Docs / spec change template](../.github/ISSUE_TEMPLATE/docs_change.md).
+Everything else in this doc assumes a code change.
+
 ## Linking issues to PRs
 
 - Every PR closes exactly one issue: `Closes #N` in the PR description
-  (`.github/pull_request_template.md`).
+  (`.github/pull_request_template.md`). Trivial docs-only PRs (typos, broken
+  links) are exempt — see [`docs-only-changes.md`](docs-only-changes.md).
 - State the spec section the issue implements or affects in the PR — the
   reviewer should be able to trace PR → issue → spec section without asking.
 - Issues close **only** via a merged PR carrying `Closes #N`. Don't close an

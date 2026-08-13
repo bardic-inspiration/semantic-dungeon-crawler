@@ -61,6 +61,14 @@ contract (fixtures, determinism, import-boundary checks).
 - Keep the PR to a single build-order concern. Do not scope-creep into later
   phases or the post-alpha items in SPEC §6.8.
 
+## Docs-only changes
+
+A change touching only Markdown (no `packages/`, `fixtures/`, or CI/config
+files) skips TDD and the lint/typecheck/test gate — CI detects this and
+skips those steps itself. See
+[`docs/docs-only-changes.md`](docs/docs-only-changes.md) for the full
+protocol, the lighter issue template, and the PR checklist to use instead.
+
 ## Standards docs
 
 - [`docs/roadmap.md`](docs/roadmap.md) — phases → issues, the build process.
@@ -71,3 +79,5 @@ contract (fixtures, determinism, import-boundary checks).
 - [`docs/documentation-standards.md`](docs/documentation-standards.md) — keeping docs in sync.
 - [`docs/naming-conventions.md`](docs/naming-conventions.md) — casing rules for code, files, schema fields, and the DSL.
 - [`docs/spec-guidelines.md`](docs/spec-guidelines.md) — how to amend `SPEC.md`.
+- [`docs/docs-only-changes.md`](docs/docs-only-changes.md) — leaner protocol
+  for Markdown-only changes.

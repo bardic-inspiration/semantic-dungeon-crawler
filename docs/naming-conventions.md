@@ -78,7 +78,7 @@ These already have dedicated docs — linked, not restated:
 - Branches and commits: `docs/commit-standards.md`, `CONTRIBUTING.md`
   ("Branching").
 - Issue/PR labels: lowercase, colon-scoped where hierarchical (`phase:0`,
-  `task`, `bug`).
+  `task`, `bug`, `docs`).
 
 ## Keeping this cohesive
 

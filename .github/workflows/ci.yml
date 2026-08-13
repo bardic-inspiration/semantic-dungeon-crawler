@@ -8,9 +8,12 @@ permissions:
   contents: read
 
 jobs:
-  # Guarded so CI is green on the process-only baseline (no package.json yet) and
-  # self-activates once the Phase 0 scaffold lands. Once package.json exists, the
-  # lint/typecheck/test steps run for real; until then the job is a passing no-op.
+  # Guarded two ways: (1) skips install/lint/typecheck/test on a Markdown-only
+  # diff (see docs/docs-only-changes.md) — the job still runs and reports green,
+  # it just has nothing to build; (2) guarded so CI is green on the process-only
+  # baseline (no package.json yet) and self-activates once the Phase 0 scaffold
+  # lands. Once package.json exists and the diff isn't docs-only, the
+  # lint/typecheck/test steps run for real.
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -19,9 +22,41 @@ jobs:
         node-version: ["20", "22"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect docs-only change
+        id: docsonly
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.event.after }}"
+          fi
+
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || [ -z "$HEAD" ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "No comparable base commit (new branch or force-push) — running full checks."
+            exit 0
+          fi
+
+          CHANGED="$(git diff --name-only "$BASE" "$HEAD")"
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          if [ -z "$CHANGED" ] || echo "$CHANGED" | grep -qvE '\.md$'; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+            echo "Markdown-only diff — skipping install/lint/typecheck/test (docs/docs-only-changes.md)."
+          fi
 
       - name: Detect workspace scaffold
         id: scaffold
+        if: steps.docsonly.outputs.docs_only != 'true'
         shell: bash
         run: |
           if [ -f package.json ]; then
@@ -32,24 +67,24 @@ jobs:
           fi
 
       - name: Set up Node
-        if: steps.scaffold.outputs.present == 'true'
+        if: steps.docsonly.outputs.docs_only != 'true' && steps.scaffold.outputs.present == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install
-        if: steps.scaffold.outputs.present == 'true'
+        if: steps.docsonly.outputs.docs_only != 'true' && steps.scaffold.outputs.present == 'true'
         run: npm ci
 
       - name: Lint
-        if: steps.scaffold.outputs.present == 'true'
+        if: steps.docsonly.outputs.docs_only != 'true' && steps.scaffold.outputs.present == 'true'
         run: npm run lint
 
       - name: Typecheck
-        if: steps.scaffold.outputs.present == 'true'
+        if: steps.docsonly.outputs.docs_only != 'true' && steps.scaffold.outputs.present == 'true'
         run: npm run typecheck
 
       - name: Test
-        if: steps.scaffold.outputs.present == 'true'
+        if: steps.docsonly.outputs.docs_only != 'true' && steps.scaffold.outputs.present == 'true'
         run: npm test
