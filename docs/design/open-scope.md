@@ -1,11 +1,16 @@
 # Open Scope — Undefined and Under-Defined Areas of `SPEC.md`
 
-`status: open (Tier A resolved)`
+`status: open (Tier A + B resolved)`
 `spec-version reviewed: 0.8.0`
 
 > **Update (spec 0.9.0).** All thirteen **Tier A** entries (A1–A13, #15–#27) are
 > resolved together in [`0003-a-series-resolution.md`](0003-a-series-resolution.md)
-> and amended into `SPEC.md` §0.9.0. Tier B and Tier C remain open.
+> and amended into `SPEC.md` §0.9.0.
+>
+> **Update (spec 0.10.0).** All five **Tier B** entries (B1–B5, #28–#32) plus
+> **B6** (#44, surfaced during the B-series resolution) are resolved together in
+> [`0004-b-series-resolution.md`](0004-b-series-resolution.md) and amended into
+> `SPEC.md` §0.10.0. Tier C remains open.
 
 This is a **survey**, not a proposal. It names the places where
 [`SPEC.md`](../../SPEC.md) is silent, inferred, or self-contradicting, so each one
@@ -212,6 +217,11 @@ build).
 ---
 
 ## Tier B — pipeline definitions that decide whether the output is meaningful
+
+> **Resolved in spec 0.10.0** — every entry below (B1–B6) is decided in
+> [`0004-b-series-resolution.md`](0004-b-series-resolution.md). The summaries are
+> retained as the survey record of what was open; the decision record and
+> `SPEC.md` §0.10.0 are now authoritative.
 
 ### B1 — Corpus segmentation (#28)
 

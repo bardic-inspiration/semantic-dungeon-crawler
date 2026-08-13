@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.9.0`
+`spec-version: 0.10.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -38,6 +38,37 @@
 > - **Boundary.** The engine ships *mechanism*, not gameplay *meaning*: no
 >   built-in goals/score/inventory; an author-triggered `ended` flag; state via
 >   the overlay and a per-session scratch store (A7).
+
+> **§0.10.0 — B-series resolution (the corpus-builder pipeline).** Resolves the
+> five Tier-B spec gaps (issues #28–#32) plus one that surfaced during it
+> (#44, B6) as one pipeline definition; see
+> `docs/design/0004-b-series-resolution.md` for the decisions and rationale.
+> Summary of what this amendment changes:
+> - **Every build stage is a swappable interface with a deterministic default**
+>   (the §6.3 `CorpusSource`/embedding convention, extended to segmentation,
+>   tokenization, indexing, tagging, and composition): ship the interface + one
+>   default now, defer richer implementations (B1/B2/B4/B6).
+> - **Segmentation** is a partition stage over two axes — `unit`
+>   (char/word/sentence/token) × `grouping` (boundary/fixed with overlap);
+>   default paragraphs, no overlap; `unit: token` loads a pinned `Tokenizer`
+>   whose identity feeds `substrate_version` (B1).
+> - **Embedding & index.** Vectors are L2-normalized at build time;
+>   `static.embedding_distance` is fixed as cosine distance `[0,2]`, smaller =
+>   nearer, provider-independent; the index is an interface with an exact
+>   flat-k-NN default; degenerate embedding spaces fail loud (B2).
+> - **Substrate query** is one `Query{origin,k,radius?,direction?,filter?}`
+>   primitive; `normalized_query` canonicalizes to the stored coordinate +
+>   quantized params before seeding, so float drift cannot fork a replay (B3).
+> - **Tagging** default is a deterministic, offline lexicon that also seeds
+>   `tag-registry.yaml` and assigns `archetype`; models are permitted at build
+>   under pin+cache discipline but the default ships none (B4).
+> - **Coherence** is two engine quantities: `local_coherence` (place;
+>   `EntityState.local_coherence`, `static.local_coherence`) and `path_coherence`
+>   (session; `dynamic.path_coherence`) — renamed from the colliding
+>   `coherence`; author-custom scalars use `dynamic.vars.*` (B5).
+> - **Span composition** (`restructure`, §6.3.1) is a post-embedding stage
+>   producing discontinuous composite spans; the seam is defined, strategies
+>   deferred (B6).
 
 ## 0. Purpose and Reading Order
 
@@ -185,8 +216,15 @@ interface Entity {
 }
 
 interface SourceSpan {                 // §0.9.0 (A1) — client-facing positional provenance
-  source: string;                      // human/machine-legible source id (e.g. "gutenberg:11")
-  char_ranges: string;                 // CSV of character range(s) in the source document, e.g. "1024-1330,1450-1502"
+  source: string;                      // human/machine-legible source id (e.g. "gutenberg:11"). §0.10.0 (B6): for a
+                                       // COMPOSITE span (discontinuous, §6.3) this may name multiple sources; the
+                                       // authoritative provenance is `members` below and `char_ranges` is their union.
+  char_ranges: string;                 // CSV of character range(s) in the source document, e.g. "1024-1330,1450-1502".
+                                       // §0.10.0 (B6): overlapping ranges (segmentation overlap) and multi-source
+                                       // unions (composites) are both expressed here.
+  members?: string[];                  // §0.10.0 (B6): for a composite span, its member span ids (mirrors
+                                       // Entity.contains); absent/empty for a contiguous leaf span, which carries
+                                       // only raw ranges. See docs/design/0004-b-series-resolution.md.
 }
 
 type Archetype =
@@ -207,9 +245,11 @@ interface LayoutHint {
 }
 
 interface EntityState {
-  coherence: number;       // 0.0–1.0; §0.9.0 (A13): producer is the D4 build-time local-coherence field
-                           // (interpolated at the resolved point). Its precise semantics/naming are deferred
-                           // to B5 (#32), which owns the "three quantities called coherence" disambiguation.
+  local_coherence: number; // 0.0–1.0; §0.10.0 (B5): the D4 build-time local-coherence field interpolated at the
+                           // resolved point — embedding-neighborhood tightness (§6.3). ENGINE-produced, not
+                           // author-defined (the old "coherence"/"author-defined scalar" is renamed and reassigned;
+                           // author-custom scalars use dynamic.vars.*, §3.8). Readable in the DSL as
+                           // `static.local_coherence` (§4.2). Distinct from the session's `dynamic.path_coherence`.
   visited: boolean;        // §0.9.0 (A3): runtime-derived — true iff this entity's overlay address-token is in
                            // `dynamic.visited_set`. Engine-owned; not a stored per-entity field.
 }
@@ -576,7 +616,9 @@ interface SessionState {
   turn_count: number;                // dynamic.turn_count
   trace_centroid: number[] | null;   // dynamic.trace_centroid (vector, server-internal)
   momentum: number[] | null;         // dynamic.momentum
-  coherence: number;                 // dynamic.coherence (see B5)
+  path_coherence: number;            // §0.10.0 (B5): dynamic.path_coherence — 0.0–1.0, ENGINE-computed per turn from
+                                     // trace_centroid/momentum/visited: how tight/consistent the recent trajectory
+                                     // through embedding space has been. Distinct from a place's local_coherence (§3.1).
   visited_set: string[];             // dynamic.visited_set — overlay ADDRESS-TOKENS (A3), not ephemeral ids
   vars: Record<string, string>;      // §0.9.0 (A8): dynamic.vars.* scratch — write target for `write` effects (A5),
                                      // readable in the DSL (§4.2). Values are strings; coerce per predicate use.
@@ -675,9 +717,9 @@ OPERATOR     := ">" | "<" | ">=" | "<=" | "==" | "!=" | "IN" | "NOT IN"
              | "CONTAINS" | "MATCHES"
 ```
 
-**Reserved `static.*` properties** (read from the current candidate entity/edge): `static.embedding_distance`, `static.archetype`, `static.tags` (array), `static.edge_weight`, `static.cluster_id`, and (§0.9.0 A1) `static.prose` (string) and `static.source` (string, the `source_span.source` id). Prose is "just data"; string tooling in the grammar (beyond `CONTAINS`/`MATCHES`) may grow in later versioned amendments.
+**Reserved `static.*` properties** (read from the current candidate entity/edge): `static.embedding_distance` (§0.10.0 B2: cosine distance over L2-normalized vectors, range `[0,2]`, smaller = nearer — provider-independent), `static.archetype`, `static.tags` (array), `static.local_coherence` (§0.10.0 B5: the place's local-coherence, `EntityState.local_coherence`, `[0,1]`), and (§0.9.0 A1) `static.prose` (string) and `static.source` (string, the `source_span.source` id). Prose is "just data"; string tooling in the grammar (beyond `CONTAINS`/`MATCHES`) may grow in later versioned amendments. **Vestigial (§0.10.0 B2):** `static.edge_weight` and `static.cluster_id` remain reserved for backward compatibility but are leftovers of the pre-substrate node/edge model (removed by decision D1); no build stage produces them, and predicates should not rely on them.
 
-**Reserved `dynamic.*` properties** (read from run state, §3.8): `dynamic.visited_set` (array of overlay address-tokens, §0.9.0 A3), `dynamic.trace_centroid` (vector), `dynamic.momentum` (vector), `dynamic.turn_count`, `dynamic.coherence`, and **`dynamic.vars.<key>`** (§0.9.0 A8 — the per-session scratch store; any author-chosen key, string-valued, written by `write` effects §3.4). Prose (§3.1 `static.*`, below) is likewise readable as string data (A1); the reserved `static.*` set is extended with **`static.prose`** and **`static.source`**.
+**Reserved `dynamic.*` properties** (read from run state, §3.8): `dynamic.visited_set` (array of overlay address-tokens, §0.9.0 A3), `dynamic.trace_centroid` (vector), `dynamic.momentum` (vector), `dynamic.turn_count`, `dynamic.path_coherence` (§0.10.0 B5 — the session's trajectory-tightness scalar `[0,1]`; renamed from `dynamic.coherence`, and distinct from a place's `static.local_coherence`), and **`dynamic.vars.<key>`** (§0.9.0 A8 — the per-session scratch store; any author-chosen key, string-valued, written by `write` effects §3.4; the home for author-defined scalars that the old "author-defined coherence" wording implied). Prose (§3.1 `static.*`, below) is likewise readable as string data (A1); the reserved `static.*` set is extended with **`static.prose`** and **`static.source`**.
 
 **Reserved functions**: `contains(array, value)`, `distance(vec, vec)`, `recent(dynamic.visited_set, n)`, `matches(array, pattern)`.
 
@@ -740,6 +782,30 @@ seed-controlled per §4.5, so the determinism test still holds.
 > (target_entity_id), and its soft-score (weight). No separate exit graph or
 > edge table exists.
 
+> **§0.10.0 (B3) — the substrate `Query` and how a result becomes a room.** A
+> substrate query is one unified shape (matching the §3.7.4 `Query` primitive):
+>
+> ```typescript
+> interface Query {
+>   origin: CoordinateRef;   // the player's live position (§3.8), by ref — never a raw vector (INV-3)
+>   k: number;               // candidates to draw
+>   radius?: number;         // optional cosine-distance cutoff (region queries)
+>   direction?: number[];    // optional gradient bias, e.g. dynamic.momentum (gradient queries)
+>   filter?: unknown;        // optional author-supplied tag/archetype prefilter
+> }
+> ```
+>
+> The §8 glossary's nearest-neighbor / region / gradient kinds are
+> parameterizations (k alone; k + radius; k + direction), not separate types. `k`,
+> the default `radius`, and the gradient source are **ruleset config with engine
+> defaults** (same bundle as movement-affordances, A11/A13); a zero-config world
+> runs as relativistic drift (§0). **Result → room:** the query returns k ranked
+> spans; the nearest / highest-weight span becomes the room entity (its `prose`,
+> tags, archetype), and the remaining k−1 are the candidate pool `populate`
+> (above) samples `objects[]` from — `populate` is this same call with the room as
+> origin. Exits then derive from the populated objects (A4). See
+> `docs/design/0004-b-series-resolution.md`.
+
 ### 4.5 Determinism (implements INV-2)
 
 - All sampling (`sample()` in 4.1/4.4) uses a seeded PRNG. The seed is derived deterministically from `(session_seed, turn_count)` — never from wall-clock or external entropy.
@@ -768,6 +834,16 @@ below the solver's hard/soft decision logic, but its *seeded* results remain
 replay-deterministic. Local coherence (a fixed property of the corpus) is
 precomputed at build time (§6.3), so it contributes nothing nondeterministic to a
 query.
+
+**`normalized_query` — canonicalize before seeding (§0.10.0, B3).** The PRNG seed
+component `normalized_query` is a **canonical serialization of the `Query` (§4.4),
+hashed** — never the raw query. Canonicalization: round `origin` to the stored
+index coordinate (a `vector_ref`, never a raw float vector — floats are a
+determinism hazard), canonicalize/sort the `filter`, and quantize `radius` /
+`direction` to fixed precision; hash the result. The seed therefore derives from a
+**discretized, canonical** query, so two spellings of the same query seed
+identically and float drift cannot fork a replay. This is what makes the `INV-2`
+replay guarantee — stated in terms of `normalized_query` above — well-defined.
 
 ### 4.6 Debug Trace (optional, off by default)
 
@@ -939,13 +1015,61 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 > material for meaningful queries — not a fixed clustering output. See
 > `docs/design/0001-three-tier-data-model.md`.
 
+> **§0.10.0 (B-series) — pipeline stage contracts.** Every stage below is a
+> swappable interface with a deterministic default; ship the interface + one
+> default now, defer richer implementations (`docs/design/0004-b-series-resolution.md`).
+> - **Segmentation (B1)** — a `Segmenter` stage that *partitions* raw text (a
+>   pure function of characters; no embeddings, no tags) over two axes: `unit`
+>   ∈ char/word/sentence/token × `grouping` ∈ boundary (blank-line / newline /
+>   delimiter) | fixed (N units, overlap k). Default: boundary on blank lines,
+>   overlap 0 (paragraphs). `char`/`word`/`sentence` are zero-dep regex tilings;
+>   `unit: token` lazily loads a pinned `Tokenizer` (default `cl100k_base`),
+>   whose identity feeds `substrate_version`. Line endings are normalized
+>   (CRLF→LF) first; token-counting is approximate sizing, decoupled from the
+>   embedding provider's tokenizer. Structureless / half-sentence corpora are
+>   legal (`INV-4`).
+> - **Embedding + normalization (B2)** — after the provider embeds each span,
+>   **L2-normalize every vector at build time**. This fixes
+>   `static.embedding_distance` as **cosine distance, range `[0,2]`, smaller =
+>   nearer**, provider-independent (§4.2). Dimensionality is provider-declared
+>   and stored in the substrate header.
+> - **Index (B2)** — behind an interface; the alpha default is an **exact flat
+>   k-NN** index (deterministic; equal distances broken by corpus order). A real
+>   ANN (HNSW, …) is a deferred, must-be-deterministic optimization; the scale
+>   threshold is C1 (§6.7). "Well-formed embedding space" for the fail-loud gate
+>   = uniform dimension, all-finite values, non-zero norms, non-degenerate spread.
+> - **Composition / `restructure` (B6)** — an optional stage *after* embedding and
+>   tagging (so it can read those signals) that produces **discontinuous composite
+>   spans** and feeds them back into the index. A composite is still a span; its
+>   provenance is its member span ids (`SourceSpan.members`, §3.1), and at
+>   resolution it is a room whose members are its `contains`/`objects[]`. Default
+>   is identity/passthrough (`restructure: null`, contiguous spans only); grouping
+>   strategies (`semantic-cluster`, `thematic-group`, `interleave`) are deferred.
+> - **Local-coherence (B5)** — `local_coherence` is **embedding-neighborhood
+>   tightness**: mean cosine similarity of a point to its k nearest neighbors,
+>   normalized to `[0,1]`, precomputed and interpolated at a resolved point
+>   (`EntityState.local_coherence`, `static.local_coherence`). Engine-produced,
+>   not author-defined.
+> - **Tagging (B4)** — a `Tagger` stage; the default is a **deterministic, offline,
+>   model-free lexicon** (keyword/regex → tag path + a default `archetype`) shipped
+>   with a starter lexicon that also **seeds `tag-registry.yaml`**. Models are
+>   permitted at build time under the same pin+cache+`substrate_version` discipline
+>   the embedding provider already uses, but the default ships none; an
+>   LLM/classifier tagger is opt-in and reproducible-via-cache only (it relaxes
+>   *build* determinism, never the runtime replay guarantee). Recorded future
+>   alternatives: embedding-anchor and LLM/classifier taggers.
+> - `substrate_version` absorbs the identity of every pinned model/tokenizer, so
+>   any of them changing is a visible new build id (below), not a silent drift.
+
 **Build**: `packages/corpus-builder/` — CLI tool: `corpus-builder build --input <dir> --output graph.json`.
 - Corpus retrieval step (pluggable — see §6.3.1; resolves a manifest of source documents into raw text before embedding begins)
-- Embedding step (pluggable — spec does not mandate a specific model/provider, but MUST be swappable via config, not hardcoded to one vendor)
-- Index construction step → ANN index over source-span embeddings (replaces fixed clustering/node formation; the substrate is queried live, §3.7 Tier 2)
-- Local-coherence precomputation → the coherence field stored in the substrate bundle (decision D4)
+- Segmentation step (pluggable `Segmenter`, §0.10.0 B1; partitions raw text into source spans by `unit` × `grouping`, default paragraphs/no-overlap, before embedding)
+- Embedding step (pluggable — spec does not mandate a specific model/provider, but MUST be swappable via config, not hardcoded to one vendor; vectors are L2-normalized at build time, §0.10.0 B2)
+- Index construction step → ANN index over source-span embeddings (replaces fixed clustering/node formation; the substrate is queried live, §3.7 Tier 2; alpha default is an exact flat k-NN index behind an index interface, §0.10.0 B2)
+- Composition step (optional, pluggable; the `restructure` slot §6.3.1, §0.10.0 B6; produces discontinuous composite spans after embedding/tagging, default passthrough)
+- Local-coherence precomputation → the `local_coherence` field stored in the substrate bundle (decision D4; embedding-neighborhood tightness, §0.10.0 B5)
 - `substrate_version` stamping → a content-hash/build-id in the `graph.json` header, consumed by snapshot staleness (§3.7.3)
-- Tagging step → populates `semantic_tags` with structured tags (Section 3.6 grammar), `archetype` (initial heuristic assignment is acceptable for alpha; author-refined tagging is post-alpha). Under §0.8.0, tags are interpretation-tier metadata attached to source spans, applied to resolved query results at runtime (§3.1).
+- Tagging step (pluggable `Tagger`, §0.10.0 B4) → populates `semantic_tags` with structured tags (Section 3.6 grammar) and `archetype`; the default is a deterministic, offline, model-free lexicon that also seeds `tag-registry.yaml`. Models are permitted at build under pin+cache discipline but the default ships none (initial heuristic assignment is acceptable for alpha; model-based and author-refined tagging are post-alpha). Under §0.8.0, tags are interpretation-tier metadata attached to source spans, applied to resolved query results at runtime (§3.1).
 - Provenance: every source span carries `source_refs: string[]` — the id(s) of the raw corpus document(s) it was built from — so any resolved query result is traceable back to input. Documented in `GRAPH_FORMAT.md` alongside the rest of the internal format.
 - Per-stage instrumentation: embedding, index-construction, coherence-precompute, and tagging each report through the §2.1 `Logger` (start/end, input/output counts, warnings) and `Metrics` (duration, counts) — the same interfaces `server` uses, not a parallel mechanism.
 - Output: `graph.json` — internal-only format, never sent to any client (INV-3), consumed exclusively by `rule-engine`. Also outputs `tag-registry.yaml` — the vocabulary of tag segment paths discovered from the corpus (Section 3.6.2).
@@ -1008,10 +1132,16 @@ pulls in:
 }
 ```
 
-`restructure` is reserved for future corpus restructuring strategies
-(chunk-by-paragraph, shuffling, register pre-tagging, cross-corpus stitching) —
-explicitly out of scope for this adapter and tracked separately; the field
-exists so the schema does not need a breaking change to add it later.
+`restructure` is the **composition-stage** selector (§0.10.0 B6): a post-embedding,
+post-tagging stage that produces discontinuous composite spans (grouped by semantic
+proximity, theme, or interleaving). `null` (the default) is identity/passthrough —
+contiguous spans only. The concrete grouping strategies (`semantic-cluster`,
+`thematic-group`, `interleave`) are pluggable and deferred (still out of scope for
+the Gutendex adapter); the field and the composite-span data model
+(`SourceSpan.members`, §3.1) exist now so adding a strategy needs no breaking
+change. The manifest also carries a **`segmentation`** config block (§0.10.0 B1:
+`unit` × `grouping` + `overlap`, default paragraphs/no-overlap) selecting how the
+`Segmenter` partitions raw text before embedding.
 
 `CorpusSource` anticipates non-Gutenberg sources (local filesystem, other
 APIs) but this phase implements Gutendex only.
@@ -1145,7 +1275,7 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 | Address Registry | The overlay's inert name→reference map (§3.7.1). Distinct from the Tag Registry (§3.6.2), which is a vocabulary tree. |
 | Primitive (overlay) | One of the closed set `Pin`/`Bookmark`/`Snapshot`/`Link`/`Query`/`Compose` (§3.7.4): deterministic, reversible, exposure-gated per ruleset. |
 | Snapshot | An overlay entry freezing one re-approximation of a stochastic substrate query as canonical, bound to a `substrate_version` (§3.7.3). |
-| Substrate query | A live lookup against the substrate (nearest-neighbor, region, gradient); seeded per §4.5, re-approximable across seeds. |
+| Substrate query | A live lookup against the substrate; one `Query{origin,k,radius?,direction?,filter?}` shape (§4.4, B3) whose nearest-neighbor / region / gradient kinds are parameterizations. Seeded per §4.5 (via `normalized_query`), re-approximable across seeds. |
 | Entity | Unified schema for both rooms and objects (Section 3.1). No structural room/object distinction. Under §0.8.0, an interpretation-tier view of a resolved substrate query or registry entry, minted on demand. |
 | Archetype | Entity field determining renderer interpretation and typical affordance set. |
 | Layer | A scoped, prioritized set of rule-blocks (Section 3.4). Concurrent, not mutually exclusive. |
@@ -1167,3 +1297,7 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 | Write effect / commit phase (§0.9.0) | `write`/`primitive`/`emit`/`end` effects (§3.4) applied in a deterministic post-decision commit phase, last-write-wins, never throwing — the only way rules change state (A5). |
 | Developer mode (§0.9.0) | A server flag (sibling of the debug flag) that enables per-session ruleset binding via `POST /session/new`; off in a shipped game, where one boot-loaded ruleset serves all sessions (A12). |
 | Input-log (§0.9.0) | The ordered list of player/author inputs (§3.9) that, with `(seed, ruleset)`, reproduces a session byte-for-byte (`INV-2`); server-accumulated, exported at `GET /session/{id}/log` (A9). |
+| Source span (§0.10.0) | The atomic unit the pipeline produces and the player occupies — a slice of the corpus (`identity + char_ranges + vector + tags`). Contiguous by default (B1); may be a discontinuous **composite** (B6). Deliberately opinion-free: half-sentences and structureless spans are legal (`INV-4`). |
+| Composite span (§0.10.0) | A discontinuous source span produced by the composition stage (B6), grouping non-adjacent members by proximity/theme. Provenance is `SourceSpan.members`; resolves to a room whose members are its `contains`/`objects[]`. |
+| `local_coherence` (§0.10.0) | Place property (B5): embedding-neighborhood tightness (mean k-NN cosine similarity, normalized `[0,1]`), precomputed at build (D4) and interpolated at a resolved point. `EntityState.local_coherence` / DSL `static.local_coherence`. Engine-produced. |
+| `path_coherence` (§0.10.0) | Session property (B5): how tight/consistent the player's recent trajectory through embedding space has been, computed per turn from run state, `[0,1]`. `SessionState.path_coherence` / DSL `dynamic.path_coherence`. Distinct from `local_coherence`. |
