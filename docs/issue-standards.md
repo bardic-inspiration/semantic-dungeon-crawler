@@ -42,9 +42,12 @@ Other requirements, both templates:
   pre-written failing tests for TDD ([`testing-standards.md`](testing-standards.md))
   — if a criterion can't become a test, it isn't specific enough yet.
 - **Label** with the phase it belongs to (`phase:N`) plus `task` or `bug`
-  ([`naming-conventions.md`](naming-conventions.md) "Git & process"). Work
-  that falls under SPEC §6.8 (post-alpha) does not get a phase label and
-  does not enter the active queue.
+  ([`naming-conventions.md`](naming-conventions.md) "Git & process"), and
+  **assign it to the matching `Development Phase N` milestone**
+  ([`milestone-practices.md`](milestone-practices.md)) — the label routes the
+  queue, the milestone tracks completion. Work that falls under SPEC §6.8
+  (post-alpha) does not get a phase label or a phase milestone, and does not
+  enter the active queue.
 
 ## Scope discipline
 
