@@ -10,6 +10,13 @@ gets a paper trail instead of getting lost or silently folded in.
 - Pick the **lowest-numbered open issue** labeled with the active phase
   (`phase:0`, then `phase:1`, …) — see [`roadmap.md`](roadmap.md) for
   current phase status.
+- **When no phase is active** (the current state — the build order is gated
+  behind the design track, [`roadmap.md`](roadmap.md)), the queue is the
+  **design track** instead: pick the lowest-numbered open `design` issue whose
+  dependencies are resolved (the tier ordering and "Depends on" links in
+  [`design/open-scope.md`](design/open-scope.md)), resolving **one tier at a
+  time (A → B → C)**. This is the queue the "stop and escalate on spec
+  ambiguity" path below feeds into, so it is no longer an unowned label.
 - Read the `SPEC.md` section it references before touching code. The
   invariants `INV-1`..`INV-5` (`AGENTS.md` §2) hold regardless of phase.
 - Scope work to **that issue only** — don't range ahead into later phases and

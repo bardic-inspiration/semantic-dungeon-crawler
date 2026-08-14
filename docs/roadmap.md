@@ -28,6 +28,15 @@ All current work is spec refinement, tracked as issues labeled `design`,
 label**. The index is [`docs/design/open-scope.md`](design/open-scope.md); each
 entry names the phase it blocks.
 
+**The design track is the active queue while no phase is active.** An agent takes
+the **lowest-numbered open `design` issue whose dependencies are resolved** — the
+tier ordering and "Depends on" links in
+[`open-scope.md`](design/open-scope.md) — resolving **one tier at a time
+(A → B → C)**. This mirrors the `phase:N` routing rule in
+[`AGENTS.md`](../AGENTS.md) §5 so design work is owned and ordered rather than
+unqueued. Tiers A (spec 0.9.0) and B (spec 0.10.0) and C (spec 0.11.0) are now
+resolved; when the last blocking entry closes, repopulate the phase queue below.
+
 Resolving an entry means amending `SPEC.md` per
 [`spec-guidelines.md`](spec-guidelines.md) — the amendment, not the discussion, is
 what unblocks a phase.
