@@ -104,6 +104,10 @@ are all met.** Each phase has Entry/Build/Exit conditions in the spec:
 | 7+ | Post-alpha (rule editor, other adapters, persistence) — **out of scope** | §6.8 |
 
 The live status of each phase and its issues is in [`docs/roadmap.md`](docs/roadmap.md).
+Each phase is also tracked by a `Development Phase N` milestone — the repo owner
+creates it, agents assign the phase's issues to it, and its description points at
+the SPEC section rather than restating it
+([`docs/milestone-practices.md`](docs/milestone-practices.md)).
 
 **When no phase is active**, the build order is gated behind the design track: a
 phase must not be declared active while an open design entry blocks it
