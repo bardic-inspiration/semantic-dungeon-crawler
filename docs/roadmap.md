@@ -13,17 +13,18 @@ is `status: closed`); the queue stays empty until it is repopulated per
 ## Where the project actually is
 
 [`SPEC.md`](../SPEC.md) §6 defines Phases 0–7 with Entry / Build / Exit criteria,
-and that structure stands. What does not yet stand is the assumption underneath
-it: that the spec is settled enough to slice into build tasks.
+and that structure stands. The assumption underneath it — that the spec is
+settled enough to slice into build tasks — now holds too. The spec-gap survey
+([`docs/design/open-scope.md`](design/open-scope.md)) that catalogued where the
+spec was undefined, inferred, or self-contradicting (including entries that
+blocked Phase 0 and Phase 1) is closed: every entry was resolved through the
+A/B/C amendments, and `SPEC.md` is at 0.11.0. Building no longer means inventing
+spec-defined behavior, the situation [`issue-standards.md`](issue-standards.md)
+exists to prevent.
 
-It is not. [`docs/design/open-scope.md`](design/open-scope.md) surveys the areas
-where the spec is undefined, inferred, or self-contradicting — including several
-that block Phase 0 and Phase 1. Building against them would mean inventing
-spec-defined behavior, which [`issue-standards.md`](issue-standards.md) exists to
-prevent.
-
-So the build order is paused rather than in progress. No phase is active, and no
-phase status is tracked here until one is.
+So the build order is unblocked but not yet reopened. The phase queue has not
+been repopulated, so no phase is active and no phase status is tracked here until
+one is — see "Repopulating this file".
 
 ## The design track (now closed)
 
@@ -50,9 +51,11 @@ what unblocked a phase.
 ## Design gates
 
 A phase must not be declared active while an open design entry blocks it. That is
-the whole reason this file is empty rather than optimistic: a queue that lists
-Phase 0 as active is an instruction to an agent to start, and starting is exactly
-what the design gates are for.
+why this file stays a placeholder until a phase is deliberately opened rather than
+listed optimistically: a queue that lists Phase 0 as active is an instruction to
+an agent to start, and starting is exactly what the design gates guard. No design
+entry blocks a phase now, so the gate is clear — repopulation is the remaining
+step, not a further design decision.
 
 ## Repopulating this file
 
