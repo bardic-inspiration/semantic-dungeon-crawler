@@ -1,10 +1,14 @@
 # Roadmap
 
-**Status: the build queue is intentionally empty. The project is in a design and
-definition phase that predates the build order.**
+**Status: the design track has closed — all A/B/C spec-gap entries are resolved
+and `SPEC.md` is at 0.11.0. The build queue is not yet repopulated: no phase is
+active until the phase queue is opened at gate-lift (see "Repopulating this
+file" below).**
 
-This file is a placeholder. It will be repopulated with a phase-by-phase issue
-queue once the design track closes — see "Repopulating this file" below.
+This file is a placeholder for the phase-by-phase issue queue. The design track
+that gated it has now closed ([`docs/design/open-scope.md`](design/open-scope.md)
+is `status: closed`); the queue stays empty until it is repopulated per
+"Repopulating this file" below.
 
 ## Where the project actually is
 
@@ -21,25 +25,27 @@ prevent.
 So the build order is paused rather than in progress. No phase is active, and no
 phase status is tracked here until one is.
 
-## Active work — the design track
+## The design track (now closed)
 
-All current work is spec refinement, tracked as issues labeled `design`,
-`spec-revision`, and `needs-discussion`, deliberately carrying **no `phase:N`
-label**. The index is [`docs/design/open-scope.md`](design/open-scope.md); each
-entry names the phase it blocks.
+Spec refinement was tracked as issues labeled `design`, `spec-revision`, and
+`needs-discussion`, deliberately carrying **no `phase:N` label**. The index is
+[`docs/design/open-scope.md`](design/open-scope.md); each entry names the phase
+it blocked.
 
-**The design track is the active queue while no phase is active.** An agent takes
-the **lowest-numbered open `design` issue whose dependencies are resolved** — the
-tier ordering and "Depends on" links in
+**The design track was the active queue whenever no phase was active.** The rule:
+take the **lowest-numbered open `design` issue whose dependencies are resolved** —
+the tier ordering and "Depends on" links in
 [`open-scope.md`](design/open-scope.md) — resolving **one tier at a time
 (A → B → C)**. This mirrors the `phase:N` routing rule in
 [`AGENTS.md`](../AGENTS.md) §5 so design work is owned and ordered rather than
-unqueued. Tiers A (spec 0.9.0) and B (spec 0.10.0) and C (spec 0.11.0) are now
-resolved; when the last blocking entry closes, repopulate the phase queue below.
+unqueued. Tiers A (spec 0.9.0), B (spec 0.10.0), and C (spec 0.11.0) are all
+resolved and [`open-scope.md`](design/open-scope.md) is now `status: closed`, so
+the track carries no open entries. The next action is to repopulate the phase
+queue below.
 
-Resolving an entry means amending `SPEC.md` per
+Resolving an entry meant amending `SPEC.md` per
 [`spec-guidelines.md`](spec-guidelines.md) — the amendment, not the discussion, is
-what unblocks a phase.
+what unblocked a phase.
 
 ## Design gates
 

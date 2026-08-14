@@ -18,10 +18,12 @@ The engine ships two things:
 
 ## Status
 
-Pre-alpha, design phase. No packages exist yet. The build order (`SPEC.md`
-§6, Phase 0→7) is paused while open design questions are resolved — see
-[`docs/design/open-scope.md`](docs/design/open-scope.md) for what's
-undecided and [`docs/roadmap.md`](docs/roadmap.md) for how the queue reopens.
+Pre-alpha. No packages exist yet. The spec-design track has closed — the open
+design questions are now resolved and `SPEC.md` is at 0.11.0 — but the build
+order (`SPEC.md` §6, Phase 0→7) has not reopened yet. See
+[`docs/design/open-scope.md`](docs/design/open-scope.md) for the now-closed
+survey of what was undecided, and [`docs/roadmap.md`](docs/roadmap.md) for how
+the phase queue reopens.
 
 ## How this repo is built
 
