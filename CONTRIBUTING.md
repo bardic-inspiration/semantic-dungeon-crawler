@@ -14,7 +14,8 @@ npm test
 ```
 
 Until the Phase 0 scaffold lands the workspace and scripts don't exist yet. The
-build order is currently paused pending spec design work — see
+spec-design track has closed (all entries resolved, `SPEC.md` at 0.11.0); the
+build order has not reopened yet and is repopulated at gate-lift — see
 [`docs/roadmap.md`](docs/roadmap.md) and
 [`docs/design/open-scope.md`](docs/design/open-scope.md).
 

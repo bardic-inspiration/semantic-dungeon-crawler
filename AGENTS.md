@@ -121,8 +121,9 @@ open questions or follow-on work that surfaces mid-issue. Summary:
 
 1. **Take one issue.** When a phase is active, pick the lowest-numbered open issue
    labeled with that phase (`phase:0`, then `phase:1`, …). **When no phase is
-   active** (the current state — the build order is gated behind the design track,
-   [`docs/roadmap.md`](docs/roadmap.md)), **the queue is the design track**: pick
+   active** (the build order is gated behind the design track until the phase queue
+   is repopulated, [`docs/roadmap.md`](docs/roadmap.md)), **the queue is the
+   design track**: pick
    the lowest-numbered open `design` issue whose dependencies are resolved
    (the tier ordering and "Depends on" links in
    [`docs/design/open-scope.md`](docs/design/open-scope.md)), resolving **one tier
