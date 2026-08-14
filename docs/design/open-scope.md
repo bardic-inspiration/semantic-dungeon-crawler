@@ -1,6 +1,6 @@
 # Open Scope — Undefined and Under-Defined Areas of `SPEC.md`
 
-`status: open (Tier A + B resolved)`
+`status: closed (Tier A + B + C resolved)`
 `spec-version reviewed: 0.8.0`
 
 > **Update (spec 0.9.0).** All thirteen **Tier A** entries (A1–A13, #15–#27) are
@@ -10,7 +10,12 @@
 > **Update (spec 0.10.0).** All five **Tier B** entries (B1–B5, #28–#32) plus
 > **B6** (#44, surfaced during the B-series resolution) are resolved together in
 > [`0004-b-series-resolution.md`](0004-b-series-resolution.md) and amended into
-> `SPEC.md` §0.10.0. Tier C remains open.
+> `SPEC.md` §0.10.0.
+>
+> **Update (spec 0.11.0).** All six **Tier C** entries (C1–C6, #33–#38) are
+> resolved together in [`0005-c-series-resolution.md`](0005-c-series-resolution.md)
+> and amended into `SPEC.md` §0.11.0. With Tier C closed, every entry in this
+> survey is resolved.
 
 This is a **survey**, not a proposal. It names the places where
 [`SPEC.md`](../../SPEC.md) is silent, inferred, or self-contradicting, so each one
@@ -288,6 +293,15 @@ to a room. A later addition to this survey, not part of the original 0.8.0 pass.
 
 ## Tier C — cross-cutting
 
+> **Resolved in spec 0.11.0** — every entry below (C1–C6) is decided in
+> [`0005-c-series-resolution.md`](0005-c-series-resolution.md). The summaries are
+> retained as the survey record of what was open; the decision record and
+> `SPEC.md` §0.11.0 are now authoritative. The unifying move: `INV-4`'s "surface,
+> never reject" discipline generalizes from the ruleset to the whole operational
+> surface (C2/C4/C5), alpha-scale numbers go on the record as tunable defaults
+> (C1), and two omissions — the trust model (C3) and the design-track queue (C6) —
+> become decisions on the record.
+
 ### C1 — No scale or performance budget (#33)
 
 `MAX_ROOM_OBJECTS` is used in §4.4 and never given a value. There is no corpus
@@ -344,7 +358,9 @@ record claims work that does not exist.
 **Touches** [`AGENTS.md`](../../AGENTS.md) §5, [`roadmap.md`](../roadmap.md),
 [`issue-standards.md`](../issue-standards.md) · **Blocks** Phase 0
 
-> Partly addressed: [`roadmap.md`](../roadmap.md) has been cleared to a
-> placeholder that declares no active phase, states the design-gate rule, and
-> points here. Still open — who works design-track issues and in what order, and
-> reconciling the closed-but-unbuilt state of issues #1 and #2.
+> Resolved in spec 0.11.0 ([`0005`](0005-c-series-resolution.md), C6): an explicit
+> design-track queue rule (lowest-numbered ready `design` issue, one tier at a
+> time) is written into [`AGENTS.md`](../../AGENTS.md) §4/§5,
+> [`roadmap.md`](../roadmap.md), and [`issue-standards.md`](../issue-standards.md);
+> issues #1/#2 are left closed as historical noise, with fresh Phase-0/1 issues
+> opened at gate-lift per [`roadmap.md`](../roadmap.md).

@@ -105,14 +105,28 @@ are all met.** Each phase has Entry/Build/Exit conditions in the spec:
 
 The live status of each phase and its issues is in [`docs/roadmap.md`](docs/roadmap.md).
 
+**When no phase is active**, the build order is gated behind the design track: a
+phase must not be declared active while an open design entry blocks it
+([`docs/roadmap.md`](docs/roadmap.md) design gate). In that state the active queue
+is the design track, not a `phase:N` queue — see §5 step 1 for how an agent picks
+the next design issue (lowest-numbered open `design` issue whose dependencies are
+resolved, one tier at a time), and [`docs/design/open-scope.md`](docs/design/open-scope.md)
+for the tier ordering.
+
 ## 5. Working loop (do this for every issue)
 
 See [`docs/issue-standards.md`](docs/issue-standards.md) for the full contract
 on picking up, filing, scoping, and closing issues — including how to handle
 open questions or follow-on work that surfaces mid-issue. Summary:
 
-1. **Take one issue.** Pick the lowest-numbered open issue labeled with the active
-   phase (`phase:0`, then `phase:1`, …). Scope your work to that issue only.
+1. **Take one issue.** When a phase is active, pick the lowest-numbered open issue
+   labeled with that phase (`phase:0`, then `phase:1`, …). **When no phase is
+   active** (the current state — the build order is gated behind the design track,
+   [`docs/roadmap.md`](docs/roadmap.md)), **the queue is the design track**: pick
+   the lowest-numbered open `design` issue whose dependencies are resolved
+   (the tier ordering and "Depends on" links in
+   [`docs/design/open-scope.md`](docs/design/open-scope.md)), resolving **one tier
+   at a time (A → B → C)**. Scope your work to that issue only.
 2. **Read the spec.** Read the SPEC section the issue references before touching
    code. The acceptance criteria are your pre-written failing tests.
 3. **TDD, always.** Write a failing Vitest test first (red), then the minimal code

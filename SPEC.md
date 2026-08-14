@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.10.0`
+`spec-version: 0.11.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -69,6 +69,45 @@
 > - **Span composition** (`restructure`, §6.3.1) is a post-embedding stage
 >   producing discontinuous composite spans; the seam is defined, strategies
 >   deferred (B6).
+
+> **§0.11.0 — C-series resolution (operational envelope & process).** Resolves the
+> six Tier-C spec gaps (issues #33–#38) as one cross-cutting envelope; see
+> `docs/design/0005-c-series-resolution.md` for the decisions and rationale. The
+> unifying move is that **`INV-4`'s "surface, never reject" discipline generalizes
+> from the ruleset to the whole operational surface.** Summary of what this
+> amendment changes:
+> - **Scale/latency budget (C1).** Named alpha-scale reference defaults, tunable in
+>   Phase 6, never enforced ceilings: `MAX_ROOM_OBJECTS = 12` (§4.4), ~10–50
+>   corpus documents / low-thousands of spans, move-resolution p95 < ~200 ms,
+>   single-digit concurrent sessions — the thresholds §7's deferred ANN/sharding
+>   work becomes due at (§4.4, §5.1, §6.7, §7).
+> - **Degenerate state (C2).** A resolution yielding nothing is a valid `200`
+>   `ResolvedRoomResponse`, never an error; `sample()` never throws on an empty
+>   candidate set; `ResolvedRoomResponse` gains **`resolution_status`** (open
+>   union, `"resolved" | "stuck"`) so a rules-produced dead-end is surfaced, not
+>   guessed from an empty array (§3.2, §4.1, §4.4, §5.1).
+> - **Trust model (C3).** On the record: a **local, single-user, trusted-operator**
+>   alpha (localhost-bound default, no auth, author ruleset trusted, `INV-4`);
+>   auth/multiplayer/remote stay post-alpha (§6.8). Phase-6 hardening adds bounded
+>   sessions with idle-TTL eviction and a request body-size cap — not an auth
+>   system (§5.1, §6.7, §6.8).
+> - **Semantic-quality evaluation (C4).** An offline **`corpus-builder eval`**
+>   report that never gates the engine (`INV-4` untouched); a named signal
+>   vocabulary (local-coherence distribution, tag coverage/orphan rate,
+>   nearest-neighbor spread so shuffled noise is distinguishable), cheapest signals
+>   shipped now, richer/model metrics deferred; §6.3's "fail loud on degenerate
+>   output" made concrete (§6.3, §6.7).
+> - **Cross-artifact compatibility (C5).** Mirrors the §3.7.3 snapshot-staleness
+>   stance — surface, never auto-invalidate/reject: `tag-registry.yaml` gains a
+>   version header; `Ruleset` gains optional advisory **`authored_against?`**; an
+>   orphaned tag reference after a rebuild is a load-time warning, never a
+>   rejection; a session may not outlive a substrate rebuild (server-wide config,
+>   A12) (§3.4, §3.6.2, §3.7.3, §6.3).
+> - **Process (C6).** An explicit design-track queue: with no phase active the
+>   queue is the design track — lowest-numbered open `design` issue whose
+>   dependencies are resolved, one tier at a time (A → B → C). Issues #1/#2 (closed
+>   unbuilt) are left closed; fresh Phase-0/1 issues are opened at gate-lift per
+>   `docs/roadmap.md` (`AGENTS.md` §4/§5, `docs/roadmap.md`, `docs/issue-standards.md`).
 
 ## 0. Purpose and Reading Order
 
@@ -266,8 +305,15 @@ interface ResolvedRoomResponse {
   room: Entity;                 // archetype: "container", the current node
   objects: Entity[];            // fully resolved, filtered, sampled — final list, no further logic required
   exits: ResolvedExit[];        // pre-computed legal transitions, NOT raw graph edges
+  resolution_status: ResolutionStatus;  // §0.11.0 (C2): "resolved" normally; "stuck" when a well-formed
+                                        // resolution leaves no legal exit. Always a 200; a stuck player is a
+                                        // valid game state, NOT a protocol error. See §4.1/§4.4 and §5.1.
   debug?: DebugTrace;           // present only if debug mode enabled server-side, see 4.6
 }
+
+// §0.11.0 (C2) — an OPEN string union (like Archetype/Affordance, §3.1): adding a value is a MINOR bump (§3.5),
+// so further degenerate kinds (e.g. a future "empty" distinct from "stuck") need no surface break.
+type ResolutionStatus = "resolved" | "stuck" | string;
 
 interface ResolvedExit {
   target_entity_id: string;          // §0.9.0 (A2): a resolvable query/address TOKEN, not a materialized
@@ -332,6 +378,10 @@ interface InteractionResult {
 ```typescript
 interface Ruleset {
   spec_version: string;             // must match packages/schema version, see 3.5
+  authored_against?: string;        // §0.11.0 (C5): OPTIONAL substrate_version (§3.7.3) this ruleset was authored
+                                    // against — ADVISORY only. Absent = unpinned. Present lets a load compare
+                                    // against the live substrate and SURFACE drift (a warning), never reject
+                                    // (INV-4). See docs/design/0005-c-series-resolution.md.
   layers: Layer[];
   // §0.9.0 (A11) — the rest of the authored bundle. All author content; adding/removing entries is NOT an
   // engine version bump (§3.5), only changing the engine mechanism that reads them is.
@@ -399,6 +449,7 @@ type ScopeCondition = string;  // DSL expression evaluated once per move to dete
 - Adding a REST endpoint (Section 5.1) is a MINOR bump; changing an existing endpoint's method, path, or response shape — or the base contract (headers, error envelope) — is a MAJOR bump, the same rule as a schema field change. This is what lets a third-party adapter (5.3) trust a MINOR version bump to be safe to ignore.
 - `packages/schema/CHANGELOG.md` is mandatory reading before any schema edit in Phase 2+. A coding agent modifying `packages/schema/src/*` MUST append a changelog entry in the same commit.
 - Conformance fixtures (Section 6.5) MUST be re-validated against any schema change before the change is considered complete.
+- **§0.11.0 (C5) — cross-artifact coupling is versioned but surfaced, never enforced.** Beyond the schema/protocol `spec_version` and the per-build `substrate_version` (§3.7.3), the couplings *between* artifacts are versioned too: `tag-registry.yaml` carries a version header (§3.6.2) and a `Ruleset` may declare `authored_against` (§3.4). Drift between them (a predicate referencing a tag a rebuilt substrate no longer produces) is **surfaced as a load-time warning, never a rejection or auto-rewrite** (`INV-4`) — the same stance §3.7.3 takes for snapshot staleness. Adding these — an open-union `ResolutionStatus` value, an optional `Ruleset` field, a registry header — is additive (a MINOR-class change under this project's 0.x convention).
 
 ### 3.6 Structured Tag Grammar
 
@@ -447,6 +498,11 @@ The registry is a **vocabulary contract** between pipeline stages:
 - **Consumed** by `packages/rule-engine` and `packages/client-threejs` as a vocabulary reference
 - **Extended** by authors who can merge their own entries
 - **Advisory** — unregistered tags are syntactically valid but orphaned; the pipeline warns, never rejects
+- **Versioned (§0.11.0, C5)** — the file carries a version header, the `substrate_version` (§3.7.3) of the build
+  that produced it, so this "vocabulary contract" is itself a versioned surface (`INV-5`). A ruleset predicate
+  referencing a tag a rebuilt substrate no longer produces is an orphaned reference: a **load-time warning**
+  through the §2.1 `Logger`, **never a rejection** (`INV-4`) — the same "surfaced, never auto-invalidated"
+  stance §3.7.3 takes for snapshot staleness. See `docs/design/0005-c-series-resolution.md`.
 
 #### 3.6.3 Registry-Bounded Values
 
@@ -701,6 +757,21 @@ Per `INV-4`, this function MUST NOT throw, reject, or auto-correct when layers p
 >    produced. Local (non-movement) interactions (§3.3, A6) run the identical
 >    `evaluateLayers` + commit phase with no transition.
 
+> **§0.11.0 (C2) — the degenerate (empty) resolution.** `sample()` is defined to
+> **never throw on an empty candidate set**: over zero candidates it returns "no
+> result," and the room resolves with `objects: []` and `exits: []`. This is a
+> valid resolution, not a failure — a zero-candidate query, a region with no
+> neighbors in radius, an all-objects-filtered room, and an all-exits-`hard_forbid`
+> room all resolve to the same well-formed empty response. The response's
+> `resolution_status` (§3.2) is **`"stuck"`** exactly when a well-formed resolution
+> leaves no legal exit, and **`"resolved"`** otherwise (including a merely sparse
+> room with short arrays). The engine never hard-locks the player: the null-ruleset
+> drift fallthrough (`candidates = graph.neighbors`, above) still applies wherever
+> no *hard* decision forbids movement, so `"stuck"` is a rules-produced dead-end,
+> never the absence of authored structure. `INV-4` makes being stuck legal, which
+> is why the stuck state is *defined and surfaced* here rather than errored at the
+> protocol boundary (§5.1). See `docs/design/0005-c-series-resolution.md`.
+
 Naming: `resolveMove`, `populate`, and every other TypeScript identifier in this section follow `docs/naming-conventions.md`. Wire-facing fields (`layout_hint`, effect kinds like `hard_allow`) keep the `snake_case` SPEC §3 already defines — the split is deliberate, not a typo.
 
 ### 4.2 DSL Grammar (v0)
@@ -766,6 +837,15 @@ populate(roomEntity, layerStack, graph):
 ```
 
 This is not an approximation of shared logic — `resolveMove` and `populate` MUST call the same underlying `evaluateLayers()` function in `packages/rule-engine/src/solver.ts`. A test that asserts this (same function reference, not just same output) belongs in Phase 3 (Section 6.3).
+
+> **§0.11.0 (C1) — `MAX_ROOM_OBJECTS = 12`.** The constant above is an alpha-scale
+> **sampling target** (objects = `round(density * MAX_ROOM_OBJECTS)`), tunable in
+> Phase 6, **not** a hard cap the engine rejects past: 12 keeps a room legible in a
+> 3D scene and a query cheap to resolve, and per-room `density` scales it down. A
+> ruleset wanting denser or sparser rooms tunes `density` (and, if it must, this
+> default). `populate` obeys the §0.11.0 (C2) empty-resolution rule: `sample()` over
+> zero candidates returns "no result" (`objects: []`), never throws. See
+> `docs/design/0005-c-series-resolution.md`.
 
 Under the §0.8.0 substrate model, `graph.neighborsWithinRadius(...)` is a **live
 substrate query at the player's current position** rather than a lookup of
@@ -909,6 +989,24 @@ GET    /metrics                                → { counters, gauges } snapshot
 > lets the Phase-4 exit criteria round-trip each fixture ruleset. `AddressLabel`
 > is `{ tag: string; label: string }` — a player-provenance name and its
 > display label, no references or payloads (INV-3).
+
+> **§0.11.0 (C2/C3) — degenerate responses & the trust model.**
+> - **Degenerate (empty) resolution is `200`, not an error (C2).** `GET
+>   /room/current` and `POST /interact` return a normal `ResolvedRoomResponse` when
+>   resolution yields nothing — `objects: []`, `exits: []`, `resolution_status:
+>   "stuck"` (§3.2, §4.4). The `4xx`/`5xx` codes above remain for **malformed**
+>   requests and **unknown** sessions/routes only; a well-formed request with no
+>   resolvable answer is a valid game state, never a protocol failure.
+> - **Trust model, on the record (C3).** The alpha is **single-user, local,
+>   trusted-operator.** The server **binds to localhost by default**; there is no
+>   authentication boundary and none is implied, and the author-supplied ruleset is
+>   **trusted input** (the engine runs "bad" rulesets, `INV-4`; it does not sandbox
+>   against malicious ones). Authentication, accounts, multiplayer, and any
+>   remote/multi-tenant deployment are **post-alpha (§6.8)**. Phase-6 hardening
+>   (§6.7) adds a **bounded session count with oldest-idle (TTL) eviction** — so the
+>   in-memory session store (below) cannot grow without bound — and a **request
+>   body-size cap**; both are operator-tunable hardening of the existing surface,
+>   **not** an auth system. See `docs/design/0005-c-series-resolution.md`.
 
 Session lifecycle: `GET /session/new` creates a session; `GET /room/current` and `POST /interact` operate on an existing one; `DELETE /session/{id}` explicitly tears one down (deleting an already-deleted or unknown session still returns `204`, not `404` — deletion is idempotent by design). Sessions are in-memory only (6.5) — nothing here is persistence, and a server restart drops all sessions, which is expected for alpha (Section 7).
 
@@ -1060,6 +1158,32 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 >   alternatives: embedding-anchor and LLM/classifier taggers.
 > - `substrate_version` absorbs the identity of every pinned model/tokenizer, so
 >   any of them changing is a visible new build id (below), not a silent drift.
+
+> **§0.11.0 (C4/C5) — build-quality evaluation and a versioned registry.**
+> - **Evaluation is offline and never gates the engine (C4).** A `corpus-builder
+>   eval --graph <graph.json>` command reports **build quality** — a sibling of
+>   `corpus-builder inspect` (§6.3.1) reusing the same `Logger`/`Metrics` and
+>   `--verbosity` conventions. It *reports*; it does not fail a build. An offline
+>   harness does not touch `INV-4`, which forbids the **runtime engine** rejecting
+>   authored content, not the **project** measuring its own build. Named signal
+>   vocabulary: **local-coherence distribution** (spread of the B5 field),
+>   **tag coverage / orphan rate** (fraction of spans the tagger reached; fraction
+>   of tags orphaned against `tag-registry.yaml`), and **nearest-neighbor spread**
+>   (k-NN cosine-distance distribution, which makes a shuffled-noise corpus visibly
+>   distinguishable from a coherent one — the silent failure mode C4 names). Ship
+>   the cheapest signals now (they fall out of the B2 index and B5 field already
+>   computed); richer and model-based metrics are deferred, same interface-now /
+>   impl-later pattern as B.
+> - **"Fail loud on degenerate output" is now concrete (C4).** *Degenerate* is the
+>   B2 gate — non-uniform dimension, non-finite values, zero norms, or degenerate
+>   spread (a corpus embedding to one repeated vector). The **fail-loud gate rejects
+>   a malformed build**; `eval` **reports** on a well-formed-but-possibly-
+>   uninteresting one. Rejecting malformed builds and judging interesting-ness are
+>   deliberately two mechanisms, not one.
+> - **`tag-registry.yaml` is versioned (C5).** It carries a version header — the
+>   `substrate_version` of the build that produced it (§3.6.2) — so the vocabulary
+>   contract is a versioned surface (`INV-5`). See
+>   `docs/design/0005-c-series-resolution.md`.
 
 **Build**: `packages/corpus-builder/` — CLI tool: `corpus-builder build --input <dir> --output graph.json`.
 - Corpus retrieval step (pluggable — see §6.3.1; resolves a manifest of source documents into raw text before embedding begins)
@@ -1237,8 +1361,14 @@ Simultaneously populate `fixtures/`:
 - `GRAPH_FORMAT.md` and this spec's Section 3–5 reconciled with any drift discovered during Phases 2–5 (update `packages/schema/CHANGELOG.md` accordingly per INV-5)
 - A first real (non-fixture) corpus run end-to-end, author-selected, small enough to sanity-check by hand
 - Minimal deployment path documented (even if just "run server locally + open client" for alpha — production infra is explicitly out of scope, see Section 7)
+- **§0.11.0 (C1/C3) — operational bounds.** Tune the C1 reference budget against the real corpus run
+  (`MAX_ROOM_OBJECTS`, move-resolution p95 < ~200 ms, ~10–50 docs, single-digit concurrency — §4.4, §7);
+  add the C3 trust-model bounds (localhost bind default, **bounded session count with idle-TTL eviction**,
+  **request body-size cap**) as hardening, not an auth system (§5.1).
+- **§0.11.0 (C4) — build-quality evaluation.** Run `corpus-builder eval` (§6.3) against the real corpus run
+  and record the result — the repeatable, headless complement to "sanity-check by hand" above.
 
-**Exit**: A person other than the original builder can clone the repo, run the build pipeline against a provided sample corpus, start the server, open the client, and play a session start-to-finish following only `README.md` (to be written in this phase) — no undocumented steps. This is the production alpha bar.
+**Exit**: A person other than the original builder can clone the repo, run the build pipeline against a provided sample corpus, start the server, open the client, and play a session start-to-finish following only `README.md` (to be written in this phase) — no undocumented steps. This is the production alpha bar. **§0.11.0:** the C1 reference budget is met or its deviations recorded, the C3 session-eviction/body-size bounds are in place, and a `corpus-builder eval` (C4) result is recorded for the corpus run.
 
 ### 6.8 Phase 7+ — Explicitly Post-Alpha (Not This Spec's Scope)
 
@@ -1257,9 +1387,9 @@ Listed here so a coding agent doesn't accidentally scope-creep into these during
 
 Flagged explicitly rather than silently decided, for resolution during or after alpha:
 
-- **Latency/perceived responsiveness**: request/response movement (5.1) was accepted knowingly given turn-based pacing; revisit if alpha playtesting shows it feels laggy rather than deliberate.
+- **Latency/perceived responsiveness**: request/response movement (5.1) was accepted knowingly given turn-based pacing; revisit if alpha playtesting shows it feels laggy rather than deliberate. **§0.11.0 (C1):** the move-resolution budget this is measured against is now on the record — p95 < ~200 ms server-side (§4.4, §6.7).
 - **Tagging quality**: Phase 2's heuristic auto-tagging is an alpha stand-in using the structured tag grammar (Section 3.6). The tag registry (3.6.2) and configurable modifier registry (3.6.1) provide the machinery for author-refined tagging; what does the refinement *tooling* look like? (Likely a Phase 7+ concern, possibly folded into the rule editor. See `docs/tag-system-design.md` for the full design rationale.)
-- **`graph.json` scale limits**: no sharding/pagination strategy is specified for very large corpora. Fine for alpha-scale corpora; needs design work before "production" means more than "alpha."
+- **`graph.json` scale limits**: no sharding/pagination strategy is specified for very large corpora. Fine for alpha-scale corpora; needs design work before "production" means more than "alpha." **§0.11.0 (C1):** "alpha-scale" is now a number — ~10–50 documents / low-thousands of spans — and that is the threshold past which the deferred ANN index (B2) and sharding become due (§4.4, §6.7).
 - **Embedding provider choice**: Phase 2 mandates swappability but does not mandate a default. Pick one for the first real corpus run (Phase 6) and document the choice + rationale in `packages/corpus-builder/GRAPH_FORMAT.md`.
 - **Substrate re-approximation tolerance** (§0.8.0, decision D5): the `substrate.reapproximation_tolerance` parameter — "how similar is similar enough" for two re-approximations of the same query to count as "the same kind of place" — is an empirical/tunable value, deliberately not fixed at the design-doc level. Tune it against a real corpus in Phase 6. See `docs/design/0001-three-tier-data-model.md`.
 
@@ -1301,3 +1431,7 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 | Composite span (§0.10.0) | A discontinuous source span produced by the composition stage (B6), grouping non-adjacent members by proximity/theme. Provenance is `SourceSpan.members`; resolves to a room whose members are its `contains`/`objects[]`. |
 | `local_coherence` (§0.10.0) | Place property (B5): embedding-neighborhood tightness (mean k-NN cosine similarity, normalized `[0,1]`), precomputed at build (D4) and interpolated at a resolved point. `EntityState.local_coherence` / DSL `static.local_coherence`. Engine-produced. |
 | `path_coherence` (§0.10.0) | Session property (B5): how tight/consistent the player's recent trajectory through embedding space has been, computed per turn from run state, `[0,1]`. `SessionState.path_coherence` / DSL `dynamic.path_coherence`. Distinct from `local_coherence`. |
+| Resolution status (§0.11.0) | `ResolvedRoomResponse.resolution_status` (C2): an open string union, `"resolved"` normally and `"stuck"` when a well-formed resolution leaves no legal exit. A stuck player is a valid `200` game state, never a protocol error (§3.2, §4.4). |
+| Reference budget (§0.11.0) | The named, Phase-6-tunable alpha-scale numbers (C1): `MAX_ROOM_OBJECTS = 12`, ~10–50 corpus documents / low-thousands of spans, move-resolution p95 < ~200 ms, single-digit concurrent sessions. Defaults, not enforced ceilings; the thresholds §7's ANN/sharding work becomes due at. |
+| Trust model (§0.11.0) | The recorded alpha posture (C3): single-user, local, trusted-operator; localhost-bound by default, no auth, author ruleset trusted (`INV-4`). Auth/accounts/multiplayer/remote are post-alpha (§6.8); Phase 6 adds bounded sessions + idle-TTL eviction and a body-size cap, not an auth system. |
+| Build-quality evaluation (§0.11.0) | The offline `corpus-builder eval` report (C4): measures whether a built substrate is *interesting* (local-coherence distribution, tag coverage/orphan rate, nearest-neighbor spread) without gating the engine (`INV-4`). Distinct from the §6.3 fail-loud gate, which rejects a *malformed* build. |
