@@ -3,7 +3,7 @@
 **Status: the design track has closed — all A/B/C spec-gap entries are resolved
 and `SPEC.md` is at 0.11.0. The build phases and their milestones are tracked in
 [Development phases](#development-phases) below, but no `phase:N` issues are open
-yet, so no phase is active. Phase 0 opens first (see "Opening a phase").**
+yet, so no phase is active. Phase 0 opens first (see "The phase cycle").**
 
 This file tracks the phase-by-phase build order: the
 [development-phase table](#development-phases) mirrors `SPEC.md` §6 and links each
@@ -49,9 +49,10 @@ criteria — this table is a status index, not a second copy of them.
 | 6 | Production-alpha hardening + README playable path | §6.7 | [Development Phase 6](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/8) | Not started |
 | 7+ | Post-alpha (rule editor, other adapters, persistence) — out of scope | §6.8 | [Development Phase 7](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/9) | Out of scope |
 
-A phase becomes **active** only when its issues are opened and the previous
-phase's Exit criteria hold; it (and its milestone) **closes** when all its issues
-are resolved and the SPEC §6.x Exit criteria hold. No phase is active yet.
+A phase becomes **active** when its issues are opened; it (and its milestone)
+**closes** at the end of its QA/QC pass. Both transitions follow
+[The phase cycle](#the-phase-cycle) below — the single place the open/close
+conditions are defined. No phase is active yet.
 
 ## The design track (now closed)
 
@@ -69,7 +70,7 @@ the tier ordering and "Depends on" links in
 unqueued. Tiers A (spec 0.9.0), B (spec 0.10.0), and C (spec 0.11.0) are all
 resolved and [`open-scope.md`](design/open-scope.md) is now `status: closed`, so
 the track carries no open entries. The next action is to open Phase 0 (see
-"Opening a phase").
+"The phase cycle").
 
 Resolving an entry meant amending `SPEC.md` per
 [`spec-guidelines.md`](spec-guidelines.md) — the amendment, not the discussion, is
@@ -84,25 +85,49 @@ starting is exactly what the design gates guard. No design entry blocks a phase
 now, so the gate is clear — opening Phase 0's issues is the remaining step, not a
 further design decision.
 
-## Opening a phase
+## The phase cycle
 
-The design track has closed, so the spec is buildable and the phase table above
-exists. To open the next phase (Phase 0 first):
+Every build phase runs the same loop: **open its issues → build them → a
+comprehensive QA/QC pass → close the milestone → open the next phase.** A phase is
+opened only once the previous phase has finished this loop. This section is the
+**canonical procedure and the single place the open/close conditions are
+defined** — [`milestone-practices.md`](milestone-practices.md) and
+[`AGENTS.md`](../AGENTS.md) §4 point here rather than restating them. The
+per-issue working loop that step 3 wraps lives in [`AGENTS.md`](../AGENTS.md) §5.
 
-1. Confirm the previous phase's Exit criteria hold (none to check for Phase 0)
-   and that no open design-track issue blocks it.
-2. Ensure the phase's `Development Phase N` milestone exists — the repo owner
-   creates it ([`milestone-practices.md`](milestone-practices.md)).
-3. Open that phase's issues from the corresponding `SPEC.md` §6.x **Build** list,
-   each sized for one PR, labeled `phase:N` + `task` using the
+1. **Confirm entry.** The previous phase's Exit criteria hold — verified by *its*
+   QA/QC pass (step 4; none to check for Phase 0) — and no open design-track issue
+   blocks this phase ([Design gates](#design-gates) above).
+2. **Open the issues.** Ensure the phase's `Development Phase N` milestone exists
+   (the repo owner creates it — [`milestone-practices.md`](milestone-practices.md)),
+   then open the phase's issues from the corresponding `SPEC.md` §6.x **Build**
+   list — each sized for one PR, labeled `phase:N` + `task` using the
    [Feature / build task](../.github/ISSUE_TEMPLATE/feature_task.md) template, and
-   assign each to the phase milestone.
-4. Update this phase's **Status** in the table above as its issues progress — in
-   the PR that closes each phase's last issue.
-5. A phase closes when all its issues are resolved **and** the spec's Exit
-   criteria hold. Only then does the next phase become active
-   ([`AGENTS.md`](../AGENTS.md) §4).
+   assigned to the milestone.
+3. **Build.** Agents work the phase's issues one at a time through the
+   [`AGENTS.md`](../AGENTS.md) §5 working loop — lowest-numbered open `phase:N`
+   issue first, one PR each, CI green per PR. Update this phase's **Status** in the
+   table above as issues progress, in the PR that closes each phase's last issue.
+4. **QA/QC pass — the phase gate.** Once every issue is merged, run a comprehensive
+   quality pass **before** closing the milestone. Per-PR CI proves each slice in
+   isolation; this pass proves the **assembled phase**:
+   - Walk the `SPEC.md` §6.x **Exit** checklist item by item against the integrated
+     packages — including the criteria no single issue owned and the seams between
+     issues.
+   - Re-run the full `lint` + `typecheck` + `test` suite across the whole workspace,
+     plus the phase's invariant tests where applicable — `INV-2` determinism,
+     `INV-3` import-boundary, `INV-4` conformance
+     ([`testing-standards.md`](testing-standards.md)).
+   - Confirm docs, `GRAPH_FORMAT.md`, and `packages/schema/CHANGELOG.md` are
+     reconciled with what actually shipped (`INV-5`,
+     [`documentation-standards.md`](documentation-standards.md)).
+   - **Record the result** — the Exit checklist, checked off — in the PR that closes
+     the phase's last issue, so the close is traceable. A failed or partial pass is
+     not a close: file the gaps as issues in the same phase and finish them first.
+5. **Close and open the next.** A phase (and its milestone) closes only when
+   **every issue is resolved and the QA/QC pass has confirmed all `SPEC.md` §6.x
+   Exit criteria hold**. Closing the milestone is the phase's done-marker; only
+   then does the next phase become active — return to step 1.
 
-The working loop itself is unchanged and lives in [`AGENTS.md`](../AGENTS.md) §5;
-the contract a delegated agent must satisfy is defined by `AGENTS.md` + the issue
+The contract a delegated agent must satisfy is defined by `AGENTS.md` + the issue
 it claims + `SPEC.md`, not by this file.

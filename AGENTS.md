@@ -90,7 +90,9 @@ issue's phase calls for.
 ## 4. Build order (SPEC §6)
 
 Work proceeds Phase 0 → 7. **Do not start phase N+1 until phase N's Exit criteria
-are all met.** Each phase has Entry/Build/Exit conditions in the spec:
+are all met** — verified by that phase's comprehensive **QA/QC pass**, the gate
+that closes its milestone ([`docs/roadmap.md`](docs/roadmap.md) "The phase
+cycle"). Each phase has Entry/Build/Exit conditions in the spec:
 
 | Phase | What | SPEC |
 |---|---|---|

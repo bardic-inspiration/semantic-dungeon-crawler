@@ -39,8 +39,9 @@ steps:
    follow the working loop in [`AGENTS.md`](AGENTS.md), and open one PR per
    issue.
 4. CI and review gates — green tests, lint, typecheck, one concern per PR —
-   keep the loop honest. A phase closes when all its issues are resolved and
-   the spec's Exit criteria hold.
+   keep each PR honest; a comprehensive **QA/QC pass** against the spec's Exit
+   criteria then gates the whole phase before its milestone closes and the next
+   phase opens ([`docs/roadmap.md`](docs/roadmap.md) "The phase cycle").
 
 Agents and humans starting fresh should read [`AGENTS.md`](AGENTS.md) first —
 it is the canonical guide.
