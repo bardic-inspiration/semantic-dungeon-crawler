@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+coverage
+package-lock.json
+*.tsbuildinfo
+
+# Markdown is authored by hand and not Prettier-managed (SPEC.md, docs/**, ...).
+*.md
+
+# Owned elsewhere / out of scope for the toolchain gate.
+.github
+LICENSE
