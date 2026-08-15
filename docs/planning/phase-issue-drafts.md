@@ -7,10 +7,12 @@ not the tracker**: nothing here is an open issue yet.
 ## How to use this document
 
 - **Opening is still one phase at a time.** Per
-  [`roadmap.md`](../roadmap.md) "Opening a phase" and [`AGENTS.md`](../../AGENTS.md)
-  §4, a phase is opened only once the previous phase's `SPEC.md` §6.x **Exit**
-  criteria hold. These drafts are staged in advance so the slicing is reviewable
-  up front; they do **not** authorize opening Phase 2+ before Phase 1 closes.
+  [`roadmap.md`](../roadmap.md) "The phase cycle" and [`AGENTS.md`](../../AGENTS.md)
+  §4, a phase is opened only once the previous phase has finished its cycle — its
+  `SPEC.md` §6.x **Exit** criteria confirmed by the phase's comprehensive QA/QC
+  pass, which is what closes its milestone. These drafts are staged in advance so
+  the slicing is reviewable up front; they do **not** authorize opening Phase 2+
+  before Phase 1 closes.
 - **When you open a phase**, copy each draft below into a new issue using the
   [Feature / build task](../../.github/ISSUE_TEMPLATE/feature_task.md) template,
   label it `phase:N` + `task`, and assign it to the `Development Phase N`

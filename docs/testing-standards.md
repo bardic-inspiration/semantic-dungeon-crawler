@@ -52,3 +52,9 @@ makes it pass.
 - CI runs lint + typecheck + the test matrix; all must be green before merge.
   Exception: changes touching only Markdown skip this gate entirely — see
   [`docs-only-changes.md`](docs-only-changes.md).
+
+This bar is **per PR**. It is not the phase-level **QA/QC pass** that gates a
+milestone close: that pass re-runs these checks across the whole assembled phase
+and walks the `SPEC.md` §6.x Exit checklist end to end
+([`roadmap.md`](roadmap.md) "The phase cycle"). Green CI on every PR is necessary
+for it, not sufficient.

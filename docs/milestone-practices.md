@@ -46,8 +46,9 @@ don't duplicate it.
 
 ## When a milestone closes
 
-A phase milestone closes together with its phase: every issue resolved **and**
-the `SPEC.md` §6.x Exit criteria met ([`roadmap.md`](roadmap.md), "Opening a
-phase"). Closing the milestone is the phase's done-marker — don't close it while
-any Exit criterion is unmet, even if every issue happens to be closed, and don't
-leave it open once the phase has genuinely met its Exit criteria.
+A phase milestone is the phase's done-marker: it closes at the end of the phase's
+**QA/QC pass**, the single close condition defined in
+[`roadmap.md`](roadmap.md) "The phase cycle" (every issue resolved **and** the
+QA/QC pass confirms the `SPEC.md` §6.x Exit criteria). Don't close a milestone
+while any Exit criterion is unmet, even if every issue happens to be closed; and
+don't leave it open once the QA/QC pass has confirmed them.
