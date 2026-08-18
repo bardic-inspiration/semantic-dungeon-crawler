@@ -3,9 +3,10 @@
 **Status: the design track has closed — all A/B/C spec-gap entries are resolved
 and `SPEC.md` is at 0.11.0. Phase 0 has completed the full phase cycle — its
 issues are merged and its QA/QC pass confirmed the §6.1 Exit criteria hold, so
-the `Development Phase 0` milestone is ready to close. No `phase:1` issues are
-open yet, so Phase 1 is not yet active (see
-[The phase cycle](#the-phase-cycle)).**
+the `Development Phase 0` milestone is ready to close. Phase 1 is now active: its
+issues (#54–#58) are open under the `Development Phase 1` milestone and
+implemented in the PR that records the §6.2 Exit checklist; that milestone closes
+after that PR merges, per [The phase cycle](#the-phase-cycle).**
 
 This file tracks the phase-by-phase build order: the
 [development-phase table](#development-phases) mirrors `SPEC.md` §6 and links each
@@ -44,7 +45,7 @@ criteria — this table is a status index, not a second copy of them.
 | Phase | Deliverable | SPEC | Milestone | Status |
 |---|---|---|---|---|
 | 0 | Repository scaffold — workspaces, `tsconfig.base.json`, empty packages | §6.1 | [Development Phase 0](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/2) | **Complete** — closes [#49](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/49), [#50](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/50); QA/QC pass confirmed §6.1 Exit criteria hold; milestone ready to close |
-| 1 | `packages/schema` — Section 3 types + CHANGELOG + example fixture | §6.2 | [Development Phase 1](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/3) | Not started |
+| 1 | `packages/schema` — Section 3 types + CHANGELOG + example fixture | §6.2 | [Development Phase 1](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/3) | **Active** — issues [#54](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/54)–[#58](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/58) opened & implemented (this PR); §6.2 Exit checklist recorded in the PR; milestone closes on merge |
 | 2 | `packages/corpus-builder` — build-time pipeline → `graph.json` | §6.3 | [Development Phase 2](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/4) | Not started |
 | 3 | `packages/rule-engine` — parser, solver, layer resolution, debug trace | §6.4 | [Development Phase 3](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/5) | Not started |
 | 4 | `packages/server` + `packages/client-cli` + conformance fixtures | §6.5 | [Development Phase 4](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/6) | Not started |
