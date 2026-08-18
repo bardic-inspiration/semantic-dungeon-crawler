@@ -32,6 +32,12 @@ break — the entries below record what the surface now contains.
 - **Overlay types (§3.7)** — `AddressRegistryEntry`, `Provenance`,
   `EntryReference`, `Snapshot`, `LinkRecord`, `PrimitiveExposure`, and the
   client-facing `AddressLabel` projection (§5.1 A10).
+- **Ruleset data shape (§3.4)** — `Ruleset` (with the §0.9.0 bundle:
+  `authored_against?`, `modifier_registry?`, `resolvers?`,
+  `interpretation_lookup?`, `primitive_exposure?`, `movement_affordances?`),
+  `Layer`, `RuleBlock`, `ScopeCondition`, `Effect` (traversal-control plus
+  `write`/`primitive`/`emit`/`end`), `InterpretationLookup`,
+  `InterpretationEntry`.
 
 [Unreleased]: https://github.com/bardic-inspiration/semantic-dungeon-crawler/compare/schema-v0.1.0...HEAD
 [0.1.0]: https://github.com/bardic-inspiration/semantic-dungeon-crawler/releases/tag/schema-v0.1.0
