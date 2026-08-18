@@ -38,6 +38,11 @@ break — the entries below record what the surface now contains.
   `Layer`, `RuleBlock`, `ScopeCondition`, `Effect` (traversal-control plus
   `write`/`primitive`/`emit`/`end`), `InterpretationLookup`,
   `InterpretationEntry`.
+- **Protocol shapes (§3.2/§3.3)** — `ResolvedRoomResponse`, `ResolvedExit`, the
+  open-union `ResolutionStatus` (§0.11.0 C2), `InteractRequest`,
+  `InteractResponse`, and `InteractionResult`; plus the `DebugTrace` (§4.6) wire
+  shape `ResolvedRoomResponse.debug` carries when server debug mode is on (the
+  solver that fills it is Phase 3).
 
 [Unreleased]: https://github.com/bardic-inspiration/semantic-dungeon-crawler/compare/schema-v0.1.0...HEAD
 [0.1.0]: https://github.com/bardic-inspiration/semantic-dungeon-crawler/releases/tag/schema-v0.1.0
