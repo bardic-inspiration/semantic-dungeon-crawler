@@ -29,6 +29,9 @@ break — the entries below record what the surface now contains.
   makes no coherence/taste judgement (`INV-4`).
 - **`fixtures/entity.example.json`** — a hand-written entity that validates
   against `Entity` (SPEC §6.2 Exit).
+- **Overlay types (§3.7)** — `AddressRegistryEntry`, `Provenance`,
+  `EntryReference`, `Snapshot`, `LinkRecord`, `PrimitiveExposure`, and the
+  client-facing `AddressLabel` projection (§5.1 A10).
 
 [Unreleased]: https://github.com/bardic-inspiration/semantic-dungeon-crawler/compare/schema-v0.1.0...HEAD
 [0.1.0]: https://github.com/bardic-inspiration/semantic-dungeon-crawler/releases/tag/schema-v0.1.0
