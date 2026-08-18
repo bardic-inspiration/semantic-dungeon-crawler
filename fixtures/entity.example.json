@@ -1,0 +1,28 @@
+{
+  "id": "resolved:library-hall:0",
+  "archetype": "container",
+  "semantic_tags": [
+    "environment:structure:library",
+    "mood:quiet",
+    "viz,material:wood",
+    "density=0.6"
+  ],
+  "embedding_ref": "vec:00421",
+  "affordances": ["enter", "inspect"],
+  "salience": 0.82,
+  "prose": "A long hall lined floor to ceiling with shelves, the air thick with the smell of old paper.",
+  "source_span": {
+    "source": "gutenberg:11",
+    "char_ranges": "1024-1330"
+  },
+  "contains": ["resolved:book:1", "resolved:reading-lamp:2"],
+  "layout_hint": {
+    "scale": "large",
+    "density": 0.6,
+    "shape_bias": "vertical"
+  },
+  "state": {
+    "local_coherence": 0.74,
+    "visited": false
+  }
+}
