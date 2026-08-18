@@ -4,3 +4,4 @@
 // package imports these types from `schema` rather than duplicating them.
 
 export * from "./entity";
+export * from "./overlay";
