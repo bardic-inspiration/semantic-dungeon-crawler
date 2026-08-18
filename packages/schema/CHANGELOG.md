@@ -43,6 +43,8 @@ break — the entries below record what the surface now contains.
   `InteractResponse`, and `InteractionResult`; plus the `DebugTrace` (§4.6) wire
   shape `ResolvedRoomResponse.debug` carries when server debug mode is on (the
   solver that fills it is Phase 3).
+- **Session state & input log (§3.8/§3.9)** — `SessionState`, `CoordinateRef`,
+  `InputLogEntry` — the determinism-replay surface (`INV-2`).
 
 [Unreleased]: https://github.com/bardic-inspiration/semantic-dungeon-crawler/compare/schema-v0.1.0...HEAD
 [0.1.0]: https://github.com/bardic-inspiration/semantic-dungeon-crawler/releases/tag/schema-v0.1.0
