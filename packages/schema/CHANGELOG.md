@@ -8,5 +8,27 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ## [Unreleased]
 
-_Nothing yet. The initial `0.1.0` schema — the Section 3 types — lands in
-Phase 1 (SPEC §6.2). Phase 0 ships only empty stubs._
+_Nothing yet._
+
+## [0.1.0] — 2026-08-18
+
+Initial Section 3 schema — the shared contract every other package imports
+(SPEC §6.2 Phase 1). Types and well-formedness helpers only; no runtime engine
+logic. This is the first versioned surface, so there is no prior release to
+break — the entries below record what the surface now contains.
+
+### Added
+
+- **Entity schema (§3.1)** — `Entity`, `SourceSpan` (incl. `members` for
+  discontinuous composite spans, §0.10.0 B6), `Archetype`, `Affordance`,
+  `LayoutHint`, `EntityState`, all with the `§0.9.0` additions (`prose`,
+  `source_span`, `contains`, and `EntityState.local_coherence`).
+- **Structured tag grammar (§3.6)** — `ParsedTag`, `ModifierConfig`, plus
+  `parseTag()` / `isWellFormedTag()` validating tag *syntax* only (`INV-4`).
+- **`isValidEntity()` type guard** — structural well-formedness of an `Entity`;
+  makes no coherence/taste judgement (`INV-4`).
+- **`fixtures/entity.example.json`** — a hand-written entity that validates
+  against `Entity` (SPEC §6.2 Exit).
+
+[Unreleased]: https://github.com/bardic-inspiration/semantic-dungeon-crawler/compare/schema-v0.1.0...HEAD
+[0.1.0]: https://github.com/bardic-inspiration/semantic-dungeon-crawler/releases/tag/schema-v0.1.0
