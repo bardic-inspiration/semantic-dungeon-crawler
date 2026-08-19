@@ -323,7 +323,14 @@ function tokenize(input: string): Token[] {
 
 // ── MATCHES pattern parser (§4.2 pattern grammar) ─────────────────────────────
 
-function parseMatchPattern(raw: string, pos: number): MatchPattern {
+/**
+ * Parse a §4.2 `MATCHES` pattern string into a structured {@link MatchPattern}.
+ * Used both by the parser (structuring a `MATCHES` RHS at parse time) and by the
+ * evaluator (structuring the string argument of the `matches(array, pattern)`
+ * reserved function at evaluation time). Throws {@link ParseError} on a malformed
+ * pattern.
+ */
+export function parseMatchPattern(raw: string, pos: number): MatchPattern {
   if (raw.includes("\0")) {
     throw new ParseError(`MATCHES pattern '${raw}': contains NUL`, pos);
   }
