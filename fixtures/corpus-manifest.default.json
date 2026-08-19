@@ -1,0 +1,41 @@
+{
+  "source": "gutendex",
+  "restructure": null,
+  "segmentation": {
+    "unit": "char",
+    "grouping": "boundary",
+    "boundary": "blank-line",
+    "overlap": 0
+  },
+  "entries": [
+    {
+      "id": 11,
+      "note": "Alice's Adventures in Wonderland — Carroll (narrative, object-dense)"
+    },
+    {
+      "id": 43,
+      "note": "The Strange Case of Dr Jekyll and Mr Hyde — Stevenson (narrative, tonal split)"
+    },
+    {
+      "id": 526,
+      "note": "Heart of Darkness — Conrad (narrative, low object-density)"
+    },
+    { "id": 12242, "note": "Poems — Dickinson (poetic, compressed)" },
+    {
+      "id": 1322,
+      "note": "Leaves of Grass — Whitman (poetic, repetitive/thematic)"
+    },
+    {
+      "id": 1228,
+      "note": "On the Origin of Species — Darwin (expository, argumentative)"
+    },
+    {
+      "id": 3300,
+      "note": "The Wealth of Nations — Smith (expository, abstract)"
+    },
+    {
+      "id": 1206,
+      "note": "The Interpretation of Dreams — Freud/Brill (mixed: case study + theory)"
+    }
+  ]
+}
