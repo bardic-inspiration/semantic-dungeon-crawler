@@ -1,11 +1,11 @@
 # Roadmap
 
 **Status: the design track has closed — all A/B/C spec-gap entries are resolved
-and `SPEC.md` is at 0.11.0. Phase 0 has completed the full phase cycle — its
-issues are merged and its QA/QC pass confirmed the §6.1 Exit criteria hold, so
-the `Development Phase 0` milestone is ready to close. Phase 1 is now active: its
-issues (#54–#58) are open under the `Development Phase 1` milestone and
-implemented in the PR that records the §6.2 Exit checklist; that milestone closes
+and `SPEC.md` is at 0.11.0. Phases 0 and 1 have completed the full phase cycle —
+their issues are merged (Phase 1's `packages/schema` in #59) and their QA/QC
+passes confirmed the §6.1/§6.2 Exit criteria hold. Phase 2 is now active: its
+issues (#60–#66, #68, #69) are open under the `Development Phase 2` milestone and
+implemented in the PR that records the §6.3 Exit checklist; that milestone closes
 after that PR merges, per [The phase cycle](#the-phase-cycle).**
 
 This file tracks the phase-by-phase build order: the
@@ -27,10 +27,10 @@ A/B/C amendments, and `SPEC.md` is at 0.11.0. Building no longer means inventing
 spec-defined behavior, the situation [`issue-standards.md`](issue-standards.md)
 exists to prevent.
 
-So the build order is unblocked and underway: Phase 0 opened, built, and passed
-its QA/QC pass (below). The remaining phases are tracked below, but none of them
-has its issues opened yet, so no phase is currently active — see
-[The phase cycle](#the-phase-cycle).
+So the build order is unblocked and underway: Phases 0 and 1 opened, built, and
+passed their QA/QC pass, and Phase 2 (`packages/corpus-builder`) is now active
+with its issues opened and implemented (below). The later phases are tracked
+below and not yet opened — see [The phase cycle](#the-phase-cycle).
 
 ## Development phases
 
@@ -45,7 +45,7 @@ criteria — this table is a status index, not a second copy of them.
 | Phase | Deliverable | SPEC | Milestone | Status |
 |---|---|---|---|---|
 | 0 | Repository scaffold — workspaces, `tsconfig.base.json`, empty packages | §6.1 | [Development Phase 0](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/2) | **Complete** — closes [#49](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/49), [#50](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/50); QA/QC pass confirmed §6.1 Exit criteria hold; milestone ready to close |
-| 1 | `packages/schema` — Section 3 types + CHANGELOG + example fixture | §6.2 | [Development Phase 1](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/3) | **Active** — issues [#54](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/54)–[#58](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/58) opened & implemented (this PR); §6.2 Exit checklist recorded in the PR; milestone closes on merge |
+| 1 | `packages/schema` — Section 3 types + CHANGELOG + example fixture | §6.2 | [Development Phase 1](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/3) | **Complete** — issues [#54](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/54)–[#58](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/58) merged in [#59](https://github.com/bardic-inspiration/semantic-dungeon-crawler/pull/59); §6.2 Exit checklist recorded in that PR; milestone closes per [The phase cycle](#the-phase-cycle) |
 | 2 | `packages/corpus-builder` — build-time pipeline → `graph.json` | §6.3 | [Development Phase 2](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/4) | **Active** — issues [#60](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/60)–[#66](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/66), [#68](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/68), [#69](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/69) opened & implemented (this PR); §6.3 Exit checklist recorded in the PR; milestone closes on merge |
 | 3 | `packages/rule-engine` — parser, solver, layer resolution, debug trace | §6.4 | [Development Phase 3](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/5) | Not started |
 | 4 | `packages/server` + `packages/client-cli` + conformance fixtures | §6.5 | [Development Phase 4](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/6) | Not started |
@@ -56,7 +56,7 @@ criteria — this table is a status index, not a second copy of them.
 A phase becomes **active** when its issues are opened; it (and its milestone)
 **closes** at the end of its QA/QC pass. Both transitions follow
 [The phase cycle](#the-phase-cycle) below — the single place the open/close
-conditions are defined. No phase is active yet.
+conditions are defined. Phase 2 is currently active.
 
 ## The design track (now closed)
 
@@ -73,8 +73,8 @@ the tier ordering and "Depends on" links in
 [`AGENTS.md`](../AGENTS.md) §5 so design work is owned and ordered rather than
 unqueued. Tiers A (spec 0.9.0), B (spec 0.10.0), and C (spec 0.11.0) are all
 resolved and [`open-scope.md`](design/open-scope.md) is now `status: closed`, so
-the track carries no open entries. Phase 0 has since completed its full cycle;
-the next action is to open Phase 1 (see [The phase cycle](#the-phase-cycle)).
+the track carries no open entries. Phases 0 and 1 have since completed their full
+cycle and Phase 2 is active (see [The phase cycle](#the-phase-cycle)).
 
 Resolving an entry meant amending `SPEC.md` per
 [`spec-guidelines.md`](spec-guidelines.md) — the amendment, not the discussion, is
@@ -86,7 +86,8 @@ A phase must not be declared active while an open design entry blocks it. That i
 why the phase table above lists status rather than declaring a phase active: a
 queue that marks a phase active is an instruction to an agent to start, and
 starting is exactly what the design gates guard. No design entry blocks a phase
-now, so the gate is clear — opening Phase 1's issues is the remaining step, not a
+now, so the gate is clear — Phases 0–2 have opened on that clear gate, and each
+later phase opens the same way once its predecessor finishes the cycle, not on a
 further design decision.
 
 ## The phase cycle

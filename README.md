@@ -18,12 +18,13 @@ The engine ships two things:
 
 ## Status
 
-Pre-alpha. No packages exist yet. The spec-design track has closed — the open
-design questions are now resolved and `SPEC.md` is at 0.11.0 — but the build
-order (`SPEC.md` §6, Phase 0→7) has not reopened yet. See
-[`docs/design/open-scope.md`](docs/design/open-scope.md) for the now-closed
-survey of what was undecided, and [`docs/roadmap.md`](docs/roadmap.md) for how
-the phase queue reopens.
+Pre-alpha, and building. The spec-design track has closed — the open design
+questions are resolved and `SPEC.md` is at 0.11.0 — and the build order
+(`SPEC.md` §6, Phase 0→7) is underway: Phase 0 (repo scaffold) and Phase 1
+(`packages/schema`) are merged, and Phase 2 (`packages/corpus-builder`, the
+build-time pipeline) is active. See [`docs/roadmap.md`](docs/roadmap.md) for
+live phase status and [`docs/design/open-scope.md`](docs/design/open-scope.md)
+for the now-closed survey of what was undecided.
 
 ## How this repo is built
 
@@ -50,13 +51,12 @@ it is the canonical guide.
 
 - **Language:** TypeScript (monorepo, npm workspaces — SPEC §6.1)
 - **Tests:** [Vitest](https://vitest.dev/)
-- **Lint/format:** ESLint + Prettier, including an import-boundary rule
-  enforcing `INV-3`
+- **Lint/format:** ESLint + Prettier. The `INV-3` import boundary is enforced
+  as a test guard today; the dedicated ESLint import-boundary rule arrives with
+  the client packages (Phases 4–5, SPEC §6.5/§6.6)
 - **Typecheck:** `tsc --noEmit`
 
 ## Development
-
-Once the Phase 0 scaffold lands:
 
 ```bash
 npm install         # install workspace dependencies
@@ -64,6 +64,19 @@ npm test            # run the Vitest suite
 npm run lint        # eslint + prettier --check
 npm run typecheck   # tsc --noEmit across packages
 ```
+
+Build-time pipeline (Phase 2, `packages/corpus-builder`) — turns a text corpus
+into the internal `graph.json` substrate index (never sent to a client, `INV-3`):
+
+```bash
+# from packages/corpus-builder/
+node bin/corpus-builder.mjs build --input <dir> --output graph.json [--trace]
+node bin/corpus-builder.mjs inspect --graph graph.json --node <id>
+node bin/corpus-builder.mjs eval --graph graph.json
+```
+
+See [`packages/corpus-builder/GRAPH_FORMAT.md`](packages/corpus-builder/GRAPH_FORMAT.md)
+for the artifact format.
 
 ## Contributing
 

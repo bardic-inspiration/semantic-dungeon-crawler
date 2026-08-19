@@ -90,6 +90,19 @@ it was built from, so any resolved query result is traceable back to input
 (SPEC §2.1, §6.3). `corpus-builder inspect --node <id>` prints a span's fields plus
 this chain.
 
+### Notes for the `rule-engine` consumer (Phase 3)
+
+- **`char_ranges` are offsets into the CRLF-normalized text.** Segmentation
+  normalizes line endings (CRLF/CR → LF) before partitioning, so a span's
+  `start`/`end` — and the `prose` excerpt — are relative to the normalized form
+  of its source document, not the raw on-disk bytes. `end` is exclusive.
+- **The span `id` is the embedding reference.** A resolved client `Entity`
+  carries `embedding_ref` (SPEC §3.1), "a pointer to the vector in `graph.json`,
+  never the raw vector". Here the vector lives inline on its span, keyed by `id`,
+  so when `rule-engine` mints an `Entity` from a span it sets
+  `embedding_ref = span.id`. The vector itself never leaves the build artifact
+  (INV-3).
+
 ## `tag-registry.yaml`
 
 The vocabulary contract (SPEC §3.6.2): a keys-only nested tree of the segment paths
