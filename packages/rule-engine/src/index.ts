@@ -36,3 +36,27 @@ export type {
 } from "./layer-resolution";
 export { NoopLogger, CollectingLogger } from "./instrumentation";
 export type { LogLevel, Logger } from "./instrumentation";
+
+export type { Graph, GraphSpan } from "./graph";
+export { createSubstrateGraph } from "./graph";
+
+export {
+  evaluateLayers,
+  solverCore,
+  resolveMove,
+  populate,
+  MAX_ROOM_OBJECTS,
+  DEFAULT_QUERY_K,
+  DEFAULT_MOVEMENT_AFFORDANCES,
+} from "./solver";
+export type {
+  WeightedCandidate,
+  EvaluateLayersResult,
+  CommitResult,
+  MoveResolution,
+  RoomResolution,
+  ResolveMoveOptions,
+  PopulateOptions,
+  PreparedRule,
+  PreparedLayer,
+} from "./solver";
