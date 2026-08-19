@@ -23,3 +23,16 @@ export type { Draw } from "./sample";
 export * from "./parser";
 export { evaluate } from "./evaluate";
 export type { EntityCandidate, EvalBindings } from "./evaluate";
+
+export {
+  resolutionOrder,
+  resolveLayers,
+  OVERRIDE_CONFLICT_EVENT,
+} from "./layer-resolution";
+export type {
+  HardDecision,
+  LayerEffects,
+  Resolution,
+} from "./layer-resolution";
+export { NoopLogger, CollectingLogger } from "./instrumentation";
+export type { LogLevel, Logger } from "./instrumentation";
