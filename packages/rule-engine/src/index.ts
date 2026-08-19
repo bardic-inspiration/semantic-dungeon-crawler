@@ -21,3 +21,5 @@ export { sample } from "./sample";
 export type { Draw } from "./sample";
 
 export * from "./parser";
+export { evaluate } from "./evaluate";
+export type { EntityCandidate, EvalBindings } from "./evaluate";
