@@ -37,6 +37,9 @@ export type {
 export { NoopLogger, CollectingLogger } from "./instrumentation";
 export type { LogLevel, Logger } from "./instrumentation";
 
+export { createDebugTrace, DebugTraceRecorder } from "./debug-trace";
+export type { DebugConfig } from "./debug-trace";
+
 export type { Graph, GraphSpan } from "./graph";
 export { createSubstrateGraph } from "./graph";
 

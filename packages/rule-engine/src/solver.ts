@@ -25,6 +25,7 @@
 
 import type {
   Affordance,
+  DebugTrace,
   Effect,
   Entity,
   Layer,
@@ -39,6 +40,7 @@ import {
   resolveLayers,
   type HardDecision,
 } from "./layer-resolution";
+import { createDebugTrace, type DebugConfig } from "./debug-trace";
 import { NoopLogger, type Logger } from "./instrumentation";
 import type { Query } from "./query";
 import { seededRng } from "./prng";
@@ -91,6 +93,12 @@ export interface EvaluateLayersResult {
   activeLayers: PreparedLayer[];
   /** The seeded PRNG for this query (§4.5) — the caller draws from it. */
   rng: () => number;
+  /**
+   * The §4.6 debug trace for this evaluation — present ONLY when the server debug
+   * flag was on (`debug.enabled`), absent (and unbuilt) otherwise. Zero overhead
+   * when off: the recorder is never constructed, so nothing here is computed.
+   */
+  debug?: DebugTrace;
 }
 
 /** The deterministic outcome of the post-decision commit phase (§4.1 A5). */
@@ -113,6 +121,8 @@ export interface MoveResolution {
   resolution_status: ResolutionStatus;
   /** Commit-phase output for this move (A5). */
   commit: CommitResult;
+  /** The §4.6 debug trace, present only when server debug mode is on (§4.6). */
+  debug?: DebugTrace;
 }
 
 /** A resolved room: sampled objects, derived exits, status (§4.4 / §3.2). */
@@ -122,6 +132,8 @@ export interface RoomResolution {
   /** `"stuck"` iff the resolution left no legal exit (§0.11.0 C2), else `"resolved"`. */
   resolution_status: ResolutionStatus;
   commit: CommitResult;
+  /** The §4.6 debug trace, present only when server debug mode is on (§4.6). */
+  debug?: DebugTrace;
 }
 
 // ── Options ───────────────────────────────────────────────────────────────────
@@ -137,6 +149,12 @@ export interface ResolveMoveOptions {
   /** Candidate-pool size for the query; defaults to {@link DEFAULT_QUERY_K}. */
   k?: number;
   logger?: Logger;
+  /**
+   * §4.6 debug trace flag — SERVER config, never sourced from a client request
+   * (INV-3). When `enabled`, the returned {@link MoveResolution} carries a
+   * `debug` trace; off (or omitted) is the zero-overhead hot path.
+   */
+  debug?: DebugConfig;
 }
 
 export interface PopulateOptions {
@@ -147,6 +165,12 @@ export interface PopulateOptions {
   /** Movement affordances; defaults to {@link DEFAULT_MOVEMENT_AFFORDANCES} (+ `portal`). */
   movementAffordances?: readonly Affordance[];
   logger?: Logger;
+  /**
+   * §4.6 debug trace flag — SERVER config, never client-supplied (INV-3). When
+   * `enabled`, the returned {@link RoomResolution} carries a `debug` trace; off
+   * (or omitted) is the zero-overhead hot path.
+   */
+  debug?: DebugConfig;
 }
 
 // ── Prepared (parse-once) layer view ──────────────────────────────────────────
@@ -223,6 +247,7 @@ export function evaluateLayers(
   state: SessionState,
   layers: readonly Layer[],
   logger: Logger = new NoopLogger(),
+  debug?: DebugConfig,
 ): EvaluateLayersResult {
   const candidates = graph.query(query);
   const rng = seededRng(state.session_seed, state.turn_count, query);
@@ -234,6 +259,20 @@ export function evaluateLayers(
   const rulesById = new Map<Layer, PreparedRule[]>();
   for (const a of activeLayers) rulesById.set(a.layer, a.rules);
 
+  // §4.6 debug trace — gate BEFORE construct: the recorder exists only when the
+  // server flag is on, so with it off every `recorder?.…` below short-circuits
+  // and the hot path does no trace work. Recording is a pure side channel; it
+  // never feeds back into resolution (INV-2).
+  const recorder = createDebugTrace(debug);
+  if (recorder) {
+    recorder.recordCandidates(candidates.map((c) => c.entity.id));
+    const activeSet = new Set(activeLayers.map((a) => a.layer));
+    // Every layer in the stack, declaration order — a skipped (inactive) layer is
+    // recorded too, marked `activated: false`.
+    for (const layer of layers)
+      recorder.registerLayer(layer.id, activeSet.has(layer));
+  }
+
   const pool: WeightedCandidate[] = [];
   let anyHardDecision = false;
 
@@ -243,18 +282,34 @@ export function evaluateLayers(
     // `dynamic.*` to run state.
     const layerEffects = ordered.map((layer) => {
       const effects: Effect[] = [];
-      for (const rule of rulesById.get(layer) ?? []) {
+      const rules = rulesById.get(layer) ?? [];
+      for (let ruleIndex = 0; ruleIndex < rules.length; ruleIndex++) {
+        const rule = rules[ruleIndex]!;
         if (
           rule.predicate !== null &&
           evaluate(rule.predicate, { candidate, state })
         ) {
           effects.push(rule.effect);
+          recorder?.recordRuleFired(
+            layer.id,
+            ruleIndex,
+            rule.effect,
+            candidate.entity.id,
+          );
         }
       }
       return { layer, effects };
     });
 
     const resolution = resolveLayers(layerEffects, logger);
+    if (recorder) {
+      // Soft scores stack regardless of the hard decision (§4.3.4), so record
+      // every candidate's — even one about to be hard_forbidden out of the pool.
+      recorder.recordSoftScore(candidate.entity.id, resolution.softFactor);
+      if (resolution.decidedBy !== null) {
+        recorder.recordHardDecision(resolution.decidedBy);
+      }
+    }
     if (resolution.decision !== null) anyHardDecision = true;
     // A hard_forbid drops the candidate; hard_allow and undecided both survive,
     // weighted by the stacked soft factor (§4.3.4). sample() reads the weight.
@@ -267,7 +322,13 @@ export function evaluateLayers(
     });
   }
 
-  return { pool, anyHardDecision, activeLayers, rng };
+  return {
+    pool,
+    anyHardDecision,
+    activeLayers,
+    rng,
+    ...(recorder ? { debug: recorder.build() } : {}),
+  };
 }
 
 /**
@@ -367,10 +428,18 @@ export function resolveMove(
     ? { origin: { vector_ref: options.anchor.target_ref }, k }
     : driftQuery;
 
-  let result = solverCore.evaluateLayers(graph, query, state, layers, logger);
+  let result = solverCore.evaluateLayers(
+    graph,
+    query,
+    state,
+    layers,
+    logger,
+    options.debug,
+  );
 
   // Drift fallthrough (§4.1): when no hard decision engaged an anchored move,
-  // fall back to plain nearest-neighbor drift from the player's position.
+  // fall back to plain nearest-neighbor drift from the player's position. The
+  // re-resolve produces a fresh trace, so `debug` reflects the drift resolution.
   if (options.anchor && !result.anyHardDecision) {
     result = solverCore.evaluateLayers(
       graph,
@@ -378,6 +447,7 @@ export function resolveMove(
       state,
       layers,
       logger,
+      options.debug,
     );
   }
 
@@ -389,6 +459,7 @@ export function resolveMove(
     destination,
     resolution_status: destination === null ? "stuck" : "resolved",
     commit,
+    ...(result.debug !== undefined ? { debug: result.debug } : {}),
   };
 }
 
@@ -420,7 +491,14 @@ export function populate(
     ...(options.radius !== undefined ? { radius: options.radius } : {}),
   };
 
-  const result = solverCore.evaluateLayers(graph, query, state, layers, logger);
+  const result = solverCore.evaluateLayers(
+    graph,
+    query,
+    state,
+    layers,
+    logger,
+    options.debug,
+  );
 
   const n = Math.round(room.layout_hint.density * MAX_ROOM_OBJECTS);
   const chosen = sampleDistinct(result.pool, n, result.rng);
@@ -433,6 +511,7 @@ export function populate(
     exits,
     resolution_status: exits.length === 0 ? "stuck" : "resolved",
     commit,
+    ...(result.debug !== undefined ? { debug: result.debug } : {}),
   };
 }
 
