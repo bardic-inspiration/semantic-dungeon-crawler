@@ -24,7 +24,8 @@ questions are resolved and `SPEC.md` is at 0.11.0 — and the build order
 (`packages/schema`), Phase 2 (`packages/corpus-builder`, the build-time pipeline),
 and Phase 3 (`packages/rule-engine`, the parser + solver) are complete, each
 through its QA/QC pass. Phase 4 (`packages/server` + `packages/client-cli` +
-conformance fixtures) is next. See [`docs/roadmap.md`](docs/roadmap.md) for
+conformance fixtures) is now active, its issues opened. See
+[`docs/roadmap.md`](docs/roadmap.md) for
 live phase status and [`docs/design/open-scope.md`](docs/design/open-scope.md)
 for the now-closed survey of what was undecided.
 
