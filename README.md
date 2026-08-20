@@ -20,9 +20,11 @@ The engine ships two things:
 
 Pre-alpha, and building. The spec-design track has closed — the open design
 questions are resolved and `SPEC.md` is at 0.11.0 — and the build order
-(`SPEC.md` §6, Phase 0→7) is underway: Phase 0 (repo scaffold) and Phase 1
-(`packages/schema`) are merged, and Phase 2 (`packages/corpus-builder`, the
-build-time pipeline) is active. See [`docs/roadmap.md`](docs/roadmap.md) for
+(`SPEC.md` §6, Phase 0→7) is underway: Phase 0 (repo scaffold), Phase 1
+(`packages/schema`), Phase 2 (`packages/corpus-builder`, the build-time pipeline),
+and Phase 3 (`packages/rule-engine`, the parser + solver) are complete, each
+through its QA/QC pass. Phase 4 (`packages/server` + `packages/client-cli` +
+conformance fixtures) is next. See [`docs/roadmap.md`](docs/roadmap.md) for
 live phase status and [`docs/design/open-scope.md`](docs/design/open-scope.md)
 for the now-closed survey of what was undecided.
 
