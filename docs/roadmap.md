@@ -6,10 +6,11 @@ cycle — their issues are merged (Phase 1's `packages/schema` in #59; Phase 2's
 `packages/corpus-builder`; Phase 3's `packages/rule-engine` in #71–#76) and their
 QA/QC passes confirmed the §6.1/§6.2/§6.3/§6.4 Exit criteria hold, so the
 `Development Phase 3` milestone is closed. Phase 4 (`packages/server` +
-`packages/client-cli` + conformance fixtures, §6.5) is next: its issues are not
-yet opened. It becomes active once its `Development Phase 4` milestone exists and
-its issues are sliced from the §6.5 Build list, per
-[The phase cycle](#the-phase-cycle).**
+`packages/client-cli` + conformance fixtures, §6.5) is now active: its issues
+(#85–#92) are open under the `Development Phase 4` milestone, sliced from the §6.5
+Build list (server endpoints, `Logger`/`Metrics` + debug gate, conformance
+fixtures, `client-cli`, and the `INV-3` import-boundary lint rule); that milestone
+closes after the phase's QA/QC pass, per [The phase cycle](#the-phase-cycle).**
 
 This file tracks the phase-by-phase build order: the
 [development-phase table](#development-phases) mirrors `SPEC.md` §6 and links each
@@ -32,8 +33,8 @@ exists to prevent.
 
 So the build order is unblocked and underway: Phases 0, 1, 2, and 3 opened, built,
 and passed their QA/QC pass, and Phase 4 (`packages/server` + `packages/client-cli`
-+ conformance fixtures) is next, with its issues not yet opened. The later phases
-are tracked below and not yet opened — see [The phase cycle](#the-phase-cycle).
++ conformance fixtures) is now active with its issues opened (below). The later
+phases are tracked below and not yet opened — see [The phase cycle](#the-phase-cycle).
 
 ## Development phases
 
@@ -51,7 +52,7 @@ criteria — this table is a status index, not a second copy of them.
 | 1 | `packages/schema` — Section 3 types + CHANGELOG + example fixture | §6.2 | [Development Phase 1](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/3) | **Complete** — issues [#54](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/54)–[#58](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/58) merged in [#59](https://github.com/bardic-inspiration/semantic-dungeon-crawler/pull/59); §6.2 Exit checklist recorded in that PR; milestone closes per [The phase cycle](#the-phase-cycle) |
 | 2 | `packages/corpus-builder` — build-time pipeline → `graph.json` | §6.3 | [Development Phase 2](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/4) | **Complete** — issues [#60](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/60)–[#69](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/69) merged; QA/QC pass confirmed §6.3 Exit criteria hold; milestone closed |
 | 3 | `packages/rule-engine` — parser, solver, layer resolution, debug trace | §6.4 | [Development Phase 3](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/5) | **Complete** — issues [#71](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/71)–[#76](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/76) merged; QA/QC pass confirmed §6.4 Exit criteria hold; milestone closed |
-| 4 | `packages/server` + `packages/client-cli` + conformance fixtures | §6.5 | [Development Phase 4](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/6) | Not started |
+| 4 | `packages/server` + `packages/client-cli` + conformance fixtures | §6.5 | [Development Phase 4](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/6) | **Active** — issues [#85](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/85)–[#92](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/92) opened under the milestone; milestone closes after the phase's QA/QC pass |
 | 5 | `packages/client-threejs` — reference renderer | §6.6 | [Development Phase 5](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/7) | Not started |
 | 6 | Production-alpha hardening + README playable path | §6.7 | [Development Phase 6](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/8) | Not started |
 | 7+ | Post-alpha (rule editor, other adapters, persistence) — out of scope | §6.8 | [Development Phase 7](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/9) | Out of scope |
@@ -59,7 +60,7 @@ criteria — this table is a status index, not a second copy of them.
 A phase becomes **active** when its issues are opened; it (and its milestone)
 **closes** at the end of its QA/QC pass. Both transitions follow
 [The phase cycle](#the-phase-cycle) below — the single place the open/close
-conditions are defined. Phases 0–3 are complete; Phase 4 is next and not yet opened.
+conditions are defined. Phases 0–3 are complete; Phase 4 is currently active.
 
 ## The design track (now closed)
 
@@ -77,7 +78,7 @@ the tier ordering and "Depends on" links in
 unqueued. Tiers A (spec 0.9.0), B (spec 0.10.0), and C (spec 0.11.0) are all
 resolved and [`open-scope.md`](design/open-scope.md) is now `status: closed`, so
 the track carries no open entries. Phases 0, 1, 2, and 3 have since completed their
-full cycle and Phase 4 is next (see [The phase cycle](#the-phase-cycle)).
+full cycle and Phase 4 is active (see [The phase cycle](#the-phase-cycle)).
 
 Resolving an entry meant amending `SPEC.md` per
 [`spec-guidelines.md`](spec-guidelines.md) — the amendment, not the discussion, is
