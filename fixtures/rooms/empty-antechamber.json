@@ -1,0 +1,40 @@
+{
+  "room": {
+    "id": "resolved:empty-antechamber:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:structure:antechamber",
+      "mood:hushed",
+      "scale=small"
+    ],
+    "embedding_ref": "vec:01130",
+    "affordances": ["enter", "traverse"],
+    "salience": 0.38,
+    "prose": "A small bare antechamber, empty but for the dust turning in a single shaft of light.",
+    "source_span": { "source": "gutenberg:84", "char_ranges": "220-300" },
+    "contains": ["resolved:mote:1"],
+    "layout_hint": { "scale": "small", "density": 0.1, "shape_bias": "radial" },
+    "state": { "local_coherence": 0.41, "visited": false }
+  },
+  "objects": [
+    {
+      "id": "resolved:mote:1",
+      "archetype": "prop",
+      "semantic_tags": ["object:dust", "light:shaft"],
+      "embedding_ref": "vec:01131",
+      "affordances": ["inspect"],
+      "salience": 0.12,
+      "prose": "Motes of dust drift, catching the light and losing it again.",
+      "source_span": { "source": "gutenberg:84", "char_ranges": "301-352" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "small",
+        "density": 0.05,
+        "shape_bias": "scatter"
+      },
+      "state": { "local_coherence": 0.3, "visited": false }
+    }
+  ],
+  "exits": [],
+  "resolution_status": "resolved"
+}

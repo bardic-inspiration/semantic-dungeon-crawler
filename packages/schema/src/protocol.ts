@@ -6,6 +6,7 @@
 // resolved output, never embeddings, the index, rule definitions, or internal ids.
 
 import type { Affordance, Entity } from "./entity";
+import { isValidEntity } from "./entity";
 import type { Effect } from "./ruleset";
 
 // §3.2 (C2) — OPEN string union (like Archetype/Affordance): adding a value is a
@@ -72,4 +73,62 @@ export interface InteractResponse {
   transition_occurred: boolean; // false if the interaction was local (e.g. "read" a book, no movement)
   interaction_result: InteractionResult; // §0.9.0 (A6)
   session_ended?: boolean; // §0.9.0 (A7): true once an author rule fired the `end` effect
+}
+
+/**
+ * Structural well-formedness guard for a `ResolvedExit` (SPEC §3.2 A4). Checks
+ * the four required fields are present with the right primitive type. Per INV-4
+ * this is a WELL-FORMEDNESS check only: it makes no coherence judgement — it does
+ * not require `weight` to fall in any range, nor `via_object_id` to name an object
+ * that appears in the response's `objects[]` (that cross-reference is a server
+ * behavior guarantee, not a shape invariant).
+ */
+export function isValidResolvedExit(value: unknown): value is ResolvedExit {
+  if (typeof value !== "object" || value === null) return false;
+  const exit = value as Record<string, unknown>;
+  if (typeof exit.target_entity_id !== "string") return false;
+  if (typeof exit.affordance_required !== "string") return false;
+  if (typeof exit.via_object_id !== "string") return false;
+  if (typeof exit.weight !== "number") return false;
+  return true;
+}
+
+/**
+ * Structural well-formedness guard for a `ResolvedRoomResponse` (SPEC §3.2) — the
+ * conformance predicate the §5.3 fixture suite and the §6.5 round-trip test assert
+ * against. A response is well-formed iff its `room` and every `objects[]` entry are
+ * valid `Entity`s (§3.1), every `exits[]` entry is a valid `ResolvedExit`,
+ * `resolution_status` is a string (the §0.11.0 C2 open union — "resolved",
+ * "stuck", or an author-added value), and any `debug` present is an object.
+ * Per INV-4 it makes no coherence/taste judgement (INV-3: this validates resolved
+ * output shape, never engine internals). Composes {@link isValidEntity} so a room
+ * response is exactly as strict about its entities as `Entity` itself.
+ */
+export function isValidResolvedRoomResponse(
+  value: unknown,
+): value is ResolvedRoomResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const response = value as Record<string, unknown>;
+
+  if (!isValidEntity(response.room)) return false;
+
+  if (!Array.isArray(response.objects)) return false;
+  if (!response.objects.every(isValidEntity)) return false;
+
+  if (!Array.isArray(response.exits)) return false;
+  if (!response.exits.every(isValidResolvedExit)) return false;
+
+  if (typeof response.resolution_status !== "string") return false;
+
+  // `debug` is optional (§4.6) and only ever present with server debug mode on;
+  // when present it must at least be an object. Its full `DebugTrace` shape is an
+  // engine-internal view (INV-3), not part of the client-facing fixture contract.
+  if (
+    response.debug !== undefined &&
+    (typeof response.debug !== "object" || response.debug === null)
+  ) {
+    return false;
+  }
+
+  return true;
 }

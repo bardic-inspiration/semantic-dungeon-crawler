@@ -1,0 +1,23 @@
+{
+  "room": {
+    "id": "resolved:sealed-vault:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:structure:vault",
+      "mood:airless",
+      "state:sealed",
+      "material:granite"
+    ],
+    "embedding_ref": "vec:07770",
+    "affordances": ["enter"],
+    "salience": 0.55,
+    "prose": "A granite vault with no seam, no shelf, no further door — the resolution has left you nowhere to go.",
+    "source_span": { "source": "gutenberg:2600", "char_ranges": "44000-44098" },
+    "contains": [],
+    "layout_hint": { "scale": "small", "density": 0.0, "shape_bias": "box" },
+    "state": { "local_coherence": 0.6, "visited": true }
+  },
+  "objects": [],
+  "exits": [],
+  "resolution_status": "stuck"
+}

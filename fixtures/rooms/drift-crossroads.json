@@ -1,0 +1,126 @@
+{
+  "room": {
+    "id": "resolved:drift-crossroads:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:junction:crossroads",
+      "mood:liminal",
+      "mode:drift",
+      "scale=medium"
+    ],
+    "embedding_ref": "vec:02050",
+    "affordances": ["enter", "traverse"],
+    "salience": 0.5,
+    "prose": "Four passages meet with no clear centre; each pulls at you a little, none decides.",
+    "source_span": { "source": "gutenberg:1342", "char_ranges": "4400-4488" },
+    "contains": [
+      "resolved:north-way:1",
+      "resolved:east-way:2",
+      "resolved:south-way:3",
+      "resolved:west-way:4"
+    ],
+    "layout_hint": {
+      "scale": "medium",
+      "density": 0.4,
+      "shape_bias": "radial"
+    },
+    "state": { "local_coherence": 0.52, "visited": false }
+  },
+  "objects": [
+    {
+      "id": "resolved:north-way:1",
+      "archetype": "portal",
+      "semantic_tags": ["portal:passage", "bearing:north"],
+      "embedding_ref": "vec:02051",
+      "affordances": ["traverse"],
+      "salience": 0.31,
+      "prose": "The north passage exhales a faint cold.",
+      "source_span": { "source": "gutenberg:1342", "char_ranges": "4489-4528" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.1,
+        "shape_bias": "arch"
+      },
+      "state": { "local_coherence": 0.48, "visited": false }
+    },
+    {
+      "id": "resolved:east-way:2",
+      "archetype": "portal",
+      "semantic_tags": ["portal:passage", "bearing:east"],
+      "embedding_ref": "vec:02052",
+      "affordances": ["traverse"],
+      "salience": 0.28,
+      "prose": "The east passage is a shade warmer, and older.",
+      "source_span": { "source": "gutenberg:1342", "char_ranges": "4529-4570" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.1,
+        "shape_bias": "arch"
+      },
+      "state": { "local_coherence": 0.46, "visited": false }
+    },
+    {
+      "id": "resolved:south-way:3",
+      "archetype": "portal",
+      "semantic_tags": ["portal:passage", "bearing:south"],
+      "embedding_ref": "vec:02053",
+      "affordances": ["traverse"],
+      "salience": 0.24,
+      "prose": "The south passage smells faintly of rain.",
+      "source_span": { "source": "gutenberg:1342", "char_ranges": "4571-4610" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.1,
+        "shape_bias": "arch"
+      },
+      "state": { "local_coherence": 0.44, "visited": false }
+    },
+    {
+      "id": "resolved:west-way:4",
+      "archetype": "portal",
+      "semantic_tags": ["portal:passage", "bearing:west"],
+      "embedding_ref": "vec:02054",
+      "affordances": ["traverse"],
+      "salience": 0.21,
+      "prose": "The west passage narrows almost at once into shadow.",
+      "source_span": { "source": "gutenberg:1342", "char_ranges": "4611-4656" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.1,
+        "shape_bias": "arch"
+      },
+      "state": { "local_coherence": 0.42, "visited": false }
+    }
+  ],
+  "exits": [
+    {
+      "target_entity_id": "query:token:north-drift",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:north-way:1",
+      "weight": 0.31
+    },
+    {
+      "target_entity_id": "query:token:east-drift",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:east-way:2",
+      "weight": 0.28
+    },
+    {
+      "target_entity_id": "query:token:south-drift",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:south-way:3",
+      "weight": 0.24
+    },
+    {
+      "target_entity_id": "query:token:west-drift",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:west-way:4",
+      "weight": 0.21
+    }
+  ],
+  "resolution_status": "resolved"
+}
