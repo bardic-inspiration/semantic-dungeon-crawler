@@ -1,6 +1,6 @@
 # Design Note 0002 — Default Test Corpus
 
-`status: proposed`
+`status: accepted`
 `spec: §6.3.1`
 `source: issue #9 (closed — design captured here)`
 
@@ -38,7 +38,7 @@ All public domain, all available from Project Gutenberg.
 | 3300 | *The Wealth of Nations* — Smith | Expository, abstract | Strong contrast against the fiction; candidate for abstract/economic tag paths |
 | 1206 | *The Interpretation of Dreams* — Freud (trans. Brill) | Mixed — case study + theory | Tests whether tagging distinguishes registers *within* a single source |
 
-## The IDs are unverified
+## The IDs are still unverified — an open Exit-criteria gap
 
 They are best-effort from search and **must be verified against
 `GET /books?ids=...` before being locked into the fixture** — §6.3.1 already
@@ -46,6 +46,13 @@ requires this, because a wrong ID silently pulls the wrong book or none at all.
 Verification was not possible when this note was written (the environment's
 network policy blocks `gutendex.com`), so treat every ID above as a candidate,
 not a fact.
+
+**They were locked into `fixtures/corpus-manifest.default.json` anyway, and
+Phase 2 closed over it.** §6.3 Exit requires the manifest be "checked in with
+**verified** Gutenberg IDs"; that criterion is outstanding. A conformance audit
+of the Phase 0–4 build surfaced it, and it is tracked as its own issue — see the
+`Conformance Audit 1` milestone. Until that issue closes, assume the register
+variety this note argues for may not actually be present in a build.
 
 ## Open questions this set does not answer
 
@@ -66,6 +73,7 @@ than forcing it.
 
 ## Status
 
-Proposed. It becomes real when Phase 2 opens (see [`roadmap.md`](../roadmap.md) —
-the build queue is currently paused) and the manifest fixture is written with
-verified IDs, per §6.3.1 and the §6.3 Exit criteria.
+Accepted. Phase 2 is complete and `fixtures/corpus-manifest.default.json` is
+checked in with this set. What remains outstanding is the ID verification §6.3.1
+requires (above) — the selection is settled, its correctness is not yet
+confirmed.

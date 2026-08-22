@@ -15,9 +15,10 @@ Read order for a cold start: **this file → the SPEC section your issue referen
 The project is an **authoring engine for semantic-space games** (SPEC §1) — an
 engine, not a single game. It ships two deliverables:
 
-- A **deterministic, headless backend**: corpus → embedding → graph → rule solver
-  → resolved JSON, exposed over a REST API any frontend can be built against
-  (SPEC §2, §5.1).
+- A **deterministic, headless backend**: corpus → embedding → substrate index →
+  rule solver → resolved JSON, exposed over a REST API any frontend can be built
+  against (SPEC §2, §5.1). The build artifact keeps the filename `graph.json`,
+  but it is a substrate index, not a node/edge graph (SPEC §0.8.0, D1).
 - A **Three.js reference client** — the first of potentially several graphical
   adapters — that renders the resolved JSON and nothing else, plus a **terminal
   reference client** (`client-cli`) for testing without a frontend at all
@@ -60,10 +61,11 @@ if it passes tests.
   `packages/schema/CHANGELOG.md` entry in the same commit — never silent mutation.
 
 > The two easiest to break by accident: **`INV-2` (determinism)** — reach for a
-> seeded PRNG derived from `(session_seed, turn_count)`, never `Math.random()` or
-> `Date.now()`; and **`INV-3` (import boundary)** — enforced by an ESLint rule
-> (added in Phase 4 for `client-cli`, SPEC §6.5; extended to `client-threejs` in
-> Phase 5, SPEC §6.6), but respect it from day one.
+> seeded PRNG derived from `(session_seed, turn_count, normalized_query)`, never
+> `Math.random()` or `Date.now()`; and **`INV-3` (import boundary)** — to be
+> enforced by an ESLint rule (added in Phase 4 for `client-cli`, SPEC §6.5;
+> extended to `client-threejs` in Phase 5, SPEC §6.6). That rule does not exist
+> yet, so today the boundary holds by discipline alone — respect it from day one.
 
 ## 3. Repo layout (target — SPEC §2, §6.1)
 

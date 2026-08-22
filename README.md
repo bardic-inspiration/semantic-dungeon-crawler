@@ -1,11 +1,12 @@
 # Semantic Dungeon Crawler Engine
 
-An authoring engine for semantic-space games — not a single game. It embeds a
-text corpus into a weighted graph, lets a player occupy a position in that
-graph, and renders each node as a spatial room whose objects are the means of
-movement. Movement is an emergent consequence of environmental interaction,
-mediated by an authored rule layer. See [`SPEC.md`](SPEC.md) §1 for the full
-concept.
+An authoring engine for semantic-space games — not a single game. It segments a
+text corpus into source spans, embeds them into a **substrate** — a continuous
+embedding surface queried live, not a fixed graph — and lets a player occupy a
+coordinate in it. Each query resolves on demand into a room whose objects are the
+means of movement. Movement is an emergent consequence of environmental
+interaction, mediated by an authored rule layer. See [`SPEC.md`](SPEC.md) §1 for
+the full concept.
 
 The engine ships two things:
 
@@ -54,9 +55,12 @@ it is the canonical guide.
 
 - **Language:** TypeScript (monorepo, npm workspaces — SPEC §6.1)
 - **Tests:** [Vitest](https://vitest.dev/)
-- **Lint/format:** ESLint + Prettier. The `INV-3` import boundary is enforced
-  as a test guard today; the dedicated ESLint import-boundary rule arrives with
-  the client packages (Phases 4–5, SPEC §6.5/§6.6)
+- **Lint/format:** ESLint + Prettier. The `INV-3` client import boundary is
+  **not yet enforced** — no test or lint rule asserts that a client package
+  avoids importing `rule-engine`/`corpus-builder`; the dedicated ESLint rule
+  arrives with the client packages (Phases 4–5, SPEC §6.5/§6.6). The guard that
+  does exist today is a different one: `corpus-builder`'s `boundary.test.ts`
+  keeps Gutendex/Gutenberg hosts out of the runtime packages (SPEC §6.3.1)
 - **Typecheck:** `tsc --noEmit`
 
 ## Development

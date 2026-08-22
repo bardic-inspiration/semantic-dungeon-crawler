@@ -12,10 +12,18 @@ boundary, they are versioned **less strictly** than the client-facing Section 3
 schema (SPEC §6.3 Exit); breaking changes still bump `format-version` here.
 
 Under the §0.8.0 three-tier model this is **not** a fixed node/edge graph. It is a
-**substrate index** (Tier 2): embedding vectors + an ANN index for live querying +
-a source-span provenance table + a precomputed **local-coherence field** + a
-`substrate_version` build-id header (SPEC §6.3 re-scoping). The filename
-`graph.json` is kept for cross-reference continuity only.
+**substrate index** (Tier 2): embedding vectors + a source-span provenance table +
+a precomputed **local-coherence field** + a `substrate_version` build-id header
+(SPEC §6.3 re-scoping). The filename `graph.json` is kept for cross-reference
+continuity only.
+
+**The index structure itself is not serialized here.** SPEC §6.3 describes the
+bundle as carrying "an ANN index for live querying"; in practice the build
+constructs one and the artifact stores only the vectors, because the alpha
+default is an exact flat k-NN index (§0.10.0 B2) that a consumer rebuilds from
+those vectors in O(n). This doc describes what the file actually contains;
+whether the index should ship in the bundle is an open question tracked against
+the pipeline, not a licence to read a `index` key that is not there.
 
 ## Pipeline that produces it
 
@@ -71,7 +79,10 @@ Every stage reports through the same `Logger`/`Metrics` interfaces `server` uses
       "source_span": {
         "source": "file:forest.txt",
         "char_ranges": "0-72",            // `start-end`, end EXCLUSIVE; CSV for composites/overlap
-        "members": []                     // present only for a composite span (§3.1 B6)
+        "members": []                     // present only for a composite span (§3.1 B6).
+                                          // NOT emitted today: the default `restructure`
+                                          // is passthrough, so no composite is produced
+                                          // and this key is absent from every real span.
       },
       "prose": "The forest was full of tall green trees…",  // verbatim excerpt (client-facing at runtime, §3.1)
       "embedding": [ -0.0913, 0.0, /* … dimensions floats … */ ],  // L2-normalized — INTERNAL ONLY (INV-3)

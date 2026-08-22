@@ -2,7 +2,7 @@
 name: Docs / spec change
 about: A documentation or SPEC.md change with no code impact.
 title: "[docs] "
-labels: docs
+labels: documentation
 assignees: ""
 ---
 
