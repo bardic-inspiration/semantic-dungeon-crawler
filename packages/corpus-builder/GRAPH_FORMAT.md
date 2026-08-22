@@ -164,6 +164,32 @@ a deterministic artifact over an embedded timestamp is the correct INV-2 tradeof
 - `substrate_version` is a pure function of a canonical representation of the
   inputs + every pinned stage identity — a rebuild of unchanged input yields the
   same id; any pinned model/tokenizer/tagger change makes it visibly change.
+
+  **The hash covers exactly these, and nothing else:**
+
+  | Input | Why it is in the hash |
+  |---|---|
+  | `documents` (`source_id` + `raw_text`, sorted by `source_id`) | the corpus itself; sorted so retrieval order cannot fork the id |
+  | `segmentation` (`unit` × `grouping` + `overlap`) | decides what a span *is* |
+  | `restructure` | the B6 composition selector |
+  | `embeddingProviderId` | the pinned embedding model |
+  | `tokenizerId` | the pinned tokenizer (`unit: token` only, but always hashed) |
+  | `taggerId` | the pinned tagger |
+  | `coherenceK` | the k of the B5 local-coherence precompute — changes every `local_coherence` value in the bundle |
+  | `formatVersion` | the artifact schema itself |
+
+  The bar for inclusion is **"does changing it change the bundle's contents"**,
+  not "is it a model". `coherenceK` is the case that proves it: it pins no model,
+  but two builds differing only in `coherenceK` produce different
+  `local_coherence` on every span. It was missing from this hash until the
+  Conformance Audit 1 pass, which meant those two builds shared a build id — and
+  §3.7.3 derives snapshot staleness from that id, so a stale snapshot reported
+  itself fresh.
+
+  **Adding a build input means adding it here.** The index implementation is the
+  next candidate: it is hardcoded today, so its identity is constant and its
+  absence is currently harmless, but it becomes the same hole the moment the
+  index is made injectable.
 - `graph.json`, `tag-registry.yaml`, and (when `--trace`) `build-trace.json` are
   **byte-identical** across independent builds of identical input — no wall-clock,
   no map-iteration order, no unseeded value anywhere in the pipeline.

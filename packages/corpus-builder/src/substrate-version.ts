@@ -20,6 +20,13 @@ export interface SubstrateVersionInputs {
   embeddingProviderId: string;
   tokenizerId: string | null;
   taggerId: string;
+  /**
+   * The k of the B5 local-coherence precompute. Not a model identity, but it
+   * changes every `local_coherence` value in the bundle, so §6.3's "any of them
+   * changing is a visible new build id" applies to it exactly as it does to a
+   * pinned model — and §3.7.3 derives snapshot staleness from this id.
+   */
+  coherenceK: number;
   formatVersion: string;
 }
 
@@ -65,6 +72,7 @@ export function computeSubstrateVersion(
     embeddingProviderId: inputs.embeddingProviderId,
     tokenizerId: inputs.tokenizerId,
     taggerId: inputs.taggerId,
+    coherenceK: inputs.coherenceK,
     formatVersion: inputs.formatVersion,
   });
 

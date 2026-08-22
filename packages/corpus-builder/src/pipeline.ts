@@ -235,6 +235,7 @@ export async function runBuild(
     embeddingProviderId: embeddingProvider.id,
     tokenizerId: tokenizerIdentityFor(segmentation),
     taggerId: tagger.id,
+    coherenceK,
     formatVersion: GRAPH_FORMAT_VERSION,
   });
 
