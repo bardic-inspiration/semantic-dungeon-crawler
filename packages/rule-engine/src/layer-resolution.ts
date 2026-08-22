@@ -49,7 +49,9 @@ interface Entry {
  * (top = evaluated first), per §4.3:
  *
  * - **Priority spine (§4.3.1).** Layers carrying `{priority:N}` sort by `N`
- *   descending; equal priorities keep declaration order (stable, §4.3.6).
+ *   descending (§4.3 rule 1). Equal priorities keep declaration order: the spec
+ *   fixes the sort key but not tie-breaking, so stability is an engine choice
+ *   made for INV-2 (a total, reproducible order), not a spec requirement.
  * - **Override insertion (§4.3.2).** Each `override` layer is lifted to sit
  *   immediately above its *enclosing global layer* — the nearest layer declared
  *   before it with `scope === "global"` — so a locally-scoped override beats the

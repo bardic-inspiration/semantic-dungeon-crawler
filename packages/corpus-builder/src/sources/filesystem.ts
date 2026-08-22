@@ -1,11 +1,15 @@
 // packages/corpus-builder/src/sources/filesystem.ts
 //
-// A trivial local-directory reader used by `corpus-builder build --input DIR`
-// (SPEC §6.3 "runs the staged pipeline end-to-end over a trivial in-repo input").
+// A trivial local-directory reader backing the `--input <dir>` argument of the
+// CLI signature SPEC §6.3 fixes: `corpus-builder build --input <dir> --output
+// graph.json`. The spec names that argument but does not specify how a directory
+// becomes documents, so the behavior below (one `*.txt` file per document,
+// filename as `source_id`, sorted for INV-2) is an engine choice, not a spec
+// quotation.
+//
 // It is NOT a full `CorpusSource` adapter (non-Gutenberg adapters are out of
 // scope this phase, §6.3.1) — it is the developer/test path that feeds raw text
-// files straight into the pipeline without any network. Each `*.txt` file becomes
-// one document whose `source_id` is its filename.
+// files straight into the pipeline without any network.
 
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
