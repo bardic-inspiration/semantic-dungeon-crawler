@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.11.0`
+`spec-version: 0.12.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -85,7 +85,9 @@
 >   `ResolvedRoomResponse`, never an error; `sample()` never throws on an empty
 >   candidate set; `ResolvedRoomResponse` gains **`resolution_status`** (open
 >   union, `"resolved" | "stuck"`) so a rules-produced dead-end is surfaced, not
->   guessed from an empty array (§3.2, §4.1, §4.4, §5.1).
+>   guessed from an empty array (§3.2, §4.1, §4.4, §5.1). *(The "rules-produced"
+>   qualifier is superseded by §0.12.0 S5: the `"stuck"` test is mechanical — no
+>   legal exit — never causal. §4.1 is normative.)*
 > - **Trust model (C3).** On the record: a **local, single-user, trusted-operator**
 >   alpha (localhost-bound default, no auth, author ruleset trusted, `INV-4`);
 >   auth/multiplayer/remote stay post-alpha (§6.8). Phase-6 hardening adds bounded
@@ -109,6 +111,49 @@
 >   unbuilt) are left closed; fresh Phase-0/1 issues are opened at gate-lift per
 >   `docs/roadmap.md` (`AGENTS.md` §4/§5, `docs/roadmap.md`, `docs/issue-standards.md`).
 
+> **§0.12.0 — conformance-audit amendment (internal consistency).** Resolves seven
+> places where this document contradicted *itself*, found by a conformance audit of
+> the Phase 0–4 build against spec 0.11.0. It adds no new mechanism and changes no
+> invariant; it makes the contract say one thing where it previously said two, so
+> the code findings filed alongside it can be adjudicated. Summary:
+> - **§1 rewritten in substrate terms (S1).** §1 still described the pre-§0.8.0
+>   "weighted graph… nodes are clusters… edges represent relatedness" that decision
+>   D1 removed — and §0's read order sends a cold-starting agent to §1 *first*, so
+>   this was the most-read stale paragraph in the spec. §2's reconciliation note is
+>   now stated in §1 itself.
+> - **§3.6.2 registry file layout (S3).** §3.6.2 forbade any YAML value; §0.11.0 C5
+>   then required a version header, which *is* a value. Fixed by defining the file
+>   as a `substrate_version:` header plus the vocabulary tree under `tags:`, scoping
+>   the "no values" rule to that tree, and naming `corpus-builder` as the validator's
+>   owner.
+> - **§6.3 composition ordering (S4).** The §6.3 Build list ran composition before
+>   coherence and tagging; B6 prose ran it after embedding and tagging. B6 wins and
+>   the Build list is reordered.
+> - **§4.1/C2 `"stuck"` (S5).** C2 defined `"stuck"` mechanically ("no legal exit")
+>   *and* causally ("a rules-produced dead-end, never the absence of authored
+>   structure"). A neighbour-less substrate region satisfies the first and violates
+>   the second. The mechanical test is now the whole definition; what the causal
+>   clause protected is stated directly instead.
+> - **§6.3 corpus size (S6).** Three different figures (§6.3 Exit's "~20 documents",
+>   C1's "~10–50", the 8-entry fixture). C1's range is now the single reference.
+> - **§4.2 EBNF (S7).** `property := "static." IDENT` was single-segment, but the
+>   same section's prose requires `dynamic.vars.<key>`. The production now admits a
+>   multi-segment `PATH`.
+> - **§8 glossary "Ruleset" (S2).** Still `spec_version` + `layers[]`; now the full
+>   §3.4 A11 bundle.
+>
+> Two additions rather than corrections, both additive (MINOR-class under this
+> project's 0.x convention, §3.5 — which is why this is `0.12.0` and not a patch):
+> - **`InteractResponse.movement_blocked?` (§3.3).** The server had no way to say "a
+>   movement affordance resolved nowhere" — `transition_occurred: false` also means
+>   "this was a local interaction" — so it overloaded `new_room.resolution_status`,
+>   making `POST /interact` and `GET /room/current` disagree about the same room.
+>   The signal now has its own optional field and the room's status describes the
+>   room only.
+> - **§3.6.3 resolver ownership.** The spec guaranteed the three default resolvers
+>   "exist at startup" while no §6.x Build list claimed them, so none was ever
+>   built. They are now `packages/rule-engine`'s, listed in §6.4.
+
 ## 0. Purpose and Reading Order
 
 This document is the authoritative build specification for an **authoring engine for semantic-space games** — not a single game. It is written to drive a phased, iterative Claude Code development process. Each phase in Section 6 is independently checkable: it lists file paths to create, exact schemas to implement, and pass/fail done-criteria.
@@ -129,14 +174,16 @@ This document is the authoritative build specification for an **authoring engine
 
 For a coding agent with no prior context:
 
-The engine takes a text corpus, embeds it, and builds a weighted graph where nodes are clusters of semantically related content and edges represent relatedness. A player "occupies" a position in this graph. Each node, when visited, is rendered as a spatial environment (a "room") populated with interactive objects derived from that node's data. Interacting with objects in the room is how the player moves through the graph — there is no separate "pick an exit" menu; movement is an *emergent consequence* of environmental interaction, mediated by an authored rule layer.
+The engine takes a text corpus, segments it into **source spans**, embeds those spans, and builds a **substrate index** — a continuous embedding surface the runtime queries live. There is no fixed node/edge graph and no build-time clustering step (§0.8.0, decision D1): a player occupies a *coordinate* in that embedding space (§3.8), and each query resolves on demand into an ephemeral "room" — an `Entity` (§3.1) populated with interactive objects drawn from the spans nearest that coordinate. Interacting with objects in the room is how the player moves through the space — there is no separate "pick an exit" menu; movement is an *emergent consequence* of environmental interaction, mediated by an authored rule layer.
+
+Because a room is minted per resolution rather than read from a build-time table, asking the same question twice yields a similar-but-not-identical place. That re-approximation is seed-controlled, not loose: replaying one input-log reproduces every result byte-for-byte (`INV-2`, §4.5). What makes such a place *nameable* and *returnable-to* is the **overlay** (§3.7) — a deterministic address book layered over the stochastic substrate. The three tiers this gives — corpus, substrate, overlay — are summarized in §0.8.0 and specified in §3.7 and §4.5.
 
 The engine ships two things:
 
-1. **A backend** that owns the corpus, graph, embeddings, and rule evaluation, and exposes a REST API (Section 5.1) any frontend can be built against.
+1. **A backend** that owns the corpus, substrate index, embeddings, overlay, and rule evaluation, and exposes a REST API (Section 5.1) any frontend can be built against.
 2. **A reference Three.js client** — the first of potentially several graphical frontends — that renders whatever the backend sends, and nothing else.
 
-The default behavior with zero authored rules is **relativistic drift**: the player moves to nearest-neighbor nodes in embedding space with no imposed structure. This is a valid, deliberate mode, not a fallback. All authored structure (Section 4) is opt-in refinement layered on top of this default.
+The default behavior with zero authored rules is **relativistic drift**: the player moves to nearest-neighbor spans in embedding space with no imposed structure. This is a valid, deliberate mode, not a fallback. All authored structure (Section 4) is opt-in refinement layered on top of this default.
 
 ---
 
@@ -349,6 +396,14 @@ interface InteractResponse {
   interaction_result: InteractionResult;  // §0.9.0 (A6): per-interaction output, esp. when nothing moved
   session_ended?: boolean;           // §0.9.0 (A7): true once an author rule has fired the `end` effect; the
                                      // engine surfaces the flag, the author owns the trigger. Omitted/false otherwise.
+  movement_blocked?: boolean;        // §0.12.0: true iff a MOVEMENT affordance (A4) was invoked and resolution
+                                     // yielded no destination — the INTERACTION resolved to nothing, which is
+                                     // distinct from the ROOM having no exits. `transition_occurred: false`
+                                     // alone cannot express it (a local interaction sets that too). Omitted/
+                                     // false otherwise. `new_room.resolution_status` describes the room and
+                                     // MUST NOT be overwritten to carry this signal — `new_room` is a full
+                                     // re-resolution, identical to what `GET /room/current` would return for
+                                     // the same state (§3.2, §5.1).
 }
 
 // §0.9.0 (A6). Local (non-movement) interactions run the SAME evaluateLayers + commit-phase pipeline (§4) for
@@ -491,7 +546,26 @@ Modifier entries can carry expression-based rules using the same DSL grammar fro
 > originally called the §3.7 structure a "Tag Registry"; it was renamed here to
 > avoid the collision.
 
-A keys-only nested tree of valid segment paths — no values, no metadata, pure structural skeleton. Leaves are `{}`. YAML format: bare `key:` for leaves. The registry validator MUST reject any YAML that contains values, lists, or keys outside the segment charset (`/^[a-z0-9][a-z0-9_-]*$/`).
+A keys-only nested tree of valid segment paths — no values, no metadata, pure structural skeleton. Leaves are `{}`. YAML format: bare `key:` for leaves.
+
+**File layout (§0.12.0, S3).** The C5 version header (below) is a key *with* a
+value, which the pre-0.12.0 wording forbade outright. The file is therefore two
+parts, not one: a top-level **`substrate_version:`** header, and the vocabulary
+tree nested under a top-level **`tags:`** key. Nothing else may appear at the top
+level. The "no values" rule is scoped to the **vocabulary tree** — the registry
+validator MUST reject any node *under `tags:`* that carries a value or a list, or
+whose key falls outside the segment charset (`/^[a-z0-9][a-z0-9_-]*$/`). A
+consumer reading this file reads `tags:`, never the document root; §3.6.2's named
+consumers (`packages/rule-engine`, `packages/client-threejs`) must not treat
+`substrate_version` and `tags` as segment paths.
+
+The validator is **`packages/corpus-builder`'s** to own and ship, alongside the
+emitter — the registry is that package's output (below), so producing a
+well-formed one and rejecting a malformed one are the same responsibility. It
+validates *this artifact's* well-formedness, which is not in tension with `INV-4`:
+`INV-4` forbids the runtime engine rejecting **authored content**, not the
+pipeline rejecting its own malformed build output (the same line §6.3's fail-loud
+gate draws).
 
 The registry is a **vocabulary contract** between pipeline stages:
 - **Produced** by `packages/corpus-builder` as `tag-registry.yaml` alongside `graph.json`
@@ -512,7 +586,7 @@ Three rules resolve the structure-vs-data boundary:
 2. Explicit `=value` scalars are never registered. Values are runtime data.
 3. A registered leaf (childless node) carries an implied value, resolved per use case by a pluggable resolver.
 
-The **resolver dispatch** is engine machinery; the **resolver set** is configurable. Three default resolvers ship with the engine:
+The **resolver dispatch** is engine machinery; the **resolver set** is configurable. It is owned by **`packages/rule-engine`** and built in Phase 3 (§6.4) — the pre-0.12.0 spec asserted the three defaults "exist at startup" without naming a phase or a package to build them in, so nothing did (§0.12.0). Three default resolvers ship with the engine:
 
 | Resolver | Explicit `=value` | Leaf terminal | Non-leaf |
 |---|---|---|---|
@@ -765,10 +839,20 @@ Per `INV-4`, this function MUST NOT throw, reject, or auto-correct when layers p
 > room all resolve to the same well-formed empty response. The response's
 > `resolution_status` (§3.2) is **`"stuck"`** exactly when a well-formed resolution
 > leaves no legal exit, and **`"resolved"`** otherwise (including a merely sparse
-> room with short arrays). The engine never hard-locks the player: the null-ruleset
-> drift fallthrough (`candidates = graph.neighbors`, above) still applies wherever
-> no *hard* decision forbids movement, so `"stuck"` is a rules-produced dead-end,
-> never the absence of authored structure. `INV-4` makes being stuck legal, which
+> room with short arrays). **That mechanical test is the whole definition (§0.12.0,
+> S5)** — `"stuck"` describes the *shape* of a resolution, never its cause. The
+> pre-0.12.0 wording also called `"stuck"` "a rules-produced dead-end, never the
+> absence of authored structure," which contradicts it: a substrate region with no
+> neighbours at all is exit-less without any rule saying so. Both are stuck, and a
+> player cannot tell the difference from inside the room, which is the point.
+>
+> What the retired clause was protecting remains true and is stated directly: the
+> engine never hard-locks a player *for want of authored rules*. The null-ruleset
+> drift fallthrough (`candidates = graph.neighbors`, above) applies wherever no
+> *hard* decision forbids movement, so a zero-rule world drifts rather than
+> sticking. If the two causes ever need distinguishing on the wire,
+> `ResolutionStatus` is an open union and a further value is a MINOR bump (§3.2) —
+> deliberately not spent here. `INV-4` makes being stuck legal, which
 > is why the stuck state is *defined and surfaced* here rather than errored at the
 > protocol boundary (§5.1). See `docs/design/0005-c-series-resolution.md`.
 
@@ -782,11 +866,18 @@ Minimal expression grammar for `predicate` and `scope` strings. EBNF, informal:
 expression   := comparison (("AND" | "OR") comparison)*
 comparison   := operand OPERATOR operand
 operand      := property | literal | function_call
-property     := "static." IDENT  |  "dynamic." IDENT
+property     := "static." PATH   |  "dynamic." PATH
+PATH         := IDENT { "." IDENT }
 function_call:= IDENT "(" (operand ("," operand)*)? ")"
 OPERATOR     := ">" | "<" | ">=" | "<=" | "==" | "!=" | "IN" | "NOT IN"
              | "CONTAINS" | "MATCHES"
 ```
+
+`PATH` is multi-segment (§0.12.0, S7): the reserved sets below are single-segment
+except **`dynamic.vars.<key>`** (§0.9.0 A8), which the pre-0.12.0 single-`IDENT`
+production could not express even though the same section's prose required it. A
+path naming no reserved property resolves to *absent* rather than erroring
+(`INV-4`); it is not an extension point for new namespaces.
 
 **Reserved `static.*` properties** (read from the current candidate entity/edge): `static.embedding_distance` (§0.10.0 B2: cosine distance over L2-normalized vectors, range `[0,2]`, smaller = nearer — provider-independent), `static.archetype`, `static.tags` (array), `static.local_coherence` (§0.10.0 B5: the place's local-coherence, `EntityState.local_coherence`, `[0,1]`), and (§0.9.0 A1) `static.prose` (string) and `static.source` (string, the `source_span.source` id). Prose is "just data"; string tooling in the grammar (beyond `CONTAINS`/`MATCHES`) may grow in later versioned amendments. **Vestigial (§0.10.0 B2):** `static.edge_weight` and `static.cluster_id` remain reserved for backward compatibility but are leftovers of the pre-substrate node/edge model (removed by decision D1); no build stage produces them, and predicates should not rely on them.
 
@@ -1190,10 +1281,10 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 - Segmentation step (pluggable `Segmenter`, §0.10.0 B1; partitions raw text into source spans by `unit` × `grouping`, default paragraphs/no-overlap, before embedding)
 - Embedding step (pluggable — spec does not mandate a specific model/provider, but MUST be swappable via config, not hardcoded to one vendor; vectors are L2-normalized at build time, §0.10.0 B2)
 - Index construction step → ANN index over source-span embeddings (replaces fixed clustering/node formation; the substrate is queried live, §3.7 Tier 2; alpha default is an exact flat k-NN index behind an index interface, §0.10.0 B2)
-- Composition step (optional, pluggable; the `restructure` slot §6.3.1, §0.10.0 B6; produces discontinuous composite spans after embedding/tagging, default passthrough)
 - Local-coherence precomputation → the `local_coherence` field stored in the substrate bundle (decision D4; embedding-neighborhood tightness, §0.10.0 B5)
 - `substrate_version` stamping → a content-hash/build-id in the `graph.json` header, consumed by snapshot staleness (§3.7.3)
 - Tagging step (pluggable `Tagger`, §0.10.0 B4) → populates `semantic_tags` with structured tags (Section 3.6 grammar) and `archetype`; the default is a deterministic, offline, model-free lexicon that also seeds `tag-registry.yaml`. Models are permitted at build under pin+cache discipline but the default ships none (initial heuristic assignment is acceptable for alpha; model-based and author-refined tagging are post-alpha). Under §0.8.0, tags are interpretation-tier metadata attached to source spans, applied to resolved query results at runtime (§3.1).
+- Composition step (optional, pluggable; the `restructure` slot §6.3.1, §0.10.0 B6; produces discontinuous composite spans, default passthrough). **Ordering (§0.12.0, S4):** this stage runs **after** embedding *and* tagging, so it can read both signals — the B6 reading. It therefore also runs after local-coherence precompute, and a composite it emits must be embedded, coherence-scored, and fed back into the index like any other span. The pre-0.12.0 Build list placed this bullet before coherence and tagging, contradicting B6; B6 wins and the list is reordered to match.
 - Provenance: every source span carries `source_refs: string[]` — the id(s) of the raw corpus document(s) it was built from — so any resolved query result is traceable back to input. Documented in `GRAPH_FORMAT.md` alongside the rest of the internal format.
 - Per-stage instrumentation: embedding, index-construction, coherence-precompute, and tagging each report through the §2.1 `Logger` (start/end, input/output counts, warnings) and `Metrics` (duration, counts) — the same interfaces `server` uses, not a parallel mechanism.
 - Output: `graph.json` — internal-only format, never sent to any client (INV-3), consumed exclusively by `rule-engine`. Also outputs `tag-registry.yaml` — the vocabulary of tag segment paths discovered from the corpus (Section 3.6.2).
@@ -1295,7 +1386,16 @@ interface BuildTrace {
 ```
 
 **Exit**:
-- Running the CLI against a small test corpus (fixture, ~20 documents) produces a valid `graph.json` **substrate index** — well-formed enough to answer queries (§0.8.0 re-scoping above), not a fixed node/edge set — and every source span in it has non-empty `source_refs` resolving to real documents in that fixture corpus. (`corpus-builder inspect --node <id>` below inspects a source-span/index entry, not a pre-clustered node.)
+
+> **§0.12.0 (S6) — what "small test corpus" means.** The single reference number is
+> **C1's ~10–50 documents** (§0.11.0). The pre-0.12.0 "~20 documents" here was a
+> third figure alongside C1's range and the checked-in fixture, so it is retired in
+> favour of the C1 range, which this fixture must fall inside.
+> `fixtures/corpus-manifest.default.json` (§6.3.1) is that corpus; the tiny
+> in-repo `test-assets/corpus/` set exists to keep unit tests fast and is not held
+> to this bar.
+
+- Running the CLI against a small test corpus produces a valid `graph.json` **substrate index** — well-formed enough to answer queries (§0.8.0 re-scoping above), not a fixed node/edge set — and every source span in it has non-empty `source_refs` resolving to real documents in that fixture corpus. (`corpus-builder inspect --node <id>` below inspects a source-span/index entry, not a pre-clustered node.)
 - The substrate bundle carries a `substrate_version` header and a local-coherence field; a second build of an unchanged manifest yields an identical `substrate_version` (determinism extends to the build-id, §4.5).
 - `graph.json` schema, `source_refs`, and `BuildTrace` are documented in `packages/corpus-builder/GRAPH_FORMAT.md`. As internal formats that never cross the client boundary, they are versioned less strictly than the client-facing schema in Section 3.
 - Re-running the build with identical input produces byte-identical output — `graph.json` and, when `--trace` is set, `build-trace.json` too (determinism extends to build-time transparency artifacts, not just the graph).
@@ -1314,6 +1414,7 @@ interface BuildTrace {
 - `solver.ts` — `evaluateLayers()`, `resolveMove()`, `populate()` per 4.1/4.4 pseudocode, normatively
 - `layer-resolution.ts` — 4.3 ordering logic
 - `debug-trace.ts` — 4.6, flag-gated
+- `resolvers.ts` — §3.6.3 resolver dispatch plus the three defaults (`match`, `display`, `numeric`), which the engine guarantees exist at startup and an author may override or extend
 
 **Exit**:
 - `resolveMove` and `populate` both call the identical `evaluateLayers()` function (checked by a test that asserts function identity, not just output equivalence — per 4.4 requirement).
@@ -1409,7 +1510,7 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 | Entity | Unified schema for both rooms and objects (Section 3.1). No structural room/object distinction. Under §0.8.0, an interpretation-tier view of a resolved substrate query or registry entry, minted on demand. |
 | Archetype | Entity field determining renderer interpretation and typical affordance set. |
 | Layer | A scoped, prioritized set of rule-blocks (Section 3.4). Concurrent, not mutually exclusive. |
-| Ruleset | A full authored file: `spec_version` + `layers[]`. The unit an author shares/forks/versions. |
+| Ruleset | The single authored bundle (§3.4, §0.9.0 A11): `spec_version` + `layers[]` plus the modifier registry (§3.6.1), resolver overrides (§3.6.3), the interpretation lookup (A13), primitive exposure (§3.7.4), movement affordances (A4), and the optional advisory `authored_against` (§0.11.0 C5). Structured data (JSON/YAML); the DSL appears only inside expression strings. The unit an author shares/forks/versions. |
 | Relativistic drift | The null-ruleset default: pure nearest-neighbor movement in embedding space, no authored structure. |
 | Zero-radius query | Room population (4.4), using the identical solver as movement with radius bounded to the room itself. |
 | Resolved (as in "Resolved Room Response") | Fully computed server-side; client performs no further filtering/sampling logic. |
