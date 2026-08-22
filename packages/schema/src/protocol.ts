@@ -72,4 +72,15 @@ export interface InteractResponse {
   transition_occurred: boolean; // false if the interaction was local (e.g. "read" a book, no movement)
   interaction_result: InteractionResult; // §0.9.0 (A6)
   session_ended?: boolean; // §0.9.0 (A7): true once an author rule fired the `end` effect
+  /**
+   * §0.12.0 — true iff a MOVEMENT affordance (A4) was invoked and resolution
+   * yielded no destination: the INTERACTION resolved to nothing, which is
+   * distinct from the ROOM having no exits. `transition_occurred: false` alone
+   * cannot express it, since a local interaction sets that too.
+   *
+   * `new_room.resolution_status` describes the room and must NOT be overwritten
+   * to carry this: `new_room` is a full re-resolution, identical to what
+   * `GET /room/current` would return for the same state (§3.2, §5.1).
+   */
+  movement_blocked?: boolean;
 }

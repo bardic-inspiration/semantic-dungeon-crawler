@@ -10,6 +10,18 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ### Added
 
+- **`InteractResponse.movement_blocked?` (§3.3, SPEC §0.12.0)** — optional
+  boolean, true iff a movement affordance was invoked and resolution yielded no
+  destination. Additive, so nothing breaks.
+
+  It exists because the signal had nowhere to live: `transition_occurred: false`
+  also means "this was a local interaction", so `packages/server` had been
+  overwriting `new_room.resolution_status` to `"stuck"` to report a blocked
+  move. That made `POST /interact` and an immediately-following
+  `GET /room/current` report different statuses for the same room, contradicting
+  §3.3's "full re-resolution, same shape as `GET /room/current`".
+  `resolution_status` now describes the room and only the room.
+
 - **`SPEC_VERSION` (§3.5)** — the running protocol version as one engine-owned
   constant, in a new `src/version.ts`. §5.1's `X-Spec-Version` header echoes it.
   It exists because the package previously had no version of its own: the only

@@ -31,7 +31,6 @@ import type {
   InteractRequest,
   InteractResponse,
   InteractionResult,
-  ResolutionStatus,
   ResolvedRoomResponse,
   Ruleset,
   SessionState,
@@ -584,14 +583,25 @@ export function createServer(config: ServerConfig): Server {
       resolution_status: move.resolution_status,
     });
 
-    // Advance run state — one deterministic turn per well-formed interact (INV-2).
-    // Commit-phase writes apply regardless of transition (§4.1 A5); the input log
-    // records the player input (§3.9) so the session stays replay-reproducible.
-    session.turn_count += 1;
+    // Advance run state. Commit-phase writes apply regardless of transition
+    // (§4.1 A5); the input log records every player input (§3.9) so the session
+    // stays replay-reproducible whether or not the player moved.
     session.vars = move.commit.vars;
     if (move.commit.ended) session.ended = true;
     session.input_log.push({ kind: "interact", action });
     if (transitioned) {
+      // §3.3 (A6) requires a non-movement interaction to return "the unchanged
+      // room". A room is a function of (position, session_seed, turn_count) via
+      // the §4.5 seed, so a stationary player's room is stable only if
+      // `turn_count` does not advance while they stand still — advancing it and
+      // re-resolving re-sampled `objects[]`, and reading a book handed the player
+      // a differently-populated room.
+      //
+      // §3.8 does not define when `turn_count` advances, so this is derived from
+      // the A6 constraint rather than stated: it counts turns that CHANGED
+      // POSITION. A blocked move does not advance it either, for the same reason
+      // — the player is still standing in the same room.
+      session.turn_count += 1;
       const ref = move.destination!.entity.embedding_ref;
       session.position = { vector_ref: ref };
       if (!session.visited_set.includes(ref)) session.visited_set.push(ref);
@@ -608,16 +618,19 @@ export function createServer(config: ServerConfig): Server {
     }
     const newRoom = toResolvedRoom(after.room, after.resolution);
 
-    // A movement that resolved nowhere is "stuck" even when the unchanged room
-    // still has exits — the interaction, not the room, resolved to nothing (C2).
-    const resolution_status: ResolutionStatus =
-      isMovement && !transitioned ? "stuck" : newRoom.resolution_status;
+    // §0.12.0 — a movement affordance that resolved nowhere is reported on its
+    // own field. It used to overwrite `new_room.resolution_status`, which made
+    // `POST /interact` and an immediately-following `GET /room/current` disagree
+    // about the same room; §3.3 requires `new_room` to be a full re-resolution
+    // identical to what that GET would return.
+    const movementBlocked = isMovement && !transitioned;
 
     const body: InteractResponse = {
-      new_room: { ...newRoom, resolution_status },
+      new_room: newRoom,
       transition_occurred: transitioned,
       interaction_result: interactionResult(move.commit),
       ...(session.ended ? { session_ended: true } : {}),
+      ...(movementBlocked ? { movement_blocked: true } : {}),
     };
     return jsonResponse(specVersion, 200, body);
   }
