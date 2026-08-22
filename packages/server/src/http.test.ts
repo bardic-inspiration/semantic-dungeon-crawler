@@ -136,4 +136,40 @@ describe("createHttpServer (§5.1, C3)", () => {
     };
     expect(typeof body.error.code).toBe("string");
   });
+
+  it("serves /health and an idempotent DELETE over the socket (§5.1, #87)", async () => {
+    running = createHttpServer({
+      ruleset: RULESET,
+      substrate: { spans: substrate(), start_ref: "vec:origin" },
+      newSeed: () => 7,
+    });
+    const { host, port } = await running.listen(0);
+    const base = `http://${host}:${port}`;
+
+    const healthRes = await fetch(`${base}/health`);
+    expect(healthRes.status).toBe(200);
+    expect(healthRes.headers.get("x-spec-version")).toBe("0.1.0");
+    expect(await healthRes.json()).toEqual({ status: "ok" });
+
+    const { session_id } = (await (
+      await fetch(`${base}/session/new?seed=42`)
+    ).json()) as { session_id: string };
+
+    // DELETE frees the session (204), then a read is a 404.
+    const del1 = await fetch(`${base}/session/${session_id}`, {
+      method: "DELETE",
+    });
+    expect(del1.status).toBe(204);
+    expect(del1.headers.get("x-spec-version")).toBe("0.1.0");
+    const afterDelete = await fetch(
+      `${base}/room/current?session_id=${session_id}`,
+    );
+    expect(afterDelete.status).toBe(404);
+
+    // A second DELETE is still a 204 — idempotent by design.
+    const del2 = await fetch(`${base}/session/${session_id}`, {
+      method: "DELETE",
+    });
+    expect(del2.status).toBe(204);
+  });
 });

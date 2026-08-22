@@ -37,6 +37,19 @@ export function jsonResponse(
 }
 
 /**
+ * A `204 No Content` response (session deletion, §5.1). Carries no body — but
+ * still echoes `X-Spec-Version`, which the base contract requires on EVERY
+ * response, errors and empty bodies included.
+ */
+export function noContentResponse(specVersion: string): ServerResponse {
+  return {
+    status: 204,
+    headers: baseHeaders(specVersion),
+    body: "",
+  };
+}
+
+/**
  * An error response using the single §5.1 envelope. `code` is a stable machine
  * token; `message` is a short human string. Neither ever carries engine internals
  * (INV-3) — callers pass only safe, static strings.
