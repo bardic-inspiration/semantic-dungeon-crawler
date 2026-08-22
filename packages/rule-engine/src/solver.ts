@@ -34,7 +34,11 @@ import type {
   SessionState,
 } from "schema";
 import { parse, ParseError, type Expression } from "./parser";
-import { evaluate, type EntityCandidate } from "./evaluate";
+import {
+  evaluate,
+  evaluateValueExpression,
+  type EntityCandidate,
+} from "./evaluate";
 import {
   resolutionOrder,
   resolveLayers,
@@ -109,6 +113,12 @@ export interface CommitResult {
   emits: { text?: string; reveal?: string[] }[];
   /** `primitive` invocations (§3.7.4), in declaration order. */
   primitives: { primitive: string; args?: Record<string, string> }[];
+  /**
+   * §3.3 (A6) `InteractionResult.effects_summary` — a human-readable summary of
+   * this commit phase's writes, auto-derived for debug/UX. Operator-safe: author
+   * keys and values only, never candidates, rule text, or embeddings (INV-3).
+   */
+  effects_summary: string[];
   /** True once an `end` effect fired (§3.3 A7). */
   ended: boolean;
 }
@@ -355,6 +365,10 @@ function runCommitPhase(
   const vars: Record<string, string> = { ...state.vars };
   const emits: CommitResult["emits"] = [];
   const primitives: CommitResult["primitives"] = [];
+  // §3.3 (A6) — auto-derived from the commit-phase writes, for debug/UX. Human
+  // -readable and operator-safe: keys and values the author wrote, never engine
+  // internals (INV-3).
+  const effects_summary: string[] = [];
   let ended = false;
 
   for (const { rules } of activeLayers) {
@@ -371,11 +385,22 @@ function runCommitPhase(
       if (!evaluate(rule.predicate, bindings)) continue;
 
       switch (rule.effect.kind) {
-        case "write":
+        case "write": {
+          // §3.4 — the value is an EVALUATED §4.2 expression/literal, not a raw
+          // string. Reads see writes made earlier in this same commit phase, so
+          // declaration order composes.
+          const key = normalizeVarTarget(rule.effect.target);
+          const value = evaluateValueExpression(rule.effect.value, {
+            ...bindings,
+            state: { ...state, vars },
+          });
           // last-write-wins: a later declaration to the same target overwrites.
-          vars[rule.effect.target] = rule.effect.value;
+          vars[key] = value;
+          effects_summary.push(`write ${key}=${value}`);
           break;
+        }
         case "emit":
+          effects_summary.push("emit");
           emits.push({
             ...(rule.effect.text !== undefined
               ? { text: rule.effect.text }
@@ -386,6 +411,7 @@ function runCommitPhase(
           });
           break;
         case "primitive":
+          effects_summary.push(`primitive ${rule.effect.primitive}`);
           primitives.push({
             primitive: rule.effect.primitive,
             ...(rule.effect.args !== undefined
@@ -394,13 +420,26 @@ function runCommitPhase(
           });
           break;
         case "end":
+          effects_summary.push("end");
           ended = true;
           break;
       }
     }
   }
 
-  return { vars, emits, primitives, ended };
+  return { vars, emits, primitives, effects_summary, ended };
+}
+
+/**
+ * §3.4 calls a `write` target "a scratch key (`dynamic.vars.<key>`)", which reads
+ * two ways: the key alone, or the full DSL path. The reader (`bindDynamic`) takes
+ * the path *after* `vars`, so accepting only the full form silently created keys
+ * nothing could read. Both spellings normalize to the same key.
+ */
+function normalizeVarTarget(target: string): string {
+  return target.startsWith("dynamic.vars.")
+    ? target.slice("dynamic.vars.".length)
+    : target;
 }
 
 // ── §4.1 — resolveMove ─────────────────────────────────────────────────────────

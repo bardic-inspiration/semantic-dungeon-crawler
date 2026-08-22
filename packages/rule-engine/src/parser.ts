@@ -451,6 +451,11 @@ class Parser {
     return { type: "comparison", operator, left, right };
   }
 
+  /** Public-within-module entry for {@link parseOperand}. */
+  parseSingleOperand(): Operand {
+    return this.parseOperand();
+  }
+
   // operand := property | literal | function_call
   private parseOperand(): Operand {
     const tok = this.peek();
@@ -563,4 +568,22 @@ export function parse(input: string): Expression {
   const expression = parser.parseExpression();
   parser.expectEnd();
   return expression;
+}
+
+/**
+ * Parse a single §4.2 `operand` — the value side of a `write` effect (§3.4 A5:
+ * "an **evaluated** §4.2 expression/literal"). A predicate is a boolean; a write
+ * value is a *value*, so it parses at the operand production rather than through
+ * {@link parse}.
+ *
+ * Throws {@link ParseError} exactly as {@link parse} does. Callers that must not
+ * throw (the commit phase, INV-4) catch it and fall back — see
+ * `evaluateValueExpression` in `./evaluate`.
+ */
+export function parseOperand(input: string): Operand {
+  const tokens = tokenize(input);
+  const parser = new Parser(tokens);
+  const operand = parser.parseSingleOperand();
+  parser.expectEnd();
+  return operand;
 }
