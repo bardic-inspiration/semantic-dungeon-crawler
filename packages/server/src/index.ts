@@ -21,3 +21,17 @@ export type { HttpServer } from "./http";
 export { SessionStore } from "./sessions";
 export type { SessionStoreOptions } from "./sessions";
 export type { ServerResponse } from "./http-contract";
+export {
+  ConsoleLogger,
+  NoopLogger,
+  CollectingLogger,
+  InMemoryMetrics,
+  isReadableMetrics,
+} from "./instrumentation";
+export type {
+  LogLevel,
+  Logger,
+  Metrics,
+  MetricsSnapshot,
+  ReadableMetrics,
+} from "./instrumentation";
