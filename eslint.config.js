@@ -21,5 +21,11 @@ export default tseslint.config(
     files: ["**/bin/**", "**/*.mjs"],
     languageOptions: { globals: { ...globals.node } },
   },
+  // The server package is a Node HTTP runtime — give its sources the Node globals
+  // (`URL`, `fetch`, the `node:http` runtime, etc.) they legitimately run against.
+  {
+    files: ["packages/server/**/*.ts"],
+    languageOptions: { globals: { ...globals.node } },
+  },
   prettier,
 );
