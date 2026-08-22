@@ -39,7 +39,7 @@ describe("resolutionOrder — explicit priority (§4.3.1)", () => {
     expect(ids(resolutionOrder(stack))).toEqual(["high", "mid", "low"]);
   });
 
-  it("breaks equal priorities by declaration order (stable, §4.3.6)", () => {
+  it("breaks equal priorities by declaration order (engine choice, INV-2)", () => {
     const stack = [
       layer("a", { priority: 5 }),
       layer("b", { priority: 5 }),
