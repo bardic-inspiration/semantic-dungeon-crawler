@@ -479,8 +479,9 @@ describe("base contract (§5.1)", () => {
     expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
   });
 
-  it("an out-of-scope method on a known path is a 404 (no 405 in the code set)", () => {
-    // POST /session/new (dev-mode ruleset binding) is issue #87; unimplemented here.
+  it("POST /session/new is a 404 when dev mode is off (no 405 in the code set)", () => {
+    // The dev-mode ruleset-binding endpoint (#87, A12) is unavailable with dev
+    // mode off; makeConfig leaves it off, so this stays a 404 via the envelope.
     const server = createServer(makeConfig());
     const res = server.handle({ method: "POST", url: "/session/new" });
     expect(res.status).toBe(404);

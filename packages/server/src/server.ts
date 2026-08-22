@@ -1,10 +1,12 @@
 // packages/server/src/server.ts
 //
-// SPEC §5.1 / §6.5 — the Phase 4 server core (issues #85, #86). Stands up the REST
-// contract: `GET /session/new`, `GET /room/current`, and `POST /interact`, over
-// in-memory sessions (§6.5 — acceptable for alpha). All resolution is delegated to
-// `rule-engine` (`populate` for a room, `resolveMove` for an interaction); the
-// server holds NO rule logic of its own — it only maps HTTP to the engine and back.
+// SPEC §5.1 / §6.5 — the Phase 4 server core (issues #85, #86, #87). Stands up the
+// full §5.1 REST contract: `GET`/`POST /session/new`, `GET /room/current`,
+// `POST /interact`, `GET /session/{id}/log`, `GET /session/{id}/registry`,
+// `DELETE /session/{id}`, and `GET /health`, over in-memory sessions (§6.5 —
+// acceptable for alpha). All resolution is delegated to `rule-engine` (`populate`
+// for a room, `resolveMove` for an interaction); the server holds NO rule logic of
+// its own — it only maps HTTP to the engine and back.
 //
 // INV-1: the server imports no rendering library — it is a headless HTTP contract
 // over the engine. INV-3: only resolved JSON (`ResolvedRoomResponse`) leaves the
@@ -14,12 +16,16 @@
 // on `(session_seed, turn_count, query)`, so two sessions with the same seed resolve
 // byte-identical rooms.
 //
-// §0.9.0 (A12): the substrate and ruleset are server-wide startup config; every
-// session created here binds to the one server-wide ruleset. §0.11.0 (C2): a
-// well-formed request that resolves to nothing is a `200` "stuck" room, never a
-// `4xx`/`5xx`. §0.11.0 (C3): local, single-user, trusted-operator — no auth boundary.
+// §0.9.0 (A12): the substrate is server-wide startup config, and a session binds
+// the one server-wide ruleset — except that with dev mode ON, `POST /session/new`
+// binds a per-session ruleset (by value or by registered reference); with dev mode
+// OFF that endpoint is unavailable. §0.11.0 (C2): a well-formed request that
+// resolves to nothing is a `200` "stuck" room, never a `4xx`/`5xx`. §0.11.0 (C3):
+// local, single-user, trusted-operator — no auth boundary.
 
 import type {
+  AddressLabel,
+  AddressRegistryEntry,
   Entity,
   InteractRequest,
   InteractResponse,
@@ -43,6 +49,7 @@ import { SessionStore } from "./sessions";
 import {
   errorResponse,
   jsonResponse,
+  noContentResponse,
   type ServerResponse,
 } from "./http-contract";
 
@@ -63,10 +70,18 @@ export interface ServerConfig {
   substrate: SubstrateConfig;
   /**
    * §0.9.0 (A12) developer-mode flag — the sibling of the debug flag. Off (a
-   * shipped game) means `POST /session/new` ruleset binding is unavailable; that
-   * endpoint lands in issue #87, so this is threaded through now and unused here.
+   * shipped game) means `POST /session/new` per-session ruleset binding is
+   * unavailable — that endpoint answers `404` and the server-wide ruleset serves
+   * every session. On, it lets a session bind its own ruleset by value or by ref.
    */
   devMode?: boolean;
+  /**
+   * §0.9.0 (A12) named rulesets a dev-mode `POST /session/new` may bind by
+   * reference (`ruleset_ref`). This is what lets the Phase-4 exit criteria
+   * round-trip each fixture ruleset (#89) without inlining it. Unused when dev
+   * mode is off; an unknown `ruleset_ref` is a `404`.
+   */
+  rulesetRegistry?: Record<string, Ruleset>;
   /**
    * The entropy source for a server-chosen seed when `GET /session/new` omits one.
    * This is the single entropy boundary INV-2 is defined against — everything
@@ -155,6 +170,117 @@ export function createServer(config: ServerConfig): Server {
     });
   }
 
+  // §3.4 well-formedness (INV-4): a ruleset carries a `spec_version` string and a
+  // `layers` array. We validate SHAPE only — a well-formed-but-incoherent ruleset
+  // is legal and must run (INV-4), so no coherence check happens here.
+  function isRuleset(value: unknown): value is Ruleset {
+    if (typeof value !== "object" || value === null) return false;
+    const { spec_version, layers } = value as Record<string, unknown>;
+    return typeof spec_version === "string" && Array.isArray(layers);
+  }
+
+  // §0.9.0 (A12) `POST /session/new` — DEV-MODE ONLY. Binds a per-session ruleset
+  // by value (`ruleset`) or by reference (`ruleset_ref`, a server-registered
+  // ruleset) and returns `{ session_id, seed }`. With dev mode off the endpoint is
+  // unavailable (`404`, via the envelope) and the server-wide ruleset stands.
+  function postSessionNew(bodyRaw: string | undefined): ServerResponse {
+    if (config.devMode !== true) {
+      return errorResponse(
+        specVersion,
+        404,
+        "dev_mode_disabled",
+        "developer mode is off",
+      );
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(bodyRaw ?? "");
+    } catch {
+      return errorResponse(
+        specVersion,
+        400,
+        "bad_request",
+        "malformed request body",
+      );
+    }
+    if (typeof parsed !== "object" || parsed === null) {
+      return errorResponse(
+        specVersion,
+        400,
+        "bad_request",
+        "malformed session request",
+      );
+    }
+    const {
+      seed: seedRaw,
+      ruleset_ref: rulesetRef,
+      ruleset: rulesetInline,
+    } = parsed as Record<string, unknown>;
+
+    // Seed: an integer if supplied, else server-chosen (INV-2's entropy boundary).
+    let seed: number;
+    if (seedRaw === undefined) {
+      seed = sessions.chooseSeed();
+    } else if (typeof seedRaw === "number" && Number.isInteger(seedRaw)) {
+      seed = seedRaw;
+    } else {
+      return errorResponse(
+        specVersion,
+        400,
+        "bad_request",
+        "seed must be an integer",
+      );
+    }
+
+    // Resolve the per-session ruleset: inline value wins, else a registered ref,
+    // else `undefined` (fall back to the server-wide ruleset).
+    let bound: Ruleset | undefined;
+    if (rulesetInline !== undefined) {
+      if (!isRuleset(rulesetInline)) {
+        return errorResponse(
+          specVersion,
+          400,
+          "bad_request",
+          "malformed ruleset",
+        );
+      }
+      bound = rulesetInline;
+    } else if (rulesetRef !== undefined) {
+      if (typeof rulesetRef !== "string") {
+        return errorResponse(
+          specVersion,
+          400,
+          "bad_request",
+          "ruleset_ref must be a string",
+        );
+      }
+      bound = config.rulesetRegistry?.[rulesetRef];
+      if (bound === undefined) {
+        return errorResponse(
+          specVersion,
+          404,
+          "unknown_ruleset",
+          "unknown ruleset_ref",
+        );
+      }
+    }
+
+    const session = sessions.create(seed, bound);
+    return jsonResponse(specVersion, 200, {
+      session_id: session.session_id,
+      seed: session.session_seed,
+    });
+  }
+
+  // The ruleset a session resolves against: its dev-mode per-session binding
+  // (§0.9.0 A12) if any, else the server-wide ruleset. This is the single place
+  // resolution reads a ruleset, so both `GET /room/current` and `POST /interact`
+  // honor a bound ruleset identically.
+  function rulesetFor(session: SessionState): Ruleset {
+    return sessions.rulesetFor(session.session_id) ?? config.ruleset;
+  }
+
   // Resolve the room at a session's live position through the engine (INV-1: no
   // rule logic here). `room` is guaranteed present — `start_ref` was validated at
   // startup and every position we set names a known ref — so `null` is a `500`.
@@ -163,7 +289,12 @@ export function createServer(config: ServerConfig): Server {
   ): { room: Entity; resolution: RoomResolution } | null {
     const room = entityByRef.get(session.position.vector_ref);
     if (room === undefined) return null;
-    const resolution = populate(room, session, graph, config.ruleset.layers);
+    const resolution = populate(
+      room,
+      session,
+      graph,
+      rulesetFor(session).layers,
+    );
     return { room, resolution };
   }
 
@@ -293,14 +424,15 @@ export function createServer(config: ServerConfig): Server {
         e.via_object_id === action.object_id &&
         e.affordance_required === action.affordance,
     );
+    const ruleset = rulesetFor(session);
     const movementAffordances =
-      config.ruleset.movement_affordances ?? DEFAULT_MOVEMENT_AFFORDANCES;
+      ruleset.movement_affordances ?? DEFAULT_MOVEMENT_AFFORDANCES;
     const isMovement = movementAffordances.includes(action.affordance);
 
     // Every interaction routes through the identical `resolveMove` (§4.1 / §4.4):
     // it runs `evaluateLayers` + the commit phase whether or not a transition
     // results (§3.3 A6). No rule logic lives in the server (INV-1).
-    const move = resolveMove(session, graph, config.ruleset.layers, {
+    const move = resolveMove(session, graph, ruleset.layers, {
       ...(exit ? { anchor: { target_ref: exit.target_entity_id } } : {}),
     });
 
@@ -347,6 +479,64 @@ export function createServer(config: ServerConfig): Server {
     return jsonResponse(specVersion, 200, body);
   }
 
+  // §0.9.0 (A9) `GET /session/{id}/log` — the accumulated `InputLogEntry[]` (§3.9)
+  // for replay/diff. It carries only player/author INPUTS (INV-2): rule-driven
+  // scratch/overlay writes are deterministic consequences and re-derive on replay,
+  // so they are not in the log.
+  function sessionLog(sessionId: string): ServerResponse {
+    const session = sessions.get(sessionId);
+    if (session === undefined) {
+      return errorResponse(
+        specVersion,
+        404,
+        "unknown_session",
+        "unknown session",
+      );
+    }
+    return jsonResponse(specVersion, 200, session.input_log);
+  }
+
+  // §0.9.0 (A10) the client-facing projection of a player-provenance registry
+  // entry: its `tag` and a display `label`, nothing else. No authored label field
+  // exists yet, so the label defaults to the tag — a deterministic identity view.
+  function toAddressLabel(entry: AddressRegistryEntry): AddressLabel {
+    return { tag: entry.tag, label: entry.tag };
+  }
+
+  // §0.9.0 (A10) `GET /session/{id}/registry` — `AddressLabel[]` of PLAYER-
+  // provenance entries only. The registry's `points_to` references, snapshot
+  // payloads, and build/author entries are engine internals and never surface
+  // (INV-3 refinement, §0): only the player's own names/labels cross the wire.
+  function sessionRegistry(sessionId: string): ServerResponse {
+    const session = sessions.get(sessionId);
+    if (session === undefined) {
+      return errorResponse(
+        specVersion,
+        404,
+        "unknown_session",
+        "unknown session",
+      );
+    }
+    const labels = session.registry
+      .filter((entry) => entry.provenance === "player")
+      .map(toAddressLabel);
+    return jsonResponse(specVersion, 200, labels);
+  }
+
+  // §5.1 `DELETE /session/{id}` — free the in-memory session. Idempotent by
+  // design: deleting an unknown or already-deleted session is still a `204`, never
+  // a `404`, so a client can tear down without first checking existence.
+  function sessionDelete(sessionId: string): ServerResponse {
+    sessions.delete(sessionId);
+    return noContentResponse(specVersion);
+  }
+
+  // §5.1 `GET /health` — liveness/readiness (§6.7). A static, session-independent
+  // `{ status: "ok" }`; it still carries `X-Spec-Version` like every response.
+  function health(): ServerResponse {
+    return jsonResponse(specVersion, 200, { status: "ok" });
+  }
+
   function handle(req: HttpRequest): ServerResponse {
     let url: URL;
     try {
@@ -357,8 +547,12 @@ export function createServer(config: ServerConfig): Server {
     const path = url.pathname;
     const method = req.method.toUpperCase();
 
-    if (method === "GET" && path === "/session/new") {
-      return sessionNew(url.searchParams);
+    if (method === "GET" && path === "/health") {
+      return health();
+    }
+    if (path === "/session/new") {
+      if (method === "GET") return sessionNew(url.searchParams);
+      if (method === "POST") return postSessionNew(req.body);
     }
     if (method === "GET" && path === "/room/current") {
       return roomCurrent(url.searchParams);
@@ -366,6 +560,27 @@ export function createServer(config: ServerConfig): Server {
     if (method === "POST" && path === "/interact") {
       return interact(req.body);
     }
+
+    // Parameterized `/session/{id}[/log|/registry]` routes (§5.1). Split into
+    // segments so the `{id}` is a real path parameter, not a query field.
+    const segments = path.split("/").filter((s) => s.length > 0);
+    if (segments[0] === "session" && segments.length >= 2) {
+      const sessionId = decodeURIComponent(segments[1]!);
+      if (segments.length === 3 && method === "GET" && segments[2] === "log") {
+        return sessionLog(sessionId);
+      }
+      if (
+        segments.length === 3 &&
+        method === "GET" &&
+        segments[2] === "registry"
+      ) {
+        return sessionRegistry(sessionId);
+      }
+      if (segments.length === 2 && method === "DELETE") {
+        return sessionDelete(sessionId);
+      }
+    }
+
     // No 405 in the §5.1 status set: an unknown route OR an unimplemented
     // method+path is a 404 via the single error envelope.
     return errorResponse(specVersion, 404, "unknown_route", "unknown route");
