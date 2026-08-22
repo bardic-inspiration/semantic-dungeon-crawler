@@ -81,6 +81,46 @@ describe("createHttpServer (§5.1, C3)", () => {
     expect(room.resolution_status).toBe("resolved");
   });
 
+  it("routes a POST /interact body through the transport into an InteractResponse", async () => {
+    running = createHttpServer({
+      ruleset: RULESET,
+      substrate: { spans: substrate(), start_ref: "vec:origin" },
+      newSeed: () => 7,
+    });
+    const { host, port } = await running.listen(0);
+    const base = `http://${host}:${port}`;
+
+    const { session_id } = (await (
+      await fetch(`${base}/session/new?seed=42`)
+    ).json()) as { session_id: string };
+    const { exits } = (await (
+      await fetch(`${base}/room/current?session_id=${session_id}`)
+    ).json()) as {
+      exits: { via_object_id: string; affordance_required: string }[];
+    };
+
+    const res = await fetch(`${base}/interact`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        session_id,
+        action: {
+          object_id: exits[0]!.via_object_id,
+          affordance: exits[0]!.affordance_required,
+        },
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-spec-version")).toBe("0.1.0");
+    const body = (await res.json()) as {
+      new_room: { room: Entity };
+      transition_occurred: boolean;
+    };
+    expect(typeof body.new_room.room.embedding_ref).toBe("string");
+    expect(body.transition_occurred).toBe(true);
+  });
+
   it("returns the 404 error envelope over HTTP for an unknown session", async () => {
     running = createHttpServer({
       ruleset: RULESET,
