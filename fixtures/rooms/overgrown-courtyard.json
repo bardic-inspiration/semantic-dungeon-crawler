@@ -1,0 +1,98 @@
+{
+  "room": {
+    "id": "resolved:overgrown-courtyard:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:exterior:courtyard",
+      "mood:forsaken",
+      "state:overgrown"
+    ],
+    "embedding_ref": "vec:09900",
+    "affordances": ["enter", "traverse"],
+    "salience": 0.57,
+    "prose": "An open courtyard reclaimed by ivy and thin birches, the flagstones lifting where roots have found them.",
+    "source_span": { "source": "gutenberg:1260", "char_ranges": "61000-61104" },
+    "contains": [
+      "resolved:cracked-well:1",
+      "resolved:birch:2",
+      "resolved:garden-gate:3"
+    ],
+    "layout_hint": {
+      "scale": "large",
+      "density": 0.35,
+      "shape_bias": "scatter"
+    },
+    "state": { "local_coherence": 0.44, "visited": false }
+  },
+  "objects": [
+    {
+      "id": "resolved:cracked-well:1",
+      "archetype": "prop",
+      "semantic_tags": ["object:well", "state:cracked", "material:stone"],
+      "embedding_ref": "vec:09901",
+      "affordances": ["inspect"],
+      "salience": 0.52,
+      "prose": "A cracked well at the courtyard's centre, its rope frayed to a stub.",
+      "source_span": {
+        "source": "gutenberg:1260",
+        "char_ranges": "61105-61172"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.3,
+        "shape_bias": "radial"
+      },
+      "state": { "local_coherence": 0.46, "visited": false }
+    },
+    {
+      "id": "resolved:birch:2",
+      "archetype": "prop",
+      "semantic_tags": ["object:tree:birch", "state:young"],
+      "embedding_ref": "vec:09902",
+      "affordances": ["inspect"],
+      "salience": 0.3,
+      "prose": "A slender birch has forced up between two flagstones.",
+      "source_span": {
+        "source": "gutenberg:1260",
+        "char_ranges": "61173-61228"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.2,
+        "shape_bias": "vertical"
+      },
+      "state": { "local_coherence": 0.4, "visited": false }
+    },
+    {
+      "id": "resolved:garden-gate:3",
+      "archetype": "portal",
+      "semantic_tags": ["portal:gate", "state:rusted-open", "material:iron"],
+      "embedding_ref": "vec:09903",
+      "affordances": ["traverse", "enter"],
+      "salience": 0.49,
+      "prose": "A rusted gate hangs open on the courtyard's east side, half-swallowed by ivy.",
+      "source_span": {
+        "source": "gutenberg:1260",
+        "char_ranges": "61229-61302"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.1,
+        "shape_bias": "arch"
+      },
+      "state": { "local_coherence": 0.43, "visited": false }
+    }
+  ],
+  "exits": [
+    {
+      "target_entity_id": "query:token:ivy-lane",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:garden-gate:3",
+      "weight": 0.53
+    }
+  ],
+  "resolution_status": "resolved"
+}

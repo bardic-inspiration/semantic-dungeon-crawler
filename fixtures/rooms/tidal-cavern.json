@@ -1,0 +1,112 @@
+{
+  "room": {
+    "id": "resolved:tidal-cavern:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:natural:cavern",
+      "mood:resonant",
+      "state:tidal",
+      "material:limestone"
+    ],
+    "embedding_ref": "vec:10230",
+    "affordances": ["enter", "traverse"],
+    "salience": 0.63,
+    "prose": "A sea-cavern breathing with the tide, its walls slick and the water withdrawing to reveal a low passage.",
+    "source_span": { "source": "gutenberg:2489", "char_ranges": "72000-72104" },
+    "contains": [
+      "resolved:tide-pool:1",
+      "resolved:beached-oar:2",
+      "resolved:hermit:3",
+      "resolved:low-passage:4"
+    ],
+    "layout_hint": {
+      "scale": "large",
+      "density": 0.4,
+      "shape_bias": "irregular"
+    },
+    "state": { "local_coherence": 0.59, "visited": false }
+  },
+  "objects": [
+    {
+      "id": "resolved:tide-pool:1",
+      "archetype": "prop",
+      "semantic_tags": ["object:pool:tidal", "state:brimming"],
+      "embedding_ref": "vec:10231",
+      "affordances": ["inspect"],
+      "salience": 0.45,
+      "prose": "A tide pool holds a still, complete sky between the rocks.",
+      "source_span": {
+        "source": "gutenberg:2489",
+        "char_ranges": "72105-72166"
+      },
+      "contains": [],
+      "layout_hint": { "scale": "small", "density": 0.2, "shape_bias": "flat" },
+      "state": { "local_coherence": 0.5, "visited": false }
+    },
+    {
+      "id": "resolved:beached-oar:2",
+      "archetype": "prop",
+      "semantic_tags": ["object:oar", "state:beached", "material:wood"],
+      "embedding_ref": "vec:10232",
+      "affordances": ["take", "inspect"],
+      "salience": 0.37,
+      "prose": "A single oar, salt-bleached, wedged upright in the shingle.",
+      "source_span": {
+        "source": "gutenberg:2489",
+        "char_ranges": "72167-72228"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.1,
+        "shape_bias": "vertical"
+      },
+      "state": { "local_coherence": 0.47, "visited": false }
+    },
+    {
+      "id": "resolved:hermit:3",
+      "archetype": "actor",
+      "semantic_tags": ["being:hermit", "stance:unbothered", "mood:oblique"],
+      "embedding_ref": "vec:10233",
+      "affordances": ["speak", "inspect"],
+      "salience": 0.72,
+      "prose": "A hermit sits above the tideline, mending a net, and does not look up as you enter.",
+      "source_span": {
+        "source": "gutenberg:2489",
+        "char_ranges": "72229-72312"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.2,
+        "shape_bias": "cluster"
+      },
+      "state": { "local_coherence": 0.64, "visited": false }
+    },
+    {
+      "id": "resolved:low-passage:4",
+      "archetype": "portal",
+      "semantic_tags": ["portal:passage:low", "state:tide-gated"],
+      "embedding_ref": "vec:10234",
+      "affordances": ["traverse"],
+      "salience": 0.6,
+      "prose": "The withdrawing tide has opened a low passage seaward; it will not stay open.",
+      "source_span": {
+        "source": "gutenberg:2489",
+        "char_ranges": "72313-72386"
+      },
+      "contains": [],
+      "layout_hint": { "scale": "small", "density": 0.0, "shape_bias": "arch" },
+      "state": { "local_coherence": 0.55, "visited": false }
+    }
+  ],
+  "exits": [
+    {
+      "target_entity_id": "query:token:seaward-gallery",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:low-passage:4",
+      "weight": 0.51
+    }
+  ],
+  "resolution_status": "resolved"
+}

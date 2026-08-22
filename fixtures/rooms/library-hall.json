@@ -1,0 +1,142 @@
+{
+  "room": {
+    "id": "resolved:library-hall:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:structure:library",
+      "mood:quiet",
+      "material:wood",
+      "scale=large"
+    ],
+    "embedding_ref": "vec:00421",
+    "affordances": ["enter", "traverse"],
+    "salience": 0.82,
+    "prose": "A long hall lined floor to ceiling with shelves, the air thick with the smell of old paper.",
+    "source_span": { "source": "gutenberg:11", "char_ranges": "1024-1330" },
+    "contains": [
+      "resolved:atlas:1",
+      "resolved:reading-lamp:2",
+      "resolved:ladder:3",
+      "resolved:card-catalog:4",
+      "resolved:reading-desk:5",
+      "resolved:archway:6"
+    ],
+    "layout_hint": {
+      "scale": "large",
+      "density": 0.7,
+      "shape_bias": "vertical"
+    },
+    "state": { "local_coherence": 0.78, "visited": true }
+  },
+  "objects": [
+    {
+      "id": "resolved:atlas:1",
+      "archetype": "readable",
+      "semantic_tags": ["object:book:atlas", "material:leather"],
+      "embedding_ref": "vec:00422",
+      "affordances": ["read", "take", "inspect"],
+      "salience": 0.71,
+      "prose": "A vast atlas lies open, its coastlines inked in a faded amber.",
+      "source_span": { "source": "gutenberg:11", "char_ranges": "1331-1402" },
+      "contains": [],
+      "layout_hint": { "scale": "small", "density": 0.2, "shape_bias": "flat" },
+      "state": { "local_coherence": 0.66, "visited": false }
+    },
+    {
+      "id": "resolved:reading-lamp:2",
+      "archetype": "prop",
+      "semantic_tags": ["object:lamp", "light:warm", "material:brass"],
+      "embedding_ref": "vec:00423",
+      "affordances": ["inspect"],
+      "salience": 0.44,
+      "prose": "A brass reading lamp throws a small pool of warm light across the desk.",
+      "source_span": { "source": "gutenberg:11", "char_ranges": "1403-1470" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "small",
+        "density": 0.1,
+        "shape_bias": "radial"
+      },
+      "state": { "local_coherence": 0.58, "visited": false }
+    },
+    {
+      "id": "resolved:ladder:3",
+      "archetype": "prop",
+      "semantic_tags": ["object:ladder", "material:wood", "affordance:climb"],
+      "embedding_ref": "vec:00424",
+      "affordances": ["inspect", "traverse"],
+      "salience": 0.5,
+      "prose": "A rolling ladder leans against the upper shelves, one rung splintered.",
+      "source_span": { "source": "gutenberg:11", "char_ranges": "1471-1544" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.2,
+        "shape_bias": "vertical"
+      },
+      "state": { "local_coherence": 0.6, "visited": false }
+    },
+    {
+      "id": "resolved:card-catalog:4",
+      "archetype": "readable",
+      "semantic_tags": ["object:catalog", "material:wood", "state:disordered"],
+      "embedding_ref": "vec:00425",
+      "affordances": ["read", "inspect"],
+      "salience": 0.55,
+      "prose": "Rows of narrow drawers, their labels curling, promise an index no one has kept.",
+      "source_span": { "source": "gutenberg:11", "char_ranges": "1545-1631" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.3,
+        "shape_bias": "grid"
+      },
+      "state": { "local_coherence": 0.49, "visited": false }
+    },
+    {
+      "id": "resolved:reading-desk:5",
+      "archetype": "prop",
+      "semantic_tags": ["object:desk", "material:oak"],
+      "embedding_ref": "vec:00426",
+      "affordances": ["inspect"],
+      "salience": 0.4,
+      "prose": "A heavy oak desk, its surface scarred by a century of nibs.",
+      "source_span": { "source": "gutenberg:11", "char_ranges": "1632-1694" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.2,
+        "shape_bias": "flat"
+      },
+      "state": { "local_coherence": 0.62, "visited": false }
+    },
+    {
+      "id": "resolved:archway:6",
+      "archetype": "portal",
+      "semantic_tags": ["portal:archway", "environment:threshold"],
+      "embedding_ref": "vec:00427",
+      "affordances": ["traverse", "enter"],
+      "salience": 0.68,
+      "prose": "An unlit archway at the hall's far end opens onto a deeper dark.",
+      "source_span": { "source": "gutenberg:11", "char_ranges": "1695-1760" },
+      "contains": [],
+      "layout_hint": { "scale": "large", "density": 0.0, "shape_bias": "arch" },
+      "state": { "local_coherence": 0.7, "visited": false }
+    }
+  ],
+  "exits": [
+    {
+      "target_entity_id": "query:token:deeper-stacks",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:archway:6",
+      "weight": 0.72
+    },
+    {
+      "target_entity_id": "query:token:upper-gallery",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:ladder:3",
+      "weight": 0.34
+    }
+  ],
+  "resolution_status": "resolved"
+}

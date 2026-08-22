@@ -1,0 +1,158 @@
+{
+  "room": {
+    "id": "resolved:branching-galleries:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:structure:gallery",
+      "mood:echoing",
+      "material:marble",
+      "scale=large"
+    ],
+    "embedding_ref": "vec:08810",
+    "affordances": ["enter", "traverse"],
+    "salience": 0.74,
+    "prose": "A branching gallery where three arches open off a single marble floor, each onto a different weather.",
+    "source_span": { "source": "gutenberg:158", "char_ranges": "51000-51100" },
+    "contains": [
+      "resolved:sunlit-arch:1",
+      "resolved:storm-arch:2",
+      "resolved:winter-arch:3",
+      "resolved:fountain:4",
+      "resolved:statue:5",
+      "resolved:fresco:6"
+    ],
+    "layout_hint": { "scale": "large", "density": 0.5, "shape_bias": "radial" },
+    "state": { "local_coherence": 0.71, "visited": false }
+  },
+  "objects": [
+    {
+      "id": "resolved:sunlit-arch:1",
+      "archetype": "portal",
+      "semantic_tags": ["portal:arch", "weather:clear", "light:bright"],
+      "embedding_ref": "vec:08811",
+      "affordances": ["traverse", "enter"],
+      "salience": 0.69,
+      "prose": "The first arch gives onto a sunlit colonnade.",
+      "source_span": {
+        "source": "gutenberg:158",
+        "char_ranges": "51101-51150"
+      },
+      "contains": [],
+      "layout_hint": { "scale": "large", "density": 0.0, "shape_bias": "arch" },
+      "state": { "local_coherence": 0.66, "visited": false }
+    },
+    {
+      "id": "resolved:storm-arch:2",
+      "archetype": "portal",
+      "semantic_tags": ["portal:arch", "weather:storm", "mood:violent"],
+      "embedding_ref": "vec:08812",
+      "affordances": ["traverse", "enter"],
+      "salience": 0.63,
+      "prose": "The second arch frames a courtyard under lashing rain.",
+      "source_span": {
+        "source": "gutenberg:158",
+        "char_ranges": "51151-51204"
+      },
+      "contains": [],
+      "layout_hint": { "scale": "large", "density": 0.0, "shape_bias": "arch" },
+      "state": { "local_coherence": 0.6, "visited": false }
+    },
+    {
+      "id": "resolved:winter-arch:3",
+      "archetype": "portal",
+      "semantic_tags": ["portal:arch", "weather:snow", "mood:still"],
+      "embedding_ref": "vec:08813",
+      "affordances": ["traverse", "enter"],
+      "salience": 0.58,
+      "prose": "The third arch opens on a snowbound garden, silent and blue.",
+      "source_span": {
+        "source": "gutenberg:158",
+        "char_ranges": "51205-51262"
+      },
+      "contains": [],
+      "layout_hint": { "scale": "large", "density": 0.0, "shape_bias": "arch" },
+      "state": { "local_coherence": 0.57, "visited": false }
+    },
+    {
+      "id": "resolved:fountain:4",
+      "archetype": "prop",
+      "semantic_tags": ["object:fountain", "state:dry", "material:marble"],
+      "embedding_ref": "vec:08814",
+      "affordances": ["inspect"],
+      "salience": 0.4,
+      "prose": "A dry fountain at the gallery's heart, its basin veined with old lime.",
+      "source_span": {
+        "source": "gutenberg:158",
+        "char_ranges": "51263-51330"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.3,
+        "shape_bias": "radial"
+      },
+      "state": { "local_coherence": 0.55, "visited": false }
+    },
+    {
+      "id": "resolved:statue:5",
+      "archetype": "actor",
+      "semantic_tags": ["being:statue", "state:motionless", "material:marble"],
+      "embedding_ref": "vec:08815",
+      "affordances": ["speak", "inspect"],
+      "salience": 0.46,
+      "prose": "A marble figure stands mid-gesture, as though it had been about to answer.",
+      "source_span": {
+        "source": "gutenberg:158",
+        "char_ranges": "51331-51402"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.2,
+        "shape_bias": "upright"
+      },
+      "state": { "local_coherence": 0.5, "visited": false }
+    },
+    {
+      "id": "resolved:fresco:6",
+      "archetype": "readable",
+      "semantic_tags": ["object:fresco", "state:faded", "material:plaster"],
+      "embedding_ref": "vec:08816",
+      "affordances": ["read", "inspect"],
+      "salience": 0.38,
+      "prose": "A faded fresco runs the length of one wall, its story missing its middle.",
+      "source_span": {
+        "source": "gutenberg:158",
+        "char_ranges": "51403-51474"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "large",
+        "density": 0.2,
+        "shape_bias": "planar"
+      },
+      "state": { "local_coherence": 0.48, "visited": false }
+    }
+  ],
+  "exits": [
+    {
+      "target_entity_id": "query:token:sunlit-colonnade",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:sunlit-arch:1",
+      "weight": 0.61
+    },
+    {
+      "target_entity_id": "query:token:storm-court",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:storm-arch:2",
+      "weight": 0.47
+    },
+    {
+      "target_entity_id": "query:token:winter-garden",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:winter-arch:3",
+      "weight": 0.39
+    }
+  ],
+  "resolution_status": "resolved"
+}
