@@ -26,6 +26,7 @@
 import type {
   AddressLabel,
   AddressRegistryEntry,
+  DebugTrace,
   Entity,
   InteractRequest,
   InteractResponse,
@@ -41,11 +42,19 @@ import {
   resolveMove,
   DEFAULT_MOVEMENT_AFFORDANCES,
   type CommitResult,
+  type DebugConfig,
   type Graph,
   type GraphSpan,
   type RoomResolution,
 } from "rule-engine";
 import { SessionStore } from "./sessions";
+import {
+  InMemoryMetrics,
+  NoopLogger,
+  isReadableMetrics,
+  type Logger,
+  type Metrics,
+} from "./instrumentation";
 import {
   errorResponse,
   jsonResponse,
@@ -82,6 +91,39 @@ export interface ServerConfig {
    * mode is off; an unknown `ruleset_ref` is a `404`.
    */
   rulesetRegistry?: Record<string, Ruleset>;
+  /**
+   * §4.6 / §2.1 debug flag — SERVER config, never read from a client request
+   * (INV-3). On, resolution runs with the debug recorder and `GET /debug/trace`
+   * returns the last resolution's `DebugTrace`; off (or omitted) is the
+   * zero-overhead hot path — the recorder is never constructed and the endpoint is
+   * a `404`. The flag is checked before the recorder is built (§4.6).
+   */
+  debug?: boolean;
+  /**
+   * §2.1 / §5.1 metrics flag — gates `GET /metrics`. On, the endpoint returns the
+   * `{ counters, gauges }` snapshot from the {@link Metrics} sink; off (or
+   * omitted) it is a `404`. The sink still records regardless — this only gates
+   * the read endpoint, not the write-side wiring.
+   */
+  metricsEnabled?: boolean;
+  /**
+   * §2.1 `Logger` sink the server reports request-boundary events through — the
+   * same interface `corpus-builder`/`rule-engine` use, not a parallel mechanism.
+   * Injectable (tests pass a `CollectingLogger`); defaults to {@link NoopLogger}.
+   */
+  logger?: Logger;
+  /**
+   * §2.1 `Metrics` sink the server records request-boundary counters/gauges
+   * through. `GET /metrics` reads its snapshot. Injectable; defaults to a fresh
+   * {@link InMemoryMetrics}. A sink that cannot snapshot yields an empty snapshot.
+   */
+  metrics?: Metrics;
+  /**
+   * Monotonic millisecond clock for request-latency metrics — a side channel
+   * only (INV-2: it never touches resolution output). Injectable so tests get a
+   * deterministic snapshot; defaults to `performance.now()`.
+   */
+  clock?: () => number;
   /**
    * The entropy source for a server-chosen seed when `GET /session/new` omits one.
    * This is the single entropy boundary INV-2 is defined against — everything
@@ -145,6 +187,26 @@ export function createServer(config: ServerConfig): Server {
     newSeed: config.newSeed ?? defaultSeedSource,
     newSessionId: config.newSessionId ?? counterIdSource(),
   });
+
+  // §2.1 supporting systems, wired in at startup. The server reports through these
+  // interfaces; it does not reimplement logging/metrics.
+  const logger: Logger = config.logger ?? new NoopLogger();
+  const metrics: Metrics = config.metrics ?? new InMemoryMetrics();
+  const clock: () => number = config.clock ?? (() => performance.now());
+
+  // §4.6 debug flag — SERVER config (INV-3). Read once at startup so no per-request
+  // path re-reads it, and no client field can flip it. When off, `debugConfig` is
+  // `undefined` and the recorder is never constructed (zero overhead, §4.6).
+  const debugEnabled = config.debug === true;
+  const debugConfig: DebugConfig | undefined = debugEnabled
+    ? { enabled: true }
+    : undefined;
+
+  // §4.6 `GET /debug/trace` reads the LAST resolution's trace for a session. Held
+  // server-side only (INV-3): a `DebugTrace` is an engine-internal view that leaves
+  // the server exclusively through the debug-gated endpoint, never a normal
+  // response body. Populated only while debug mode is on.
+  const lastTraceBySession = new Map<string, DebugTrace>();
 
   function sessionNew(params: URLSearchParams): ServerResponse {
     const seedParam = params.get("seed");
@@ -286,6 +348,7 @@ export function createServer(config: ServerConfig): Server {
   // startup and every position we set names a known ref — so `null` is a `500`.
   function resolveRoom(
     session: SessionState,
+    debug?: DebugConfig,
   ): { room: Entity; resolution: RoomResolution } | null {
     const room = entityByRef.get(session.position.vector_ref);
     if (room === undefined) return null;
@@ -294,8 +357,18 @@ export function createServer(config: ServerConfig): Server {
       session,
       graph,
       rulesetFor(session).layers,
+      {
+        ...(debug ? { debug } : {}),
+      },
     );
     return { room, resolution };
+  }
+
+  // Retain a resolution's §4.6 trace for `GET /debug/trace`. A no-op when debug
+  // mode is off — `trace` is `undefined` because the recorder was never built, so
+  // nothing is stored and the endpoint stays a `404`.
+  function recordTrace(sessionId: string, trace: DebugTrace | undefined): void {
+    if (trace !== undefined) lastTraceBySession.set(sessionId, trace);
   }
 
   function toResolvedRoom(
@@ -332,7 +405,7 @@ export function createServer(config: ServerConfig): Server {
       );
     }
 
-    const resolved = resolveRoom(session);
+    const resolved = resolveRoom(session, debugConfig);
     if (resolved === null) {
       return errorResponse(
         specVersion,
@@ -341,6 +414,7 @@ export function createServer(config: ServerConfig): Server {
         "internal error",
       );
     }
+    recordTrace(session.session_id, resolved.resolution.debug);
     return jsonResponse(
       specVersion,
       200,
@@ -431,10 +505,17 @@ export function createServer(config: ServerConfig): Server {
 
     // Every interaction routes through the identical `resolveMove` (§4.1 / §4.4):
     // it runs `evaluateLayers` + the commit phase whether or not a transition
-    // results (§3.3 A6). No rule logic lives in the server (INV-1).
+    // results (§3.3 A6). No rule logic lives in the server (INV-1). The move is the
+    // primary resolution of an interaction, so its trace is the one `GET
+    // /debug/trace` exposes (the before/after room reads stay debug-off — zero
+    // extra work, and no overwrite of the move's trace).
     const move = resolveMove(session, graph, ruleset.layers, {
       ...(exit ? { anchor: { target_ref: exit.target_entity_id } } : {}),
+      ...(debugConfig ? { debug: debugConfig } : {}),
     });
+    recordTrace(session.session_id, move.debug);
+    // §2.1 runtime metric — one resolved turn per well-formed interact (counter).
+    metrics.increment("interact.turns");
 
     // A transition happens only for a movement affordance that resolved somewhere;
     // a local affordance never moves, and a movement that resolves nowhere is a
@@ -528,6 +609,10 @@ export function createServer(config: ServerConfig): Server {
   // a `404`, so a client can tear down without first checking existence.
   function sessionDelete(sessionId: string): ServerResponse {
     sessions.delete(sessionId);
+    // Drop any retained debug trace alongside the session — it can never be served
+    // once the session is gone (the endpoint 404s on unknown sessions), and this
+    // keeps the trace map bounded by live sessions.
+    lastTraceBySession.delete(sessionId);
     return noContentResponse(specVersion);
   }
 
@@ -537,7 +622,71 @@ export function createServer(config: ServerConfig): Server {
     return jsonResponse(specVersion, 200, { status: "ok" });
   }
 
-  function handle(req: HttpRequest): ServerResponse {
+  // §4.6 / §5.1 `GET /debug/trace?session_id={id}` — the last resolution's
+  // `DebugTrace`, DEBUG-MODE ONLY. The flag is checked FIRST: with debug off the
+  // endpoint is a `404` and no trace work was ever done (zero overhead, §4.6 — the
+  // recorder is never constructed). The flag is server config, never a request
+  // field (INV-3): nothing in the query can turn debug on.
+  function debugTrace(params: URLSearchParams): ServerResponse {
+    if (!debugEnabled) {
+      return errorResponse(
+        specVersion,
+        404,
+        "debug_disabled",
+        "debug endpoint is disabled",
+      );
+    }
+    const sessionId = params.get("session_id");
+    if (sessionId === null || sessionId === "") {
+      return errorResponse(
+        specVersion,
+        400,
+        "bad_request",
+        "session_id is required",
+      );
+    }
+    if (sessions.get(sessionId) === undefined) {
+      return errorResponse(
+        specVersion,
+        404,
+        "unknown_session",
+        "unknown session",
+      );
+    }
+    const trace = lastTraceBySession.get(sessionId);
+    if (trace === undefined) {
+      return errorResponse(
+        specVersion,
+        404,
+        "no_trace",
+        "no resolution has been traced for this session",
+      );
+    }
+    return jsonResponse(specVersion, 200, trace);
+  }
+
+  // §2.1 / §5.1 `GET /metrics` — the `{ counters, gauges }` snapshot from the §2.1
+  // `Metrics` interface, METRICS-MODE ONLY (`404` when disabled). A sink that
+  // cannot snapshot (a custom write-only `Metrics`) yields an empty snapshot.
+  function metricsEndpoint(): ServerResponse {
+    if (config.metricsEnabled !== true) {
+      return errorResponse(
+        specVersion,
+        404,
+        "metrics_disabled",
+        "metrics endpoint is disabled",
+      );
+    }
+    const snapshot = isReadableMetrics(metrics)
+      ? metrics.snapshot()
+      : { counters: {}, gauges: {} };
+    return jsonResponse(specVersion, 200, snapshot);
+  }
+
+  // The pure routing core. `handle` wraps it with §2.1 request-boundary
+  // instrumentation; keeping dispatch separate means the logger/metrics side
+  // channel sees every route uniformly and can never alter a response (INV-2).
+  function dispatch(req: HttpRequest): ServerResponse {
     let url: URL;
     try {
       url = new URL(req.url, "http://localhost");
@@ -549,6 +698,12 @@ export function createServer(config: ServerConfig): Server {
 
     if (method === "GET" && path === "/health") {
       return health();
+    }
+    if (method === "GET" && path === "/metrics") {
+      return metricsEndpoint();
+    }
+    if (method === "GET" && path === "/debug/trace") {
+      return debugTrace(url.searchParams);
     }
     if (path === "/session/new") {
       if (method === "GET") return sessionNew(url.searchParams);
@@ -584,6 +739,26 @@ export function createServer(config: ServerConfig): Server {
     // No 405 in the §5.1 status set: an unknown route OR an unimplemented
     // method+path is a 404 via the single error envelope.
     return errorResponse(specVersion, 404, "unknown_route", "unknown route");
+  }
+
+  // §2.1 request boundary — the one place `Logger`/`Metrics` are invoked, so every
+  // route is instrumented identically through the shared interfaces. This is a
+  // pure side channel: it reads the response only to report it and never mutates
+  // it, and resolution never reads any of this back (INV-2). Only operator-facing
+  // request metadata is recorded — method, path, status — never engine internals
+  // (INV-3).
+  function handle(req: HttpRequest): ServerResponse {
+    const started = clock();
+    const response = dispatch(req);
+    metrics.increment("http.requests");
+    metrics.observe("http.request.duration_ms", clock() - started);
+    metrics.observe("sessions.active", sessions.size);
+    logger.log("info", "http.request", {
+      method: req.method.toUpperCase(),
+      url: req.url,
+      status: response.status,
+    });
+    return response;
   }
 
   return { handle, sessions };
