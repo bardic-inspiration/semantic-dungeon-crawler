@@ -30,17 +30,22 @@ makes it pass.
 - **Determinism** (`INV-2`, SPEC §4.5): given identical
   `(graph.json, ruleset.dsl, session_seed, input-log)`, `resolveMove` and
   `populate` produce **byte-identical** output across independent runs. Sampling
-  uses a seeded PRNG derived from `(session_seed, turn_count)` — never wall-clock
-  or unseeded randomness.
+  uses a seeded PRNG derived from `(session_seed, turn_count, normalized_query)`
+  (SPEC §0.10.0 B3 — `normalized_query` is the canonicalized, hashed substrate
+  query, so two spellings of one query seed identically) — never wall-clock or
+  unseeded randomness.
 - **Function identity** (SPEC §4.4): a test asserts `resolveMove` and `populate`
   call the *same* `evaluateLayers` reference — not merely equivalent output.
 - **`INV-4` conformance** (SPEC §4.3): two `override`-mode layers with
   contradictory hard decisions **do not throw** — resolution is by declaration
   order with a logged warning. The null-ruleset case (`layers: []`) produces pure
   nearest-neighbor drift with no errors.
-- **Import boundary** (`INV-3`, SPEC §6.6): `packages/client-threejs` imports
-  nothing from `packages/rule-engine` or `packages/corpus-builder`. Enforced as a
-  real ESLint rule and (optionally) an assertion test.
+- **Import boundary** (`INV-3`, SPEC §6.5/§6.6): neither `packages/client-cli`
+  nor `packages/client-threejs` imports anything from `packages/rule-engine` or
+  `packages/corpus-builder`. The rule lands in **Phase 4** for `client-cli`
+  (§6.5) and extends to `client-threejs` in Phase 5 (§6.6) — the terminal client
+  is built first, so it is the first one the boundary must hold for. Enforced as
+  a real ESLint rule and (optionally) an assertion test.
 
 ## Quality bar to merge
 
