@@ -17,6 +17,7 @@ import type { Entity, SessionState } from "schema";
 import { parseTag } from "schema";
 import {
   parseMatchPattern,
+  parseOperand,
   ParseError,
   type Comparison,
   type Expression,
@@ -82,6 +83,37 @@ export function evaluate(
     result = operators[i] === "AND" ? result && next : result || next;
   }
   return result;
+}
+
+/**
+ * Evaluate a §3.4 `write` effect's `value` to the string stored in
+ * `dynamic.vars.*` (§3.8 types the scratch store as `Record<string, string>`,
+ * so the result is coerced here and coerced back per predicate use, §4.2).
+ *
+ * §3.4 defines the value as "an **evaluated** §4.2 expression/literal", so a
+ * property path reads run state and a quoted literal yields its contents. A
+ * `value` that is not a well-formed operand is stored as a plain string rather
+ * than throwing: the commit phase never throws (A5/INV-4), and an author writing
+ * a bare word means that word.
+ *
+ * Absent operands (an unset var, a vestigial property) collapse to `""` — the
+ * string form of §4.2's "absent", so a predicate reading the key back sees an
+ * empty value rather than the literal text `undefined`.
+ */
+export function evaluateValueExpression(
+  raw: string,
+  bindings: EvalBindings,
+): string {
+  let operand: Operand;
+  try {
+    operand = parseOperand(raw);
+  } catch {
+    return raw;
+  }
+  const value = evalOperand(operand, bindings);
+  if (value === undefined) return "";
+  if (Array.isArray(value)) return value.map((v) => String(v)).join(",");
+  return String(value);
 }
 
 // ── Comparisons ───────────────────────────────────────────────────────────────

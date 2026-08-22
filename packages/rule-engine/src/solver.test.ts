@@ -257,6 +257,9 @@ describe("commit phase (§4.1 A5)", () => {
       },
     ];
     const move = resolveMove(makeState(), graph, layers);
+    // `first`/`second` are bare words, not well-formed §4.2 operands, so they
+    // store as plain strings — an author writing a bare word means that word.
+    // Evaluated-expression values are covered in `commit-values.test.ts`.
     expect(move.commit.vars.flag).toBe("second"); // last-write-wins
     expect(move.commit.emits).toEqual([{ text: "you step through" }]);
     expect(move.commit.ended).toBe(true);

@@ -485,6 +485,12 @@ export function createServer(config: ServerConfig): Server {
     return {
       ...(texts.length > 0 ? { text: texts.join("\n") } : {}),
       ...(revealed.length > 0 ? { revealed } : {}),
+      // §3.3 (A6) — auto-derived from the commit-phase writes, for debug/UX. The
+      // engine builds it (it is the only thing that sees the writes); the server
+      // passes it through. Author keys/values only, never internals (INV-3).
+      ...(commit.effects_summary.length > 0
+        ? { effects_summary: commit.effects_summary }
+        : {}),
     };
   }
 
