@@ -14,7 +14,12 @@ import { dirname, join } from "node:path";
 import type { BuildTrace } from "./build-trace";
 import { evaluateBuild, formatEvalReport, parseRegistryText } from "./eval";
 import { inspectNode, inspectTrace, parseVerbosity } from "./inspect";
-import { NoopLogger, ConsoleLogger, type Logger } from "./instrumentation";
+import {
+  NoopLogger,
+  ConsoleLogger,
+  InMemoryMetrics,
+  type Logger,
+} from "./instrumentation";
 import { parseManifest } from "./manifest";
 import {
   runBuild,
@@ -136,7 +141,11 @@ async function cmdBuild(
 
   const options: BuildOptions = { documents, restructure, trace };
   if (segmentation !== undefined) options.segmentation = segmentation;
-  const result = await runBuild(options, { logger });
+  // §2.1 — a real `Metrics` sink, read back below. `runBuild` used to fall back
+  // to an internal one that was discarded on return, so every build-time metric
+  // the section names was recorded into an object nothing could reach.
+  const metrics = new InMemoryMetrics();
+  const result = await runBuild(options, { logger, metrics });
 
   await mkdir(dirname(output), { recursive: true });
   await writeFile(output, serializeBundle(result.bundle), "utf8");
@@ -152,6 +161,18 @@ async function cmdBuild(
       "utf8",
     );
   }
+
+  // §2.1 — report the recorded metrics through the same `Logger`, so a build is
+  // as inspectable as a runtime request. Durations stay OUT of stdout and out of
+  // every artifact: they vary run to run and §6.3 Exit requires byte-identical
+  // output.
+  const durations = metrics.observations.get("build.duration_ms");
+  logger.log("info", "build.metrics", {
+    documents: documents.length,
+    spans: result.bundle.spans.length,
+    embedding_calls: metrics.counters.get("embedding.call_count") ?? 0,
+    build_duration_ms: durations?.[durations.length - 1] ?? null,
+  });
 
   io.stdout(
     `built ${result.bundle.spans.length} span(s) → ${output} ` +

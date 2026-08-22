@@ -202,6 +202,14 @@ export function createServer(config: ServerConfig): Server {
     ? { enabled: true }
     : undefined;
 
+  // §2.1 — the SAME flag gates elevated log verbosity, not just the trace: "one
+  // server-side flag gates both `DebugTrace` construction/exposure and elevated
+  // log verbosity." `debugLog` is the gate: with the flag off it is `undefined`,
+  // so every debug-level call site is skipped *before* it builds its fields
+  // (§4.6's gate-before-construct rule applies to debug logging too — never
+  // construct-then-discard). With it on, it is the configured sink.
+  const debugLog: Logger | undefined = debugEnabled ? logger : undefined;
+
   // §4.6 `GET /debug/trace` reads the LAST resolution's trace for a session. Held
   // server-side only (INV-3): a `DebugTrace` is an engine-internal view that leaves
   // the server exclusively through the debug-gated endpoint, never a normal
@@ -352,15 +360,28 @@ export function createServer(config: ServerConfig): Server {
   ): { room: Entity; resolution: RoomResolution } | null {
     const room = entityByRef.get(session.position.vector_ref);
     if (room === undefined) return null;
-    const resolution = populate(
-      room,
-      session,
-      graph,
-      rulesetFor(session).layers,
-      {
-        ...(debug ? { debug } : {}),
-      },
-    );
+    const ruleset = rulesetFor(session);
+    const resolution = populate(room, session, graph, ruleset.layers, {
+      // §2.1 / §4.3 — the solver's warnings (notably the conflicting-`override`
+      // "messy resolution" warn, a §6.4 Exit criterion) are emitted through the
+      // §2.1 `Logger`. Without a sink here they were swallowed by the engine's
+      // default `NoopLogger` and never reached an operator.
+      logger,
+      // §3.4 (A4) — the author's movement-affordance designation. Omitted, the
+      // engine applies its own defaults; dropped, an author's override silently
+      // did nothing.
+      ...(ruleset.movement_affordances
+        ? { movementAffordances: ruleset.movement_affordances }
+        : {}),
+      ...(debug ? { debug } : {}),
+    });
+    debugLog?.log("debug", "room.resolved", {
+      session_id: session.session_id,
+      turn_count: session.turn_count,
+      objects: resolution.objects.length,
+      exits: resolution.exits.length,
+      resolution_status: resolution.resolution_status,
+    });
     return { room, resolution };
   }
 
@@ -509,18 +530,34 @@ export function createServer(config: ServerConfig): Server {
     // primary resolution of an interaction, so its trace is the one `GET
     // /debug/trace` exposes (the before/after room reads stay debug-off — zero
     // extra work, and no overwrite of the move's trace).
+    const resolveStarted = clock();
     const move = resolveMove(session, graph, ruleset.layers, {
+      // §2.1 / §4.3 — see `resolveRoom`: the solver reports through this sink.
+      logger,
       ...(exit ? { anchor: { target_ref: exit.target_entity_id } } : {}),
       ...(debugConfig ? { debug: debugConfig } : {}),
     });
     recordTrace(session.session_id, move.debug);
-    // §2.1 runtime metric — one resolved turn per well-formed interact (counter).
+    // §2.1 runtime metrics — one resolved turn per well-formed interact (counter),
+    // and the rule-evaluation duration per move the section names alongside
+    // request latency and active session count. A side channel only: resolution
+    // never reads it back (INV-2).
     metrics.increment("interact.turns");
+    metrics.observe("resolve.duration_ms", clock() - resolveStarted);
 
     // A transition happens only for a movement affordance that resolved somewhere;
     // a local affordance never moves, and a movement that resolves nowhere is a
     // valid "stuck" turn, never an error (§0.11.0 C2).
     const transitioned = isMovement && move.destination !== null;
+    // §2.1 debug verbosity — gated before the fields are built (§4.6). Operator-
+    // facing only: the session's own counters and the resolution status, never
+    // candidates, rule text, or embeddings (INV-3).
+    debugLog?.log("debug", "interact.resolved", {
+      session_id: session.session_id,
+      turn_count: session.turn_count,
+      transitioned,
+      resolution_status: move.resolution_status,
+    });
 
     // Advance run state — one deterministic turn per well-formed interact (INV-2).
     // Commit-phase writes apply regardless of transition (§4.1 A5); the input log
