@@ -8,7 +8,16 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **`isValidResolvedRoomResponse()` / `isValidResolvedExit()` type guards
+  (§3.2)** — structural well-formedness of a `ResolvedRoomResponse` and its
+  `ResolvedExit`s, composing `isValidEntity()` for the `room`/`objects`. The
+  conformance predicate the §5.3 fixture set and the §6.5 round-trip test assert
+  against. Additive, non-breaking (`INV-5`): the wire types are unchanged; these
+  only add runtime guards for the existing surface. Makes no coherence/taste
+  judgement (`INV-4`) and validates resolved output only, never internals
+  (`INV-3`).
 
 ## [0.1.0] — 2026-08-18
 
