@@ -59,6 +59,14 @@ export interface BuildDeps {
   logger?: Logger;
   metrics?: Metrics;
   coherenceK?: number;
+  /**
+   * Monotonic millisecond clock for the §2.1 duration metrics. A SIDE CHANNEL
+   * only: durations reach `Metrics` and never the emitted artifacts, so a build
+   * stays byte-identical across runs (§6.3 Exit) — the same reason
+   * `BuildTrace.duration_ms` is written as `0` (see `build-trace.ts`).
+   * Injectable so tests are deterministic; defaults to `performance.now()`.
+   */
+  clock?: () => number;
 }
 
 export interface BuildResult {
@@ -85,6 +93,29 @@ export async function runBuild(
   const embeddingProvider = deps.embeddingProvider ?? defaultEmbeddingProvider;
   const tagger = deps.tagger ?? defaultTagger;
   const coherenceK = deps.coherenceK ?? DEFAULT_COHERENCE_K;
+  const clock = deps.clock ?? (() => performance.now());
+
+  // §2.1 — one helper so every stage reports the same way: a `.start` event, a
+  // `.end` event, and a stage duration observation. §6.3 requires start/end and
+  // duration from every named stage; before this they were emitted ad hoc and
+  // two stages had no `.start` at all.
+  const buildStarted = clock();
+  function stage<T>(
+    name: string,
+    startFields: Record<string, unknown>,
+    body: () => T,
+    endFields: (result: T) => Record<string, unknown>,
+  ): T {
+    logger.log("info", `stage.${name}.start`, startFields);
+    const started = clock();
+    const result = body();
+    metrics.observe(`stage.${name}.duration_ms`, clock() - started);
+    logger.log("info", `stage.${name}.end`, endFields(result));
+    return result;
+  }
+
+  // §2.1 build-time metric: "corpus size".
+  metrics.observe("corpus.document_count", options.documents.length);
   const segmentation = options.segmentation ?? DEFAULT_SEGMENTATION;
   const restructure = options.restructure ?? null;
   const recorder = options.trace ? new BuildTraceRecorder() : null;
@@ -122,23 +153,36 @@ export async function runBuild(
 
   // ---- Embedding (+ L2 normalize + fail-loud gate) --------------------------
   logger.log("info", "stage.embedding.start", { spans: working.length });
+  const embeddingStarted = clock();
+  // §2.1 "embedding-call count" counts PROVIDER CALLS. `embed()` is batched — one
+  // call covers every span — so incrementing by `working.length` here reported the
+  // span count under a name that means something else.
+  metrics.increment("embedding.call_count");
   const rawVectors = await embeddingProvider.embed(working.map((w) => w.prose));
   assertWellFormedEmbeddingSpace(rawVectors, embeddingProvider.dimensions);
   const vectors = rawVectors.map(l2Normalize);
-  metrics.increment("embedding.call_count", working.length);
+  metrics.observe("stage.embedding.duration_ms", clock() - embeddingStarted);
+  metrics.observe("embedding.vector_count", vectors.length);
   recorder?.recordStage("embedding", working.length, vectors.length);
   logger.log("info", "stage.embedding.end", {
     dimensions: embeddingProvider.dimensions,
+    vectors: vectors.length,
   });
 
   // ---- Index construction ---------------------------------------------------
-  const index = new FlatIndex(vectors);
+  const index = stage(
+    "index_construction",
+    { vectors: vectors.length },
+    () => new FlatIndex(vectors),
+    (built) => ({ size: built.size }),
+  );
   recorder?.recordStage("index_construction", vectors.length, index.size);
-  logger.log("info", "stage.index_construction.end", { size: index.size });
 
   // ---- Tagging --------------------------------------------------------------
+  const taggingStarted = clock();
   logger.log("info", "stage.tagging.start", { spans: working.length });
   const tagResults = working.map((w) => tagger.tag(w.prose));
+  metrics.observe("stage.tagging.duration_ms", clock() - taggingStarted);
   let orphanSpans = 0;
   for (const r of tagResults) if (r.tags.length === 0) orphanSpans++;
   recorder?.recordStage(
@@ -150,15 +194,20 @@ export async function runBuild(
   logger.log("info", "stage.tagging.end", { orphan_spans: orphanSpans });
 
   // ---- Local-coherence precompute -------------------------------------------
-  const coherence = computeLocalCoherence(vectors, coherenceK);
+  const coherence = stage(
+    "coherence_precompute",
+    { vectors: vectors.length, k: coherenceK },
+    () => computeLocalCoherence(vectors, coherenceK),
+    (field) => ({
+      k: Math.min(coherenceK, vectors.length - 1),
+      values: field.length,
+    }),
+  );
   recorder?.recordStage(
     "coherence_precompute",
     vectors.length,
     coherence.length,
   );
-  logger.log("info", "stage.coherence_precompute.end", {
-    k: Math.min(coherenceK, vectors.length - 1),
-  });
 
   // ---- Assemble spans -------------------------------------------------------
   let spans: SubstrateSpan[] = working.map((w, i) => ({
@@ -206,6 +255,10 @@ export async function runBuild(
     },
     spans,
   };
+
+  // §2.1 build-time metric: "build duration". Side channel only — never
+  // serialized into `graph.json` or `build-trace.json` (§6.3 byte-identity).
+  metrics.observe("build.duration_ms", clock() - buildStarted);
 
   const registryTree = buildRegistryTree(spans.flatMap((s) => s.semantic_tags));
   const registryYaml = emitTagRegistry(registryTree, substrateVersion);
