@@ -5,6 +5,7 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import type { Entity, Ruleset } from "schema";
+import { SPEC_VERSION } from "schema";
 import type { GraphSpan } from "rule-engine";
 import { createHttpServer, type HttpServer } from "./http";
 
@@ -65,14 +66,14 @@ describe("createHttpServer (§5.1, C3)", () => {
     const newRes = await fetch(`${base}/session/new?seed=42`);
     expect(newRes.status).toBe(200);
     expect(newRes.headers.get("content-type")).toBe("application/json");
-    expect(newRes.headers.get("x-spec-version")).toBe("0.1.0");
+    expect(newRes.headers.get("x-spec-version")).toBe(SPEC_VERSION);
     const { session_id } = (await newRes.json()) as { session_id: string };
 
     const roomRes = await fetch(
       `${base}/room/current?session_id=${session_id}`,
     );
     expect(roomRes.status).toBe(200);
-    expect(roomRes.headers.get("x-spec-version")).toBe("0.1.0");
+    expect(roomRes.headers.get("x-spec-version")).toBe(SPEC_VERSION);
     const room = (await roomRes.json()) as {
       room: Entity;
       resolution_status: string;
@@ -112,7 +113,7 @@ describe("createHttpServer (§5.1, C3)", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.headers.get("x-spec-version")).toBe("0.1.0");
+    expect(res.headers.get("x-spec-version")).toBe(SPEC_VERSION);
     const body = (await res.json()) as {
       new_room: { room: Entity };
       transition_occurred: boolean;
@@ -148,7 +149,7 @@ describe("createHttpServer (§5.1, C3)", () => {
 
     const healthRes = await fetch(`${base}/health`);
     expect(healthRes.status).toBe(200);
-    expect(healthRes.headers.get("x-spec-version")).toBe("0.1.0");
+    expect(healthRes.headers.get("x-spec-version")).toBe(SPEC_VERSION);
     expect(await healthRes.json()).toEqual({ status: "ok" });
 
     const { session_id } = (await (
@@ -160,7 +161,7 @@ describe("createHttpServer (§5.1, C3)", () => {
       method: "DELETE",
     });
     expect(del1.status).toBe(204);
-    expect(del1.headers.get("x-spec-version")).toBe("0.1.0");
+    expect(del1.headers.get("x-spec-version")).toBe(SPEC_VERSION);
     const afterDelete = await fetch(
       `${base}/room/current?session_id=${session_id}`,
     );

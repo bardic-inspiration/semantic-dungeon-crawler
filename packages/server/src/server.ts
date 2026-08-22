@@ -36,6 +36,7 @@ import type {
   Ruleset,
   SessionState,
 } from "schema";
+import { SPEC_VERSION } from "schema";
 import {
   createSubstrateGraph,
   populate,
@@ -181,7 +182,15 @@ export function createServer(config: ServerConfig): Server {
   }
 
   const graph: Graph = createSubstrateGraph(spans);
-  const specVersion = config.ruleset.spec_version;
+  // §5.1 — the `X-Spec-Version` header echoes the ENGINE's running spec_version
+  // (§3.5), never the loaded ruleset's. `Ruleset.spec_version` is author-supplied
+  // content and INV-4 requires running a ruleset whose version disagrees rather
+  // than rejecting it, so sourcing the header from there let author content set
+  // the protocol version adapters negotiate against — the one guarantee §5.1
+  // hangs on this header ("lets a third-party adapter trust a MINOR version bump
+  // to be safe to ignore"). It is also server-wide, not per-session: a dev-mode
+  // session binding its own ruleset does not change the protocol.
+  const specVersion = SPEC_VERSION;
   const sessions = new SessionStore({
     startRef: start_ref,
     newSeed: config.newSeed ?? defaultSeedSource,
@@ -193,6 +202,16 @@ export function createServer(config: ServerConfig): Server {
   const logger: Logger = config.logger ?? new NoopLogger();
   const metrics: Metrics = config.metrics ?? new InMemoryMetrics();
   const clock: () => number = config.clock ?? (() => performance.now());
+
+  if (config.ruleset.spec_version !== SPEC_VERSION) {
+    // §3.4 says a ruleset's spec_version "must match packages/schema version",
+    // but INV-4 forbids rejecting one that doesn't — the same "surface, never
+    // reject" stance §3.5/C5 takes for `authored_against`. So: warn and run.
+    logger.log("warn", "ruleset.spec_version_mismatch", {
+      ruleset: config.ruleset.spec_version,
+      engine: SPEC_VERSION,
+    });
+  }
 
   // §4.6 debug flag — SERVER config (INV-3). Read once at startup so no per-request
   // path re-reads it, and no client field can flip it. When off, `debugConfig` is

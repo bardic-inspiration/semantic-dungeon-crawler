@@ -10,7 +10,7 @@
 // same contract survives the real `node:http` transport.
 
 import { describe, it, expect } from "vitest";
-import { isValidEntity, type Entity, type Ruleset } from "schema";
+import { isValidEntity, SPEC_VERSION, type Entity, type Ruleset } from "schema";
 import type { GraphSpan } from "rule-engine";
 import { createServer, type ServerConfig } from "./server";
 
@@ -97,7 +97,7 @@ describe("GET /session/new (§5.1)", () => {
   it("echoes the running spec_version in X-Spec-Version on every response (§3.5)", () => {
     const server = createServer(makeConfig());
     const res = server.handle({ method: "GET", url: "/session/new" });
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
   });
 
   it("omitting seed yields a server-chosen seed", () => {
@@ -140,7 +140,7 @@ describe("GET /room/current (§5.1)", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["Content-Type"]).toBe("application/json");
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
 
     const body = getJson(res.body) as {
       room: unknown;
@@ -209,7 +209,7 @@ describe("GET /room/current (§5.1)", () => {
       url: "/room/current?session_id=does-not-exist",
     });
     expect(res.status).toBe(404);
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
     const body = getJson(res.body) as {
       error: { code: string; message: string };
     };
@@ -307,7 +307,7 @@ describe("POST /interact (§5.1)", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["Content-Type"]).toBe("application/json");
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
 
     const body = getJson(res.body) as {
       new_room: {
@@ -476,7 +476,7 @@ describe("base contract (§5.1)", () => {
       error: { code: string; message: string };
     };
     expect(typeof body.error.code).toBe("string");
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
   });
 
   it("POST /session/new is a 404 when dev mode is off (no 405 in the code set)", () => {
