@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { AddressRegistryEntry, Entity, Ruleset } from "schema";
+import { SPEC_VERSION } from "schema";
 import type { GraphSpan } from "rule-engine";
 import { createServer, type ServerConfig } from "./server";
 
@@ -104,7 +105,7 @@ describe("POST /session/new (§5.1, A12)", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers["Content-Type"]).toBe("application/json");
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
     const body = getJson(res.body) as { session_id: string; seed: number };
     expect(typeof body.session_id).toBe("string");
     expect(body.session_id.length).toBeGreaterThan(0);
@@ -226,7 +227,7 @@ describe("GET /session/{id}/log (§5.1, A9)", () => {
     const id = newSession(server);
     const res = server.handle({ method: "GET", url: `/session/${id}/log` });
     expect(res.status).toBe(200);
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
     expect(getJson(res.body)).toEqual([]);
   });
 
@@ -348,7 +349,7 @@ describe("GET /session/{id}/registry (§5.1, A10)", () => {
       url: `/session/${id}/registry`,
     });
     expect(res.status).toBe(200);
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
     expect(getJson(res.body)).toEqual([]);
   });
 
@@ -423,7 +424,7 @@ describe("DELETE /session/{id} (§5.1)", () => {
     const res = server.handle({ method: "DELETE", url: `/session/${id}` });
     expect(res.status).toBe(204);
     expect(res.body).toBe("");
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
 
     // The session is gone — a follow-up read is a 404.
     const after = server.handle({
@@ -459,7 +460,7 @@ describe("GET /health (§5.1)", () => {
     const res = server.handle({ method: "GET", url: "/health" });
     expect(res.status).toBe(200);
     expect(res.headers["Content-Type"]).toBe("application/json");
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
     expect(getJson(res.body)).toEqual({ status: "ok" });
   });
 });

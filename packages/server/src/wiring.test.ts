@@ -13,6 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { Entity, Ruleset } from "schema";
+import { SPEC_VERSION } from "schema";
 import type { GraphSpan } from "rule-engine";
 import { createServer, type ServerConfig } from "./server";
 import { CollectingLogger, InMemoryMetrics } from "./instrumentation";
@@ -131,7 +132,9 @@ describe("W1 — §4.3 override-conflict warning reaches the server Logger (§2.
     });
     expect(res.status).toBe(200); // INV-4: contradiction is legal, never an error
 
-    const warns = logger.entries.filter((e) => e.level === "warn");
+    const warns = logger.entries.filter(
+      (e) => e.level === "warn" && /override|conflict/.test(e.event),
+    );
     expect(warns.length).toBeGreaterThan(0);
   });
 
@@ -153,7 +156,11 @@ describe("W1 — §4.3 override-conflict warning reaches the server Logger (§2.
       }),
     });
 
-    expect(logger.entries.some((e) => e.level === "warn")).toBe(true);
+    expect(
+      logger.entries.some(
+        (e) => e.level === "warn" && /override|conflict/.test(e.event),
+      ),
+    ).toBe(true);
   });
 
   it("stays quiet for a null ruleset — the warning is about conflict, not about resolving", () => {
@@ -162,7 +169,11 @@ describe("W1 — §4.3 override-conflict warning reaches the server Logger (§2.
     const id = newSession(server);
     server.handle({ method: "GET", url: `/room/current?session_id=${id}` });
 
-    expect(logger.entries.some((e) => e.level === "warn")).toBe(false);
+    expect(
+      logger.entries.some(
+        (e) => e.level === "warn" && /override|conflict/.test(e.event),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -257,5 +268,62 @@ describe("W5 — §2.1 runtime metrics include rule-evaluation duration per move
     expect(
       keys.some((k) => /resolution|resolve/.test(k) && /duration|ms/.test(k)),
     ).toBe(true);
+  });
+});
+
+// ── §5.1 — X-Spec-Version is the ENGINE's version, not the ruleset's ─────────
+
+describe("X-Spec-Version echoes the running spec_version (§5.1, §3.5)", () => {
+  const MISMATCHED: Ruleset = { spec_version: "0.1.0", layers: [] };
+
+  it("does not change when the loaded ruleset declares a different version", () => {
+    const server = createServer(makeConfig({ ruleset: MISMATCHED }));
+    const res = server.handle({ method: "GET", url: "/health" });
+
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
+    expect(res.headers["X-Spec-Version"]).not.toBe(MISMATCHED.spec_version);
+  });
+
+  it("still loads and runs a ruleset whose spec_version disagrees (INV-4)", () => {
+    const server = createServer(makeConfig({ ruleset: MISMATCHED }));
+    const id = newSession(server);
+    const res = server.handle({
+      method: "GET",
+      url: `/room/current?session_id=${id}`,
+    });
+
+    // INV-4: the engine does not police author content. A version mismatch is
+    // surfaced, never a rejection.
+    expect(res.status).toBe(200);
+  });
+
+  it("is the engine's version on error and 204 responses too", () => {
+    const server = createServer(makeConfig({ ruleset: MISMATCHED }));
+
+    const notFound = server.handle({ method: "GET", url: "/nope" });
+    expect(notFound.status).toBe(404);
+    expect(notFound.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
+
+    const deleted = server.handle({
+      method: "DELETE",
+      url: "/session/unknown-session",
+    });
+    expect(deleted.status).toBe(204);
+    expect(deleted.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
+  });
+
+  it("is not per-session — a dev-mode session binding its own ruleset gets the same header", () => {
+    const server = createServer(makeConfig({ devMode: true }));
+    const res = server.handle({
+      method: "POST",
+      url: "/session/new",
+      body: JSON.stringify({
+        seed: 1,
+        ruleset: { spec_version: "9.9.9", layers: [] },
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
   });
 });

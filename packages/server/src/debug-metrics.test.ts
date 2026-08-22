@@ -9,6 +9,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { DebugTrace, Entity, Ruleset } from "schema";
+import { SPEC_VERSION } from "schema";
 import type { GraphSpan } from "rule-engine";
 import { createServer, type ServerConfig } from "./server";
 import { CollectingLogger, InMemoryMetrics } from "./instrumentation";
@@ -108,7 +109,7 @@ describe("GET /debug/trace (§4.6 / §5.1)", () => {
     });
     expect(res.status).toBe(200);
     expect(res.headers["Content-Type"]).toBe("application/json");
-    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+    expect(res.headers["X-Spec-Version"]).toBe(SPEC_VERSION);
     expect(isSchemaValidDebugTrace(getJson(res.body))).toBe(true);
   });
 

@@ -8,7 +8,28 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **`SPEC_VERSION` (§3.5)** — the running protocol version as one engine-owned
+  constant, in a new `src/version.ts`. §5.1's `X-Spec-Version` header echoes it.
+  It exists because the package previously had no version of its own: the only
+  `spec_version` here was the `Ruleset` field (§3.4), which is *author-supplied
+  content*, so `packages/server` sourced the protocol header from whatever
+  ruleset it loaded. `INV-4` requires running a ruleset whose version disagrees
+  rather than rejecting it, so validation could not fix that — the engine needed
+  its own value. Surfaced by the Conformance Audit 1 pass.
+
+  Keep this constant in step with `SPEC.md`'s `spec-version` header;
+  `src/version.test.ts` pins the two together so a bump to one without the other
+  fails the suite.
+
+### Changed
+
+- **`SPEC.md` is now at `0.12.0`** (from `0.11.0`). No type in this package
+  changed shape, so no surface here breaks. Two spec changes land as future work
+  against these types rather than edits to them: `InteractResponse` gains an
+  optional `movement_blocked?` field (§3.3), and §3.6.3's resolver dispatch is
+  assigned to `packages/rule-engine`.
 
 ## [0.1.0] — 2026-08-18
 
