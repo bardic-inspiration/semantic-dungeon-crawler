@@ -251,6 +251,220 @@ describe("GET /room/current (§5.1)", () => {
   });
 });
 
+// ── POST /interact ─────────────────────────────────────────────────────────────
+
+describe("POST /interact (§5.1)", () => {
+  type Action = { object_id: string; affordance: string };
+
+  function newSession(
+    server: ReturnType<typeof createServer>,
+    seed = 42,
+  ): string {
+    const res = server.handle({
+      method: "GET",
+      url: `/session/new?seed=${seed}`,
+    });
+    return (getJson(res.body) as { session_id: string }).session_id;
+  }
+
+  function currentExits(
+    server: ReturnType<typeof createServer>,
+    id: string,
+  ): {
+    target_entity_id: string;
+    affordance_required: string;
+    via_object_id: string;
+  }[] {
+    const res = server.handle({
+      method: "GET",
+      url: `/room/current?session_id=${id}`,
+    });
+    return (getJson(res.body) as { exits: never[] }).exits;
+  }
+
+  function interact(
+    server: ReturnType<typeof createServer>,
+    id: string,
+    action: Action,
+  ) {
+    return server.handle({
+      method: "POST",
+      url: "/interact",
+      body: JSON.stringify({ session_id: id, action }),
+    });
+  }
+
+  it("resolves an InteractRequest through the engine into a schema-valid InteractResponse", () => {
+    const server = createServer(makeConfig());
+    const id = newSession(server);
+    const exits = currentExits(server, id);
+    expect(exits.length).toBeGreaterThan(0);
+
+    const res = interact(server, id, {
+      object_id: exits[0]!.via_object_id,
+      affordance: exits[0]!.affordance_required,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["Content-Type"]).toBe("application/json");
+    expect(res.headers["X-Spec-Version"]).toBe("0.1.0");
+
+    const body = getJson(res.body) as {
+      new_room: {
+        room: unknown;
+        objects: unknown[];
+        resolution_status: string;
+      };
+      transition_occurred: boolean;
+      interaction_result: Record<string, unknown>;
+    };
+    // The nested ResolvedRoomResponse validates against the Phase 1 schema.
+    expect(isValidEntity(body.new_room.room)).toBe(true);
+    expect(body.new_room.objects.every(isValidEntity)).toBe(true);
+    expect(typeof body.transition_occurred).toBe("boolean");
+    expect(typeof body.interaction_result).toBe("object");
+  });
+
+  it("a move through an enter/traverse affordance transitions to a different room (A4)", () => {
+    const server = createServer(makeConfig());
+    const id = newSession(server);
+    const exits = currentExits(server, id);
+    // Every derived exit is enter/traverse-capable (A4); pick the first.
+    const exit = exits[0]!;
+
+    const res = interact(server, id, {
+      object_id: exit.via_object_id,
+      affordance: exit.affordance_required,
+    });
+    const body = getJson(res.body) as {
+      new_room: { room: { embedding_ref: string } };
+      transition_occurred: boolean;
+    };
+
+    expect(body.transition_occurred).toBe(true);
+    // Exit-anchoring resolved a move: the player is no longer in the start room.
+    expect(body.new_room.room.embedding_ref).not.toBe("vec:origin");
+    // The transition persisted — a follow-up GET sees the same new room.
+    const followup = server.handle({
+      method: "GET",
+      url: `/room/current?session_id=${id}`,
+    });
+    const followupBody = getJson(followup.body) as {
+      room: { embedding_ref: string };
+    };
+    expect(followupBody.room.embedding_ref).toBe(
+      body.new_room.room.embedding_ref,
+    );
+  });
+
+  it("is deterministic through the endpoint — same (seed, input-log) ⇒ byte-identical responses (INV-2)", () => {
+    const server = createServer(makeConfig());
+
+    // Record a scripted input log by walking one session's derived exits, then
+    // replay that exact log against a second same-seed session (§3.9 / INV-2).
+    const idA = newSession(server, 42);
+    const script: Action[] = [];
+    const bodiesA: string[] = [];
+    for (let step = 0; step < 3; step++) {
+      const exits = currentExits(server, idA);
+      if (exits.length === 0) break;
+      const action: Action = {
+        object_id: exits[0]!.via_object_id,
+        affordance: exits[0]!.affordance_required,
+      };
+      script.push(action);
+      bodiesA.push(interact(server, idA, action).body);
+    }
+    expect(script.length).toBeGreaterThan(0);
+
+    const idB = newSession(server, 42);
+    const bodiesB = script.map((action) => interact(server, idB, action).body);
+
+    expect(bodiesB).toEqual(bodiesA);
+  });
+
+  it("a malformed request body is a 400 via the error envelope", () => {
+    const server = createServer(makeConfig());
+    const res = server.handle({
+      method: "POST",
+      url: "/interact",
+      body: "{ not json",
+    });
+    expect(res.status).toBe(400);
+    const body = getJson(res.body) as {
+      error: { code: string; message: string };
+    };
+    expect(typeof body.error.code).toBe("string");
+    expect(typeof body.error.message).toBe("string");
+  });
+
+  it("a well-formed body missing the action is a 400", () => {
+    const server = createServer(makeConfig());
+    const id = newSession(server);
+    const res = server.handle({
+      method: "POST",
+      url: "/interact",
+      body: JSON.stringify({ session_id: id }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("an unknown session_id is a 404 via the single error envelope, no leakage (INV-3)", () => {
+    const server = createServer(makeConfig());
+    const res = interact(server, "does-not-exist", {
+      object_id: "a",
+      affordance: "traverse",
+    });
+    expect(res.status).toBe(404);
+    const body = getJson(res.body) as {
+      error: { code: string; message: string };
+    };
+    expect(Object.keys(body)).toEqual(["error"]);
+    expect(res.body).not.toContain("vec:");
+    expect(res.body).not.toContain("Error:");
+  });
+
+  it("a movement that resolves nowhere is 200 with resolution_status 'stuck', not an error (C2)", () => {
+    const server = createServer(
+      makeConfig({
+        substrate: { spans: degenerateSubstrate(), start_ref: "vec:origin" },
+      }),
+    );
+    const id = newSession(server);
+    const res = interact(server, id, {
+      object_id: "ghost",
+      affordance: "traverse",
+    });
+
+    expect(res.status).toBe(200);
+    const body = getJson(res.body) as {
+      new_room: {
+        objects: unknown[];
+        exits: unknown[];
+        resolution_status: string;
+      };
+      transition_occurred: boolean;
+    };
+    expect(body.transition_occurred).toBe(false);
+    expect(body.new_room.resolution_status).toBe("stuck");
+    expect(body.new_room.exits).toEqual([]);
+  });
+
+  it("never leaks engine internals in an interaction response (INV-3)", () => {
+    const server = createServer(makeConfig());
+    const id = newSession(server);
+    const exits = currentExits(server, id);
+    const res = interact(server, id, {
+      object_id: exits[0]!.via_object_id,
+      affordance: exits[0]!.affordance_required,
+    });
+    expect(res.body).not.toContain("commit");
+    expect(res.body).not.toContain('"vars"');
+    expect(res.body).not.toContain('"embedding"');
+    expect(res.body).not.toContain("0.99"); // a raw substrate vector component
+  });
+});
+
 // ── Base contract — unknown routes ─────────────────────────────────────────────
 
 describe("base contract (§5.1)", () => {

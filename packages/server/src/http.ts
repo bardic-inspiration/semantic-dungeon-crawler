@@ -38,12 +38,22 @@ export function createHttpServer(config: ServerConfig): HttpServer {
 
   const node = createNodeHttpServer(
     (req: IncomingMessage, res: NodeServerResponse) => {
-      const result = core.handle({
-        method: req.method ?? "GET",
-        url: req.url ?? "/",
+      // Buffer the request body before dispatching: `POST /interact` carries its
+      // `InteractRequest` here (§5.1). GET routes send none, so `body` is `""` and
+      // the pure core ignores it. The core stays transport-agnostic — it receives a
+      // string, never the stream.
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        const body = Buffer.concat(chunks).toString("utf8");
+        const result = core.handle({
+          method: req.method ?? "GET",
+          url: req.url ?? "/",
+          body,
+        });
+        res.writeHead(result.status, result.headers);
+        res.end(result.body);
       });
-      res.writeHead(result.status, result.headers);
-      res.end(result.body);
     },
   );
 
