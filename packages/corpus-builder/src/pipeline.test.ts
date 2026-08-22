@@ -113,3 +113,49 @@ describe("runBuild — end-to-end substrate pipeline (§6.3)", () => {
     expect(buildTrace).toBeNull();
   });
 });
+
+// ── §6.3 / §3.7.3 — every content-determining input is in the build id ───────
+//
+// "`substrate_version` absorbs the identity of every pinned model/tokenizer, so
+// any of them changing is a visible new build id … not a silent drift" (§6.3).
+// §3.7.3 keys snapshot staleness off this id, so an input that changes the
+// bundle's contents without changing the id makes a stale snapshot report itself
+// fresh. A conformance audit found `coherenceK` in exactly that position.
+
+describe("substrate_version covers every content-determining build input (§6.3)", () => {
+  const documents = [
+    {
+      source_id: "file:a.txt",
+      title: "a",
+      raw_text: "Alpha one.\n\nAlpha two.\n\nAlpha three.\n\nAlpha four.",
+      metadata: {},
+    },
+    {
+      source_id: "file:b.txt",
+      title: "b",
+      raw_text: "Beta one.\n\nBeta two.\n\nBeta three.\n\nBeta four.",
+      metadata: {},
+    },
+  ];
+
+  it("changes when coherenceK changes, because local_coherence changes with it", async () => {
+    const a = await runBuild({ documents }, { coherenceK: 1 });
+    const b = await runBuild({ documents }, { coherenceK: 3 });
+
+    // Precondition: the two builds really do differ in content. Without this the
+    // id assertion below could pass for the wrong reason.
+    const coherenceA = a.bundle.spans.map((s) => s.local_coherence);
+    const coherenceB = b.bundle.spans.map((s) => s.local_coherence);
+    expect(coherenceA).not.toEqual(coherenceB);
+
+    expect(a.bundle.substrate_version).not.toBe(b.bundle.substrate_version);
+  });
+
+  it("is unchanged when coherenceK is the same — rebuild stability still holds", async () => {
+    const a = await runBuild({ documents }, { coherenceK: 3 });
+    const b = await runBuild({ documents }, { coherenceK: 3 });
+
+    expect(a.bundle.substrate_version).toBe(b.bundle.substrate_version);
+    expect(serializeBundle(a.bundle)).toBe(serializeBundle(b.bundle));
+  });
+});
