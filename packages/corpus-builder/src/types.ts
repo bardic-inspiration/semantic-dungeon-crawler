@@ -66,6 +66,8 @@ export interface SubstrateHeader {
   embedding_provider: string; // provider identity (feeds substrate_version)
   tokenizer: string | null; // tokenizer identity if `unit: token` was used, else null
   tagger: string; // tagger identity (feeds substrate_version)
+  index: string; // §0.10.0 B2 index-stage identity — the index is BUILT ON LOAD from the
+  //              // shipped vectors (not serialized); this names which impl to rebuild (feeds substrate_version)
   segmentation: SegmentationConfig; // the partition config used
   restructure: string | null; // composition strategy selector (§6.3.1 B6); null = passthrough
   span_count: number;

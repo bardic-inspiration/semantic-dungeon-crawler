@@ -40,7 +40,7 @@ import {
 } from "./pipeline";
 import { GutendexSource } from "./sources/gutendex";
 import { readDirectoryCorpus } from "./sources/filesystem";
-import type { ResolvedDocument } from "./sources/types";
+import type { CorpusSource, ResolvedDocument } from "./sources/types";
 import type { SegmentationConfig, SubstrateBundle } from "./types";
 
 export interface CliIO {
@@ -94,6 +94,15 @@ export interface CliDeps {
   makeLogger?(level: LogLevel): Logger;
   /** Environment lookup for `SDC_LOG_LEVEL` (§5.4). Default: `process.env`. */
   env?: Record<string, string | undefined>;
+  /**
+   * §6.3.1 `CorpusSource` registry, keyed by a manifest's `source`. Retrieval is
+   * the pipeline's first, pluggable stage (`docs/design/0004`), and it happens
+   * here — before `runBuild` receives resolved documents — so this is where the
+   * seam lives. Default: `{ gutendex: GutendexSource }` (this phase ships
+   * Gutendex only). Registering another source makes it reachable from `build`
+   * without editing the CLI; an unknown `source` is reported, not hardcoded-away.
+   */
+  sources?: Record<string, CorpusSource>;
 }
 
 /**
@@ -143,10 +152,12 @@ export async function runCli(
     level,
   );
 
+  const sources = deps.sources ?? { gutendex: new GutendexSource() };
+
   try {
     switch (command) {
       case "build":
-        return await cmdBuild(flags, io, logger);
+        return await cmdBuild(flags, io, logger, sources);
       case "inspect":
         return await cmdInspect(flags, io, level);
       case "eval":
@@ -167,6 +178,7 @@ async function cmdBuild(
   flags: Record<string, string | boolean>,
   io: CliIO,
   logger: Logger,
+  sources: Record<string, CorpusSource>,
 ): Promise<number> {
   const output = requireString(flags, "output");
   const trace = flags.trace === true;
@@ -179,12 +191,17 @@ async function cmdBuild(
     const manifest = parseManifest(await readFile(flags.manifest, "utf8"));
     restructure = manifest.restructure;
     segmentation = manifest.segmentation;
-    if (manifest.source !== "gutendex") {
+    // §6.3.1 — resolve the manifest's `source` against the CorpusSource registry.
+    // The seam is reachable: a registered non-Gutendex source builds here without
+    // a CLI edit; an unregistered one is reported (with what IS registered), not
+    // silently special-cased.
+    const source = sources[manifest.source];
+    if (source === undefined) {
       throw new Error(
-        `unsupported manifest source "${manifest.source}" (only "gutendex" this phase)`,
+        `unknown manifest source "${manifest.source}" (registered: ${Object.keys(sources).join(", ") || "none"})`,
       );
     }
-    documents = await new GutendexSource().resolve(manifest.entries);
+    documents = await source.resolve(manifest.entries);
   } else if (typeof flags.input === "string") {
     documents = await readDirectoryCorpus(flags.input);
   } else {

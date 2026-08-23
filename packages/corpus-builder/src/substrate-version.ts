@@ -9,6 +9,13 @@
 // input MUST yield an identical `substrate_version`. It is therefore a pure
 // function of a CANONICAL representation of the inputs + pinned identities — no
 // wall-clock, no map-iteration order, no unseeded value.
+//
+// The bar for inclusion is "does changing it change the bundle's contents"
+// (GRAPH_FORMAT.md), which is why the index and composition identities are here
+// (they alter the coherence field / emit composites) but the `CorpusSource`
+// identity is NOT: retrieval feeds the resolved `documents`, which ARE hashed, so
+// the same corpus fetched two ways is deliberately the same build — hashing the
+// source would falsely fork the id on a content-preserving retrieval change.
 
 import { createHash } from "node:crypto";
 
@@ -20,6 +27,20 @@ export interface SubstrateVersionInputs {
   embeddingProviderId: string;
   tokenizerId: string | null;
   taggerId: string;
+  /**
+   * The B2 index-stage identity. The index is not serialized (built on load), but
+   * the B5 `local_coherence` field is computed THROUGH it, so a different index
+   * implementation changes every coherence value in the bundle — the same
+   * "does changing it change the bundle's contents" test that puts `coherenceK`
+   * and the embedding provider in this hash.
+   */
+  indexId: string;
+  /**
+   * The B6 composition-stage identity. The default (`passthrough`) leaves spans
+   * untouched, but a swapped-in strategy emits composite spans, so it changes the
+   * bundle's contents and is a visible new build id, not a silent drift.
+   */
+  compositionId: string;
   /**
    * The k of the B5 local-coherence precompute. Not a model identity, but it
    * changes every `local_coherence` value in the bundle, so §6.3's "any of them
@@ -72,6 +93,8 @@ export function computeSubstrateVersion(
     embeddingProviderId: inputs.embeddingProviderId,
     tokenizerId: inputs.tokenizerId,
     taggerId: inputs.taggerId,
+    indexId: inputs.indexId,
+    compositionId: inputs.compositionId,
     coherenceK: inputs.coherenceK,
     formatVersion: inputs.formatVersion,
   });

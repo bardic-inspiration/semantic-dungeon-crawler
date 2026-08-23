@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { runBuild, serializeBuildTrace, serializeBundle } from "./pipeline";
 import { CollectingLogger } from "./instrumentation";
+import { inspectNode } from "./inspect";
+import { FlatIndex, type IndexFactory } from "./index-flat";
+import type { CompositionStrategy } from "./composition";
 import type { Tagger, TagResult } from "./tagging";
 import type { ResolvedDocument } from "./sources/types";
+import type { SubstrateSpan } from "./types";
 
 const CORPUS: ResolvedDocument[] = [
   {
@@ -156,6 +160,143 @@ describe("substrate_version covers every content-determining build input (§6.3)
     const a = await runBuild({ documents }, { coherenceK: 3 });
     const b = await runBuild({ documents }, { coherenceK: 3 });
 
+    expect(a.bundle.substrate_version).toBe(b.bundle.substrate_version);
+    expect(serializeBundle(a.bundle)).toBe(serializeBundle(b.bundle));
+  });
+});
+
+// ── §6.3 (C8/C9/C10) — index and composition are swappable, both actually run ──
+//
+// The §6.3 stage contract is "every stage is a swappable interface with a
+// deterministic default". Before this the built index was discarded and the
+// composition stage received no way to embed a composite; these prove the seams
+// are wired — a stub index is queried, a stub strategy emits a real composite.
+
+/** A flat index wrapped to count queries, so a test can prove it is actually used. */
+function countingIndexFactory(id: string): {
+  factory: IndexFactory;
+  queryCount: () => number;
+} {
+  let queries = 0;
+  const factory: IndexFactory = {
+    id,
+    build(vectors) {
+      const inner = new FlatIndex(vectors);
+      return {
+        get size() {
+          return inner.size;
+        },
+        query: (v, k) => (queries++, inner.query(v, k)),
+        queryByIndex: (i, k) => (queries++, inner.queryByIndex(i, k)),
+      };
+    },
+  };
+  return { factory, queryCount: () => queries };
+}
+
+/** A stub strategy that merges the first two spans into one composite via the ctx. */
+const mergeFirstTwo: CompositionStrategy = {
+  id: "stub-merge-v1",
+  async restructure(spans, ctx) {
+    if (spans.length < 2) return spans;
+    const [a, b] = [spans[0]!, spans[1]!];
+    const prose = `${a.prose}\n\n${b.prose}`;
+    const [embedding] = await ctx.embed([prose]);
+    const composite: SubstrateSpan = {
+      id: `composite:${a.id}+${b.id}`,
+      source_refs: [...new Set([...a.source_refs, ...b.source_refs])],
+      source_span: {
+        source: a.source_span.source,
+        char_ranges: `${a.source_span.char_ranges},${b.source_span.char_ranges}`,
+        members: [a.id, b.id],
+      },
+      prose,
+      embedding: embedding!,
+      semantic_tags: [...new Set([...a.semantic_tags, ...b.semantic_tags])],
+      archetype: a.archetype,
+      local_coherence: ctx.scoreCoherence(embedding!),
+    };
+    return [...spans, composite];
+  },
+};
+
+describe("runBuild — swappable index & composition seams (§6.3 C8/C9/C10)", () => {
+  it("names the index impl in the header (built on load, not serialized)", async () => {
+    const { bundle } = await runBuild({ documents: CORPUS });
+    expect(bundle.header.index).toBe("flat-v1");
+    // The bundle carries vectors, not an index structure (C8 decision).
+    expect(bundle.spans[0]).not.toHaveProperty("index");
+    expect(Array.isArray(bundle.spans[0]!.embedding)).toBe(true);
+  });
+
+  it("uses the injected index for the coherence field (it is not discarded)", async () => {
+    const { factory, queryCount } = countingIndexFactory("counting-flat-v1");
+    const { bundle } = await runBuild(
+      { documents: CORPUS },
+      { index: factory },
+    );
+    expect(queryCount()).toBeGreaterThan(0); // coherence queried the injected index
+    expect(bundle.header.index).toBe("counting-flat-v1");
+  });
+
+  it("drives an injected composition strategy end-to-end, emitting a real composite", async () => {
+    const { bundle } = await runBuild(
+      { documents: CORPUS },
+      { composition: mergeFirstTwo },
+    );
+    const composite = bundle.spans.find((s) => s.id.startsWith("composite:"));
+    expect(composite).toBeDefined();
+    // A real composite: populated members, a full-dimension embedding, coherence.
+    expect(composite!.source_span.members).toHaveLength(2);
+    expect(composite!.embedding).toHaveLength(bundle.header.dimensions);
+    expect(composite!.local_coherence).toBeGreaterThanOrEqual(0);
+    expect(composite!.local_coherence).toBeLessThanOrEqual(1);
+
+    // Maxed case: the emitted span round-trips through `inspect --node`.
+    const rendered = inspectNode(bundle, composite!.id);
+    expect(rendered).toContain("composite of:");
+    for (const m of composite!.source_span.members!) {
+      expect(rendered).toContain(m);
+    }
+  });
+
+  it("restructure:null stays the default and stays identity/passthrough", async () => {
+    const { bundle } = await runBuild({ documents: CORPUS });
+    expect(bundle.header.restructure).toBeNull();
+    expect(bundle.spans.some((s) => s.id.startsWith("composite:"))).toBe(false);
+  });
+});
+
+describe("substrate_version covers the newly-injectable identities (§6.3 C9, criterion 4)", () => {
+  it("changes when the index implementation changes (same behavior, different id)", async () => {
+    const base = await runBuild({ documents: CORPUS });
+    const swapped = await runBuild(
+      { documents: CORPUS },
+      { index: countingIndexFactory("other-flat-v1").factory },
+    );
+    expect(base.bundle.substrate_version).not.toBe(
+      swapped.bundle.substrate_version,
+    );
+  });
+
+  it("changes when the composition strategy changes", async () => {
+    const base = await runBuild({ documents: CORPUS });
+    const swapped = await runBuild(
+      { documents: CORPUS },
+      { composition: mergeFirstTwo },
+    );
+    expect(base.bundle.substrate_version).not.toBe(
+      swapped.bundle.substrate_version,
+    );
+  });
+
+  it("stays rebuild-stable and byte-identical with injected deps held fixed (INV-2)", async () => {
+    const deps = {
+      index: countingIndexFactory("fixed-flat-v1").factory,
+      composition: mergeFirstTwo,
+    };
+    const a = await runBuild({ documents: CORPUS }, deps);
+    const b = await runBuild({ documents: CORPUS }, deps);
     expect(a.bundle.substrate_version).toBe(b.bundle.substrate_version);
     expect(serializeBundle(a.bundle)).toBe(serializeBundle(b.bundle));
   });

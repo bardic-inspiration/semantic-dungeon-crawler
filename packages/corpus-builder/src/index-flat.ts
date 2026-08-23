@@ -25,6 +25,25 @@ export interface SubstrateIndex {
 }
 
 /**
+ * The §6.3 index stage behind an interface (§0.10.0 B2). An `IndexFactory` builds
+ * a `SubstrateIndex` over a vector set; its `id` is a pinned stage identity that
+ * feeds `substrate_version` (the local-coherence field is computed *through* the
+ * index, so a different index implementation changes the bundle's contents — the
+ * same reason `coherenceK` and the embedding provider are hashed). The alpha
+ * default is the exact flat k-NN index; a deterministic ANN is the deferred swap-in.
+ */
+export interface IndexFactory {
+  readonly id: string;
+  build(vectors: number[][]): SubstrateIndex;
+}
+
+/** The alpha-default index stage: an exact flat k-NN index (§0.10.0 B2). */
+export const defaultIndexFactory: IndexFactory = {
+  id: "flat-v1",
+  build: (vectors) => new FlatIndex(vectors),
+};
+
+/**
  * Exact flat k-NN over the full vector set. O(n·d) per query — fine at alpha
  * scale (C1: low-thousands of spans). Ties (equal distance) are broken by
  * ascending corpus index, making results fully deterministic (§0.10.0 B2).

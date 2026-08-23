@@ -17,13 +17,16 @@ a precomputed **local-coherence field** + a `substrate_version` build-id header
 (SPEC §6.3 re-scoping). The filename `graph.json` is kept for cross-reference
 continuity only.
 
-**The index structure itself is not serialized here.** SPEC §6.3 describes the
-bundle as carrying "an ANN index for live querying"; in practice the build
-constructs one and the artifact stores only the vectors, because the alpha
-default is an exact flat k-NN index (§0.10.0 B2) that a consumer rebuilds from
-those vectors in O(n). This doc describes what the file actually contains;
-whether the index should ship in the bundle is an open question tracked against
-the pipeline, not a licence to read a `index` key that is not there.
+**The index structure itself is not serialized here — by decision.** The bundle
+carries the **vectors**; the index is **built on load**. For the alpha-default
+exact flat k-NN index (§0.10.0 B2) a consumer rebuilds it from those vectors in
+O(n), so shipping it would be redundant bytes. The build still constructs the
+index once (it is what computes the B5 `local_coherence` field and what the B6
+composition stage queries — it is not discarded), but only the vectors reach the
+artifact. So a consumer knows *which* index to rebuild, the header carries an
+`index` identity, and that identity is folded into `substrate_version` (a
+different index would change the coherence field). There is no `index` key on a
+span or in the bundle — do not read one.
 
 ## Pipeline that produces it
 
@@ -40,12 +43,17 @@ Stages run in order, each a swappable interface with a deterministic default
 3. **Embedding** (B2) — a config-selected provider (default: a deterministic,
    offline feature-hashing provider). Vectors are **L2-normalized at build time**,
    which fixes distance as **cosine, range `[0,2]`, smaller = nearer**.
-4. **Index construction** (B2) — exact flat k-NN, ties broken by corpus order.
+4. **Index construction** (`IndexFactory`, B2) — exact flat k-NN, ties broken by
+   corpus order. Built once and used (B5 coherence + the B6 composition stage),
+   not serialized; the header's `index` identity names which impl to rebuild.
 5. **Tagging** (`Tagger`, B4) — default is a deterministic offline lexicon
    assigning `semantic_tags` (§3.6 grammar) + a default `archetype`; also seeds
    `tag-registry.yaml`.
 6. **Composition** (`restructure`, B6) — optional, after embedding + tagging.
-   Default `null` = identity passthrough (contiguous spans only).
+   Behind a `CompositionStrategy` interface handed a context (the build's
+   embedding provider + index) so a composite it emits is embedded and
+   coherence-scored like any other span. Default `null` = identity passthrough
+   (contiguous spans only).
 7. **Local-coherence precompute** (B5) — mean cosine similarity of a point to its
    k nearest neighbors, normalized to `[0,1]`.
 8. **`substrate_version` stamping** — a content hash of the inputs + every pinned
@@ -68,6 +76,7 @@ Every stage reports through the same `Logger`/`Metrics` interfaces `server` uses
     "embedding_provider": "hashing-embed-v1-d256",  // pinned identity
     "tokenizer": null,                    // tokenizer identity iff `unit: token`, else null
     "tagger": "lexicon-v1",               // pinned identity
+    "index": "flat-v1",                   // §0.10.0 B2 index-stage identity; index is BUILT ON LOAD from the vectors, not serialized
     "segmentation": { "unit": "char", "grouping": "boundary", "boundary": "blank-line", "overlap": 0 },
     "restructure": null,                  // composition selector (null = passthrough)
     "span_count": 18
@@ -175,6 +184,8 @@ a deterministic artifact over an embedded timestamp is the correct INV-2 tradeof
   | `embeddingProviderId` | the pinned embedding model |
   | `tokenizerId` | the pinned tokenizer (`unit: token` only, but always hashed) |
   | `taggerId` | the pinned tagger |
+  | `indexId` | the B2 index impl — the B5 `local_coherence` field is computed *through* it, so a different index changes the bundle's contents |
+  | `compositionId` | the B6 composition strategy — a non-passthrough strategy emits composite spans |
   | `coherenceK` | the k of the B5 local-coherence precompute — changes every `local_coherence` value in the bundle |
   | `formatVersion` | the artifact schema itself |
 
@@ -186,10 +197,10 @@ a deterministic artifact over an embedded timestamp is the correct INV-2 tradeof
   §3.7.3 derives snapshot staleness from that id, so a stale snapshot reported
   itself fresh.
 
-  **Adding a build input means adding it here.** The index implementation is the
-  next candidate: it is hardcoded today, so its identity is constant and its
-  absence is currently harmless, but it becomes the same hole the moment the
-  index is made injectable.
+  **Adding a build input means adding it here.** When the index and composition
+  stages became injectable (§0.10.0 B2/B6), their identities (`indexId`,
+  `compositionId`) were added to this hash in the same change — closing the hole
+  before it could open, exactly as the `coherenceK` case teaches.
 - `graph.json`, `tag-registry.yaml`, and (when `--trace`) `build-trace.json` are
   **byte-identical** across independent builds of identical input — no wall-clock,
   no map-iteration order, no unseeded value anywhere in the pipeline.

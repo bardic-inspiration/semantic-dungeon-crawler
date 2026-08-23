@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runCli, type CliDeps, type CliIO } from "./cli";
 import { ConsoleLogger, type LogLevel } from "./instrumentation";
+import type { CorpusSource, ResolvedDocument } from "./sources/types";
 
 /**
  * Capture what the wired `Logger` actually prints at the resolved level — the
@@ -139,6 +140,67 @@ describe("corpus-builder CLI (§6.3 Exit)", () => {
   it("unknown command returns a non-zero exit code", async () => {
     const io = collectingIO();
     expect(await runCli(["frobnicate"], io)).toBe(2);
+  });
+});
+
+// ── §6.3.1 (C9) — the CorpusSource seam is reachable from the CLI ─────────────
+//
+// Before this, `build --manifest` threw for any `source` other than "gutendex",
+// so the §6.3.1 seam could not be exercised. The seam is now a registry: a
+// registered source resolves; an unregistered one is reported, not special-cased.
+
+describe("corpus-builder build — CorpusSource registry (§6.3.1)", () => {
+  async function writeManifest(source: string): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "corpus-builder-manifest-"));
+    tempDirs.push(dir);
+    const path = join(dir, "corpus-manifest.json");
+    await writeFile(
+      path,
+      JSON.stringify({ source, entries: [{ id: 1 }] }),
+      "utf8",
+    );
+    return path;
+  }
+
+  const fakeSource: CorpusSource = {
+    resolve: (): Promise<ResolvedDocument[]> =>
+      Promise.resolve([
+        {
+          source_id: "custom:1",
+          title: "Custom",
+          raw_text:
+            "A river ran east through the forest.\n\n" +
+            "Gold set the market price of grain and cloth.",
+          metadata: {},
+        },
+      ]),
+  };
+
+  it("resolves a manifest through an injected (non-Gutendex) source", async () => {
+    const manifest = await writeManifest("custom");
+    const graph = await tempGraphPath();
+    const code = await runCli(
+      ["build", "--manifest", manifest, "--output", graph],
+      collectingIO(),
+      { sources: { custom: fakeSource } },
+    );
+    expect(code).toBe(0);
+    const bundle = JSON.parse(await readFile(graph, "utf8"));
+    expect(bundle.spans.length).toBeGreaterThan(0);
+    expect(bundle.spans[0].source_refs).toContain("custom:1");
+  });
+
+  it("reports an unregistered source instead of hardcoding it away", async () => {
+    const manifest = await writeManifest("nope");
+    const io = collectingIO();
+    const code = await runCli(
+      ["build", "--manifest", manifest, "--output", await tempGraphPath()],
+      io,
+      { sources: { custom: fakeSource } },
+    );
+    expect(code).toBe(1);
+    expect(io.err.join("\n")).toContain('unknown manifest source "nope"');
+    expect(io.err.join("\n")).toContain("custom");
   });
 });
 
