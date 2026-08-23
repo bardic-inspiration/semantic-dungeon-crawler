@@ -1,13 +1,16 @@
 // packages/corpus-builder/src/tokenizer.ts
 //
-// SPEC §0.10.0 B1 — `unit: token` segmentation "lazily loads a pinned Tokenizer
-// (default cl100k_base) whose identity feeds substrate_version". This module
-// ships the INTERFACE plus one deterministic default, following the B-series
-// "interface now, richer impl later" pattern: a production BPE tokenizer
-// (cl100k_base et al.) is a deferred swap-in behind `Tokenizer`. The default is
-// a zero-dependency, deterministic approximate tokenizer whose PINNED identity
-// (`id`) feeds `substrate_version`, so swapping it in is a visible build-id
-// change, never a silent drift.
+// SPEC §0.10.0 B1 / §0.13.1 — `unit: token` segmentation "lazily loads a pinned
+// Tokenizer whose identity feeds substrate_version". This module ships the
+// INTERFACE plus one deterministic default, following the B-series "interface now,
+// richer impl later" pattern. §0.13.1 (issue #107) NAMES the shipped alpha default
+// as the zero-dependency, deterministic approximate tokenizer below
+// (`approx-token-v1`, a GPT-style regex pre-tokenizer) rather than `cl100k_base`:
+// pulling a BPE dependency into the otherwise model-free, byte-identical default
+// build is deferred, so a production BPE tokenizer (cl100k_base et al.) is the
+// richer swap-in behind `Tokenizer`. The default's PINNED identity (`id`) feeds
+// `substrate_version`, so swapping it in is a visible build-id change, never a
+// silent drift.
 
 /** A pinned tokenizer. `id` is the identity that feeds `substrate_version`. */
 export interface Tokenizer {
