@@ -21,8 +21,24 @@ export { sample } from "./sample";
 export type { Draw } from "./sample";
 
 export * from "./parser";
-export { evaluate } from "./evaluate";
+export {
+  evaluate,
+  evaluateValueExpression,
+  matchesTagPattern,
+} from "./evaluate";
 export type { EntityCandidate, EvalBindings } from "./evaluate";
+
+// §0.9.0 (A13) — the interpretation lookup: the producer for the half of
+// `Entity` (§3.1) the substrate does not carry.
+export {
+  DEFAULT_INTERPRETATION,
+  resolveInterpretation,
+  mintEntity,
+} from "./interpretation";
+export type {
+  SubstrateSpanView,
+  ResolvedInterpretation,
+} from "./interpretation";
 
 export {
   resolutionOrder,
