@@ -1269,8 +1269,9 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 > **§0.8.0 re-scoping (three-tier model).** This phase no longer produces a fixed
 > node/edge graph. It builds a **substrate index** (Tier 2): the `graph.json`
 > artifact keeps its filename (vestigial, to avoid churning cross-references) but
-> its contents are redefined to embedding vectors + an ANN index for live
-> querying + a source-span provenance table + a precomputed **local-coherence
+> its contents are redefined to embedding vectors (the index for live querying is
+> **built on load** from those vectors, not serialized — §0.10.0 B2, its pinned
+> identity recorded in the header) + a source-span provenance table + a precomputed **local-coherence
 > field** (a fixed property of the corpus, computed once here rather than
 > per-query, decision D4) + a `substrate_version` build-id header (used by
 > snapshot staleness, §3.7.3). It does **not** contain pre-computed nodes or
@@ -1306,11 +1307,15 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 >   `static.embedding_distance` as **cosine distance, range `[0,2]`, smaller =
 >   nearer**, provider-independent (§4.2). Dimensionality is provider-declared
 >   and stored in the substrate header.
-> - **Index (B2)** — behind an interface; the alpha default is an **exact flat
->   k-NN** index (deterministic; equal distances broken by corpus order). A real
->   ANN (HNSW, …) is a deferred, must-be-deterministic optimization; the scale
->   threshold is C1 (§6.7). "Well-formed embedding space" for the fail-loud gate
->   = uniform dimension, all-finite values, non-zero norms, non-degenerate spread.
+> - **Index (B2)** — behind an `IndexFactory` interface; the alpha default is an
+>   **exact flat k-NN** index (deterministic; equal distances broken by corpus
+>   order). A real ANN (HNSW, …) is a deferred, must-be-deterministic
+>   optimization; the scale threshold is C1 (§6.7). The index is **not
+>   serialized** — `graph.json` ships the vectors and the runtime rebuilds it in
+>   O(n) — so its pinned identity is recorded in the header and folded into
+>   `substrate_version` (a different index changes the B5 coherence field it
+>   computes). "Well-formed embedding space" for the fail-loud gate = uniform
+>   dimension, all-finite values, non-zero norms, non-degenerate spread.
 > - **Composition / `restructure` (B6)** — an optional stage *after* embedding and
 >   tagging (so it can read those signals) that produces **discontinuous composite
 >   spans** and feeds them back into the index. A composite is still a span; its
@@ -1364,7 +1369,7 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 - Corpus retrieval step (pluggable — see §6.3.1; resolves a manifest of source documents into raw text before embedding begins)
 - Segmentation step (pluggable `Segmenter`, §0.10.0 B1; partitions raw text into source spans by `unit` × `grouping`, default paragraphs/no-overlap, before embedding)
 - Embedding step (pluggable — spec does not mandate a specific model/provider, but MUST be swappable via config, not hardcoded to one vendor; vectors are L2-normalized at build time, §0.10.0 B2)
-- Index construction step → ANN index over source-span embeddings (replaces fixed clustering/node formation; the substrate is queried live, §3.7 Tier 2; alpha default is an exact flat k-NN index behind an index interface, §0.10.0 B2)
+- Index construction step → an index over source-span embeddings (replaces fixed clustering/node formation; the substrate is queried live, §3.7 Tier 2; alpha default is an exact flat k-NN index behind an `IndexFactory` interface, §0.10.0 B2). The index is **not serialized**: `graph.json` ships the vectors and the runtime rebuilds it on load in O(n); the header records the index identity and it is folded into `substrate_version`. The one index built here is used (B5 coherence + the B6 composition stage), not discarded.
 - Local-coherence precomputation → the `local_coherence` field stored in the substrate bundle (decision D4; embedding-neighborhood tightness, §0.10.0 B5)
 - `substrate_version` stamping → a content-hash/build-id in the `graph.json` header, consumed by snapshot staleness (§3.7.3)
 - Tagging step (pluggable `Tagger`, §0.10.0 B4) → populates `semantic_tags` with structured tags (Section 3.6 grammar) and `archetype`; the default is a deterministic, offline, model-free lexicon that also seeds `tag-registry.yaml`. Models are permitted at build under pin+cache discipline but the default ships none (initial heuristic assignment is acceptable for alpha; model-based and author-refined tagging are post-alpha). Under §0.8.0, tags are interpretation-tier metadata attached to source spans, applied to resolved query results at runtime (§3.1).

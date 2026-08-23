@@ -1,9 +1,10 @@
 // packages/corpus-builder/src/pipeline.ts
 //
 // SPEC §6.3 — the staged build-time pipeline harness. Runs, in order:
-//   segmentation → embedding (+L2 normalize +fail-loud gate) → tagging →
-//   composition (restructure) → local-coherence precompute → substrate_version
-//   stamping → assemble `graph.json` substrate bundle + seed `tag-registry.yaml`.
+//   segmentation → embedding (+L2 normalize +fail-loud gate) → index construction
+//   → tagging → local-coherence precompute → composition (restructure) →
+//   substrate_version stamping → assemble `graph.json` substrate bundle + seed
+//   `tag-registry.yaml`.
 //
 // Composition runs AFTER embedding and tagging (§0.10.0 B6). Every stage reports
 // through the SAME §2.1 `Logger`/`Metrics` interfaces `server` uses (not a
@@ -19,9 +20,17 @@ import {
   l2Normalize,
   type EmbeddingProvider,
 } from "./embedding";
-import { computeLocalCoherence, DEFAULT_COHERENCE_K } from "./coherence";
-import { selectComposition } from "./composition";
-import { FlatIndex } from "./index-flat";
+import {
+  computeLocalCoherence,
+  DEFAULT_COHERENCE_K,
+  scoreLocalCoherence,
+} from "./coherence";
+import {
+  selectComposition,
+  type CompositionContext,
+  type CompositionStrategy,
+} from "./composition";
+import { defaultIndexFactory, type IndexFactory } from "./index-flat";
 import {
   InMemoryMetrics,
   NoopLogger,
@@ -59,6 +68,19 @@ export interface BuildDeps {
   logger?: Logger;
   metrics?: Metrics;
   coherenceK?: number;
+  /**
+   * §0.10.0 B2 index stage. Defaults to the exact flat k-NN factory. The one
+   * index built here is used for the B5 coherence field and handed to the B6
+   * composition stage — it is not the discarded object it once was. Its `id`
+   * feeds `substrate_version` (a different index changes the coherence field).
+   */
+  index?: IndexFactory;
+  /**
+   * §0.10.0 B6 composition stage. Defaults to `selectComposition(restructure)`
+   * (passthrough unless a strategy is named). Inject a strategy to plug one in
+   * without editing the pipeline; its `id` feeds `substrate_version`.
+   */
+  composition?: CompositionStrategy;
   /**
    * Monotonic millisecond clock for the §2.1 duration metrics. A SIDE CHANNEL
    * only: durations reach `Metrics` and never the emitted artifacts, so a build
@@ -102,6 +124,7 @@ export async function runBuild(
   const embeddingProvider = deps.embeddingProvider ?? defaultEmbeddingProvider;
   const tagger = deps.tagger ?? defaultTagger;
   const coherenceK = deps.coherenceK ?? DEFAULT_COHERENCE_K;
+  const indexFactory = deps.index ?? defaultIndexFactory;
   const clock = deps.clock ?? (() => performance.now());
 
   // §2.1 — one helper so every stage reports the same way: a `.start` event, a
@@ -127,6 +150,10 @@ export async function runBuild(
   metrics.observe("corpus.document_count", options.documents.length);
   const segmentation = options.segmentation ?? DEFAULT_SEGMENTATION;
   const restructure = options.restructure ?? null;
+  // §0.10.0 B6 — the composition strategy is swappable. Default: resolve the
+  // manifest `restructure` selector (passthrough unless a strategy is named).
+  const composition =
+    deps.composition ?? selectComposition(restructure, logger);
   const recorder = options.trace ? new BuildTraceRecorder() : null;
 
   // ---- Segmentation ---------------------------------------------------------
@@ -185,11 +212,15 @@ export async function runBuild(
     vectors: vectors.length,
   });
 
-  // ---- Index construction ---------------------------------------------------
+  // ---- Index construction (§0.10.0 B2) --------------------------------------
+  // Built ONCE via the injected factory and actually used below — for the B5
+  // coherence field and by the B6 composition stage. Not serialized: `graph.json`
+  // ships the vectors and the runtime rebuilds this in O(n) (GRAPH_FORMAT.md);
+  // `header.index` records which impl to rebuild.
   const index = stage(
     "index_construction",
-    { vectors: vectors.length },
-    () => new FlatIndex(vectors),
+    { vectors: vectors.length, index: indexFactory.id },
+    () => indexFactory.build(vectors),
     (built) => ({ size: built.size }),
   );
   recorder?.recordStage("index_construction", vectors.length, index.size);
@@ -215,7 +246,7 @@ export async function runBuild(
   const coherence = stage(
     "coherence_precompute",
     { vectors: vectors.length, k: coherenceK },
-    () => computeLocalCoherence(vectors, coherenceK),
+    () => computeLocalCoherence(vectors, coherenceK, index),
     (field) => ({
       k: Math.min(coherenceK, vectors.length - 1),
       values: field.length,
@@ -240,7 +271,33 @@ export async function runBuild(
   }));
 
   // ---- Composition (restructure) — after embedding + tagging (B6) -----------
-  spans = selectComposition(restructure, logger).restructure(spans);
+  // The stage gets what a real composite needs (§0.10.0 B6): the build's embedding
+  // provider and its index, so a composite it emits is embedded and coherence-
+  // scored like any other span and fed back into the index. The default
+  // passthrough ignores the context and returns spans unchanged (INV-2).
+  const compositionCtx: CompositionContext = {
+    embed: async (texts) =>
+      (await embeddingProvider.embed(texts)).map(l2Normalize),
+    index,
+    coherenceK,
+    scoreCoherence: (vector) => scoreLocalCoherence(index, vector, coherenceK),
+  };
+  // Timed by hand (not the sync `stage` helper) because a strategy may be async —
+  // a real one embeds its composites, and embedding returns a Promise.
+  logger.log("info", "stage.composition.start", {
+    strategy: composition.id,
+    spans: spans.length,
+  });
+  const compositionStarted = clock();
+  spans = await composition.restructure(spans, compositionCtx);
+  metrics.observe(
+    "stage.composition.duration_ms",
+    clock() - compositionStarted,
+  );
+  logger.log("info", "stage.composition.end", {
+    strategy: composition.id,
+    spans: spans.length,
+  });
 
   // ---- substrate_version stamping -------------------------------------------
   const substrateVersion = computeSubstrateVersion({
@@ -253,6 +310,8 @@ export async function runBuild(
     embeddingProviderId: embeddingProvider.id,
     tokenizerId: tokenizerIdentityFor(segmentation),
     taggerId: tagger.id,
+    indexId: indexFactory.id,
+    compositionId: composition.id,
     coherenceK,
     formatVersion: GRAPH_FORMAT_VERSION,
   });
@@ -268,6 +327,7 @@ export async function runBuild(
       embedding_provider: embeddingProvider.id,
       tokenizer: tokenizerIdentityFor(segmentation),
       tagger: tagger.id,
+      index: indexFactory.id,
       segmentation,
       restructure,
       span_count: spans.length,
