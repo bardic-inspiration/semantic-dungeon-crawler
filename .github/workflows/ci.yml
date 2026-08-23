@@ -37,7 +37,7 @@ jobs:
             HEAD="${{ github.event.after }}"
           fi
 
-          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || [ -z "$HEAD" ]; then
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || [ -z "$HEAD" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             echo "docs_only=false" >> "$GITHUB_OUTPUT"
             echo "No comparable base commit (new branch or force-push) — running full checks."
             exit 0
