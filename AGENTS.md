@@ -39,7 +39,8 @@ if it passes tests.
   backend logic. Same inputs ⇒ **byte-identical** output. (SPEC §4.5) Under the
   §0.8.0 three-tier model this is a *replay* guarantee: substrate queries
   (Tier 2) are stochastic across seeds by design, but seeded from
-  `(session_seed, turn_count, query)`, so replaying one input-log still
+  `(session_seed, normalized_query)` (position carried by the query;
+  `turn_count` is not a seed component — SPEC §0.13.0), so replaying one input-log still
   reproduces byte-identical output; overlay state (Tier 3) is deterministic
   outright. (SPEC §3.7, §4.5)
 - **`INV-3` — Client sees only resolved JSON.** The client never receives the
@@ -61,8 +62,9 @@ if it passes tests.
   `packages/schema/CHANGELOG.md` entry in the same commit — never silent mutation.
 
 > The two easiest to break by accident: **`INV-2` (determinism)** — reach for a
-> seeded PRNG derived from `(session_seed, turn_count, normalized_query)`, never
-> `Math.random()` or `Date.now()`; and **`INV-3` (import boundary)** — to be
+> seeded PRNG derived from `(session_seed, normalized_query)` (SPEC §0.13.0 —
+> `normalized_query` carries the position; `turn_count` is not a seed component),
+> never `Math.random()` or `Date.now()`; and **`INV-3` (import boundary)** — to be
 > enforced by an ESLint rule (added in Phase 4 for `client-cli`, SPEC §6.5;
 > extended to `client-threejs` in Phase 5, SPEC §6.6). That rule does not exist
 > yet, so today the boundary holds by discipline alone — respect it from day one.

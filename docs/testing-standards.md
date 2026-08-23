@@ -30,10 +30,10 @@ makes it pass.
 - **Determinism** (`INV-2`, SPEC §4.5): given identical
   `(graph.json, ruleset.dsl, session_seed, input-log)`, `resolveMove` and
   `populate` produce **byte-identical** output across independent runs. Sampling
-  uses a seeded PRNG derived from `(session_seed, turn_count, normalized_query)`
+  uses a seeded PRNG derived from `(session_seed, normalized_query)`
   (SPEC §0.10.0 B3 — `normalized_query` is the canonicalized, hashed substrate
-  query, so two spellings of one query seed identically) — never wall-clock or
-  unseeded randomness.
+  query, so two spellings of one query seed identically; SPEC §0.13.0 —
+  `turn_count` is not a seed component) — never wall-clock or unseeded randomness.
 - **Function identity** (SPEC §4.4): a test asserts `resolveMove` and `populate`
   call the *same* `evaluateLayers` reference — not merely equivalent output.
 - **`INV-4` conformance** (SPEC §4.3): two `override`-mode layers with
