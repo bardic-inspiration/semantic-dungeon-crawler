@@ -3,7 +3,7 @@
 // SPEC §6.3 / §6.3.1 — the `corpus-builder` CLI: `build`, `inspect`, `eval`.
 //   corpus-builder build   --input DIR --output FILE [--manifest FILE] [--trace] [--verbosity L]
 //   corpus-builder inspect --graph FILE (--node ID | --trace) [--verbosity L]
-//   corpus-builder eval    --graph FILE [--verbosity L]
+//   corpus-builder eval    --graph FILE [--nn-k K] [--verbosity L]
 //
 // Command logic is factored so the pipeline/inspect/eval modules stay pure and
 // I/O lives here (injectable `CliIO` — tests drive `runCli` without a subprocess).
@@ -275,7 +275,15 @@ async function cmdEval(
     ? parseRegistryText(await readFile(registryPath, "utf8"))
     : undefined;
 
-  const report = evaluateBuild(bundle, registry);
+  // §0.11.0 C4 — optional k for the k-NN nearest-neighbour spread (#107);
+  // `evaluateBuild` applies DEFAULT_NN_K when omitted.
+  const nnK =
+    typeof flags["nn-k"] === "string" ? Number(flags["nn-k"]) : undefined;
+  if (nnK !== undefined && !Number.isFinite(nnK)) {
+    throw new Error("--nn-k must be a number");
+  }
+
+  const report = evaluateBuild(bundle, registry, nnK);
   // §0.11.0 C4 — `eval` reuses the same `Logger`/`Metrics` as the build. The
   // report flows through the side channel (never gating, INV-4) as well as stdout.
   reportEvalMetrics(report, logger, new InMemoryMetrics());
