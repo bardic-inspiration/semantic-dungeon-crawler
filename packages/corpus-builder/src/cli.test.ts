@@ -4,7 +4,30 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { runCli, type CliIO } from "./cli";
+import { runCli, type CliDeps, type CliIO } from "./cli";
+import { ConsoleLogger, type LogLevel } from "./instrumentation";
+
+/**
+ * Capture what the wired `Logger` actually prints at the resolved level — the
+ * real `ConsoleLogger` gating, just aimed at a buffer instead of `stderr`. Also
+ * records the level the CLI resolved, so a test can assert the flag/env/default
+ * precedence §5.4 requires.
+ */
+function capturingDeps(env?: Record<string, string | undefined>): CliDeps & {
+  logs: string[];
+  levels: LogLevel[];
+} {
+  const logs: string[] = [];
+  const levels: LogLevel[] = [];
+  const deps: CliDeps = {
+    makeLogger: (level) => {
+      levels.push(level);
+      return new ConsoleLogger(level, (line) => logs.push(line));
+    },
+  };
+  if (env) deps.env = env;
+  return { ...deps, logs, levels };
+}
 
 const CORPUS_DIR = fileURLToPath(
   new URL("../test-assets/corpus", import.meta.url),
@@ -116,5 +139,94 @@ describe("corpus-builder CLI (§6.3 Exit)", () => {
   it("unknown command returns a non-zero exit code", async () => {
     const io = collectingIO();
     expect(await runCli(["frobnicate"], io)).toBe(2);
+  });
+});
+
+describe("corpus-builder --verbosity (§5.4 / §6.3.1)", () => {
+  async function buildAt(
+    args: string[],
+    env?: Record<string, string | undefined>,
+  ): Promise<{ logs: string[]; levels: LogLevel[]; code: number }> {
+    const graph = await tempGraphPath();
+    const deps = capturingDeps(env);
+    const code = await runCli(
+      ["build", "--input", CORPUS_DIR, "--output", graph, ...args],
+      collectingIO(),
+      deps,
+    );
+    return { logs: deps.logs, levels: deps.levels, code };
+  }
+
+  it("defaults to warn, suppressing the info-level per-stage events (§5.4)", async () => {
+    const { levels, logs, code } = await buildAt([]);
+    expect(code).toBe(0);
+    expect(levels).toEqual(["warn"]);
+    expect(logs.some((l) => l.includes("stage.segmentation.start"))).toBe(
+      false,
+    );
+  });
+
+  it("--verbosity=info emits the §6.3 per-stage Logger events", async () => {
+    const { levels, logs } = await buildAt(["--verbosity=info"]);
+    expect(levels).toEqual(["info"]);
+    expect(logs.some((l) => l.includes("stage.segmentation.start"))).toBe(true);
+    expect(logs.some((l) => l.includes("stage.embedding.end"))).toBe(true);
+  });
+
+  it("--verbosity=debug produces the MOST output, not the least", async () => {
+    const info = await buildAt(["--verbosity=info"]);
+    const debug = await buildAt(["--verbosity=debug"]);
+    const error = await buildAt(["--verbosity=error"]);
+    expect(debug.levels).toEqual(["debug"]);
+    expect(debug.logs.length).toBeGreaterThanOrEqual(info.logs.length);
+    expect(debug.logs.length).toBeGreaterThan(error.logs.length);
+  });
+
+  it("honours SDC_LOG_LEVEL as the env fallback (§5.4)", async () => {
+    const { levels, logs } = await buildAt([], { SDC_LOG_LEVEL: "info" });
+    expect(levels).toEqual(["info"]);
+    expect(logs.some((l) => l.includes("stage.segmentation.start"))).toBe(true);
+  });
+
+  it("an explicit --verbosity flag overrides SDC_LOG_LEVEL", async () => {
+    const { levels } = await buildAt(["--verbosity=error"], {
+      SDC_LOG_LEVEL: "debug",
+    });
+    expect(levels).toEqual(["error"]);
+  });
+
+  it("surfaces an unrecognized value instead of silently downgrading", async () => {
+    const io = collectingIO();
+    const code = await runCli(
+      [
+        "build",
+        "--input",
+        CORPUS_DIR,
+        "--output",
+        "/dev/null",
+        "--verbosity=verbose",
+      ],
+      io,
+      capturingDeps(),
+    );
+    expect(code).toBe(2);
+    expect(io.err.join("\n")).toMatch(/unrecognized --verbosity "verbose"/);
+    expect(io.err.join("\n")).toContain("error | warn | info | debug");
+  });
+
+  it("eval reuses the Logger — emitting eval.report at info", async () => {
+    const graph = await tempGraphPath();
+    await runCli(
+      ["build", "--input", CORPUS_DIR, "--output", graph],
+      collectingIO(),
+    );
+    const deps = capturingDeps();
+    const code = await runCli(
+      ["eval", "--graph", graph, "--verbosity=info"],
+      collectingIO(),
+      deps,
+    );
+    expect(code).toBe(0);
+    expect(deps.logs.some((l) => l.includes("eval.report"))).toBe(true);
   });
 });
