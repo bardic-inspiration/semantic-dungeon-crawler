@@ -8,7 +8,15 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Entity, InterpretationLookup, Layer, SessionState } from "schema";
 import * as solver from "./solver";
-import { resolveMove, populate, MAX_ROOM_OBJECTS } from "./solver";
+import {
+  resolveMove,
+  populate,
+  MAX_ROOM_OBJECTS,
+  DEFAULT_QUERY_K,
+  DEFAULT_QUERY_RADIUS,
+  MALFORMED_PREDICATE_EVENT,
+  MALFORMED_SCOPE_EVENT,
+} from "./solver";
 import { createSubstrateGraph, type Graph, type GraphSpan } from "./graph";
 import { mintEntity, type SubstrateSpanView } from "./interpretation";
 import { CollectingLogger } from "./instrumentation";
@@ -384,6 +392,145 @@ describe("INV-4 conformance — contradictory overrides (§6.4 Exit)", () => {
     // survive → a destination resolves despite the later hard_forbid override.
     expect(move.destination).not.toBeNull();
     expect(log.warnings()).toContain(OVERRIDE_CONFLICT_EVENT);
+  });
+
+  it("logs the override conflict once per resolution, not once per candidate (#107)", () => {
+    // buildGraph exposes a multi-candidate pool, so the per-candidate resolution
+    // loop hits the same authoring conflict on every candidate. The warning must
+    // still surface exactly once for the resolution.
+    const { graph } = buildGraph();
+    const log = new CollectingLogger();
+    resolveMove(makeState(), graph, conflicting(), { logger: log });
+
+    const conflicts = log
+      .warnings()
+      .filter((e) => e === OVERRIDE_CONFLICT_EVENT);
+    expect(conflicts.length).toBe(1);
+  });
+});
+
+// ── §4.4 B3 (#107) — query `k` decoupled from the population target ────────────
+
+describe("DEFAULT_QUERY_K is decoupled from the population target (§4.4 B3, #107)", () => {
+  // A wide substrate: an origin plus 20 traversal-capable neighbours fanned out
+  // by angle so ranking is total. At density 1.0 the population target is
+  // MAX_ROOM_OBJECTS (12), and the pool must be strictly larger for the draw to
+  // be a selection rather than a permutation of the whole pool.
+  function wideGraph(): { graph: Graph; room: Entity } {
+    const roomSpan = makeSpan("origin", { archetype: "container" });
+    const room = mintEntity(roomSpan, TEST_INTERPRETATION);
+    const spans: GraphSpan[] = [span(roomSpan, [1, 0])];
+    for (let i = 0; i < 20; i++) {
+      // Small angles keep every neighbour well within DEFAULT_QUERY_RADIUS.
+      const theta = (i + 1) * 0.02;
+      spans.push(
+        span(makeSpan(`n${i}`, { archetype: "portal" }), [
+          Math.cos(theta),
+          Math.sin(theta),
+        ]),
+      );
+    }
+    return { graph: createSubstrateGraph(spans), room };
+  }
+
+  it("draws MORE candidates than the population target", () => {
+    expect(DEFAULT_QUERY_K).toBeGreaterThan(MAX_ROOM_OBJECTS);
+  });
+
+  it("at density 1.0 samples a selection from a larger pool, not the whole pool", () => {
+    const { graph, room } = wideGraph();
+    const result = populate(room, makeState(), graph, []);
+    // Target round(1.0 * 12) = 12 objects, chosen from the >12-candidate pool.
+    expect(result.objects.length).toBe(MAX_ROOM_OBJECTS);
+  });
+});
+
+// ── §4.4 B3 (#107) — engine-default radius ────────────────────────────────────
+
+describe("populate supplies an engine-default radius (§4.4 B3, #107)", () => {
+  // Origin at [1,0] with a near neighbour and a diametrically opposite one
+  // (cosine distance 2 > DEFAULT_QUERY_RADIUS). The far span must be bounded out
+  // by default, and admitted only when the caller widens the radius.
+  function graphWithFarSpan(): { graph: Graph; room: Entity } {
+    const roomSpan = makeSpan("origin", { archetype: "container" });
+    const room = mintEntity(roomSpan, TEST_INTERPRETATION);
+    const spans: GraphSpan[] = [
+      span(roomSpan, [1, 0]),
+      span(makeSpan("near", { archetype: "portal" }), [0.99, 0.14]),
+      span(makeSpan("far", { archetype: "portal" }), [-1, 0]),
+    ];
+    return { graph: createSubstrateGraph(spans), room };
+  }
+
+  it("bounds out a span beyond the default radius", () => {
+    expect(DEFAULT_QUERY_RADIUS).toBeLessThan(2);
+    const { graph, room } = graphWithFarSpan();
+    const result = populate(room, makeState(), graph, []);
+    const ids = result.objects.map((o) => o.id);
+    expect(ids).toContain("vec:near");
+    expect(ids).not.toContain("vec:far");
+  });
+
+  it("admits the far span when an explicit radius widens the query", () => {
+    const { graph, room } = graphWithFarSpan();
+    const result = populate(room, makeState(), graph, [], { radius: 2 });
+    const ids = result.objects.map((o) => o.id);
+    expect(ids).toContain("vec:far");
+  });
+});
+
+// ── §2.1 / §3.6.2 C5 (#107) — malformed predicates/scopes surface at warn ──────
+
+describe("malformed predicates and scopes surface through the Logger (#107)", () => {
+  it("warns on a malformed predicate, and that rule never fires (INV-4)", () => {
+    const { graph } = buildGraph();
+    const log = new CollectingLogger();
+    const layers: Layer[] = [
+      {
+        id: "bad-pred",
+        scope: "global",
+        mode: { priority: 1 },
+        // A syntactically malformed predicate — parseOrNull returns null.
+        rules: [
+          { predicate: "static.archetype ==", effect: { kind: "hard_forbid" } },
+        ],
+      },
+    ];
+    // hard_forbid would empty the pool if it fired; a malformed predicate never
+    // fires, so a destination still resolves.
+    const move = resolveMove(makeState(), graph, layers, { logger: log });
+    expect(move.destination).not.toBeNull();
+
+    const entry = log.entries.find(
+      (e) => e.event === MALFORMED_PREDICATE_EVENT,
+    );
+    expect(entry?.level).toBe("warn");
+    expect(entry?.fields).toMatchObject({ layer: "bad-pred", rule: 0 });
+  });
+
+  it("warns on a malformed scope, and that layer deactivates (INV-4)", () => {
+    const { graph } = buildGraph();
+    const log = new CollectingLogger();
+    const layers: Layer[] = [
+      {
+        id: "bad-scope",
+        scope: "dynamic.turn_count >=", // malformed
+        mode: { priority: 1 },
+        rules: [
+          {
+            predicate: "static.embedding_distance >= 0",
+            effect: { kind: "hard_forbid" },
+          },
+        ],
+      },
+    ];
+    // The layer deactivates (its hard_forbid never applies), so a move resolves.
+    const move = resolveMove(makeState(), graph, layers, { logger: log });
+    expect(move.destination).not.toBeNull();
+
+    const entry = log.entries.find((e) => e.event === MALFORMED_SCOPE_EVENT);
+    expect(entry?.level).toBe("warn");
+    expect(entry?.fields).toMatchObject({ layer: "bad-scope" });
   });
 });
 

@@ -96,7 +96,10 @@ export {
   populate,
   MAX_ROOM_OBJECTS,
   DEFAULT_QUERY_K,
+  DEFAULT_QUERY_RADIUS,
   DEFAULT_MOVEMENT_AFFORDANCES,
+  MALFORMED_PREDICATE_EVENT,
+  MALFORMED_SCOPE_EVENT,
 } from "./solver";
 export type {
   WeightedCandidate,

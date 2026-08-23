@@ -43,6 +43,7 @@ import {
 import {
   resolutionOrder,
   resolveLayers,
+  OVERRIDE_CONFLICT_EVENT,
   type HardDecision,
 } from "./layer-resolution";
 import { createDebugTrace, type DebugConfig } from "./debug-trace";
@@ -63,8 +64,33 @@ import type { Graph } from "./graph";
  */
 export const MAX_ROOM_OBJECTS = 12;
 
-/** Default candidate-pool size for a substrate query (§4.4 B3 `k`; ruleset-tunable). */
-export const DEFAULT_QUERY_K = MAX_ROOM_OBJECTS;
+/**
+ * Default candidate-pool size for a substrate query (§4.4 B3 `k`; ruleset-tunable).
+ *
+ * DECOUPLED from {@link MAX_ROOM_OBJECTS} (#107). The query `k` must exceed the
+ * population target, or weighted sampling degenerates: at `density = 1.0` the
+ * target is `round(1.0 * MAX_ROOM_OBJECTS) = 12`, so a `k` of 12 makes the draw a
+ * *permutation* of the whole candidate pool rather than a *selection* from it, and
+ * §4.4/B3's "the nearest span becomes the room, the remaining k−1 are the
+ * candidate pool" accounting no longer holds. The headroom keeps `populate` a
+ * genuine weighted draw at every density.
+ */
+export const DEFAULT_QUERY_K = 32;
+
+/**
+ * Default cosine-distance cutoff for the §4.4 zero-radius embedding-proximity
+ * query (§4.4 B3 `radius`; ruleset-tunable).
+ *
+ * B3 names the default radius as "ruleset config with engine defaults"; this is
+ * that engine default (#107). Without it `populate`'s "radius bounded by embedding
+ * proximity" is an unbounded k-NN in practice — every span is a candidate,
+ * however unrelated. Cosine distance is `[0, 2]` (§0.10.0 B2); `1.0` is
+ * orthogonality, so spans in the same or a positively correlated direction as the
+ * origin survive while the unrelated far tail is bounded out. An explicit
+ * `PopulateOptions.radius` (including `0`) overrides it — only an *absent* radius
+ * takes this default.
+ */
+export const DEFAULT_QUERY_RADIUS = 1.0;
 
 /**
  * §0.9.0 (A4) — the engine-default movement affordances. An object contributes a
@@ -178,7 +204,11 @@ export interface ResolveMoveOptions {
 }
 
 export interface PopulateOptions {
-  /** Region cutoff for the zero-radius embedding-proximity query (§4.4). */
+  /**
+   * Region cutoff for the zero-radius embedding-proximity query (§4.4). Defaults
+   * to {@link DEFAULT_QUERY_RADIUS} when omitted; an explicit value (including 0)
+   * overrides the engine default.
+   */
   radius?: number;
   /** Candidate-pool size for the query; defaults to {@link DEFAULT_QUERY_K}. */
   k?: number;
@@ -215,10 +245,26 @@ export interface PreparedLayer {
   rules: PreparedRule[];
 }
 
+/**
+ * A malformed §4.2 predicate string, surfaced through the §2.1 `Logger` at `warn`
+ * (#107). INV-4 keeps such a rule running (the predicate never fires) rather than
+ * rejecting the ruleset; the §3.6.2/C5 "surface, never reject" stance means the
+ * divergence is still visible, not silently swallowed.
+ */
+export const MALFORMED_PREDICATE_EVENT = "solver.malformed_predicate";
+
+/**
+ * A malformed §4.2 scope string, surfaced through the §2.1 `Logger` at `warn`
+ * (#107). The layer stays out of the active stack for this resolution (its scope
+ * cannot be evaluated), but that deactivation is surfaced rather than silent.
+ */
+export const MALFORMED_SCOPE_EVENT = "solver.malformed_scope";
+
 // Parse a §4.2 DSL string, tolerating a malformed one as "absent" (INV-4: the
 // solver never throws mid-resolution — a bad predicate simply never fires, a bad
 // scope leaves its layer inactive). A non-`ParseError` throw is a real bug and
-// still propagates.
+// still propagates. Surfacing the malformed string is the caller's job (it holds
+// the layer/rule context for a useful `warn`), per "surface, never reject".
 function parseOrNull(source: string): Expression | null {
   try {
     return parse(source);
@@ -236,22 +282,66 @@ function parseOrNull(source: string): Expression | null {
 function prepareActiveLayers(
   layers: readonly Layer[],
   state: SessionState,
+  logger: Logger,
 ): PreparedLayer[] {
   const active: PreparedLayer[] = [];
   for (const layer of layers) {
     if (layer.scope !== "global") {
       const scopeAst = parseOrNull(layer.scope);
-      if (scopeAst === null || !evaluate(scopeAst, { state })) continue;
+      if (scopeAst === null) {
+        // INV-4: a malformed scope leaves its layer inactive rather than being
+        // rejected — but surface it, don't swallow it (§3.6.2/C5, #107).
+        logger.log("warn", MALFORMED_SCOPE_EVENT, {
+          layer: layer.id,
+          scope: layer.scope,
+        });
+        continue;
+      }
+      if (!evaluate(scopeAst, { state })) continue;
     }
-    active.push({
-      layer,
-      rules: layer.rules.map((rule) => ({
-        effect: rule.effect,
-        predicate: parseOrNull(rule.predicate),
-      })),
+    const rules: PreparedRule[] = layer.rules.map((rule, ruleIndex) => {
+      const predicate = parseOrNull(rule.predicate);
+      if (predicate === null) {
+        // INV-4: a malformed predicate never fires — but surface it (#107).
+        logger.log("warn", MALFORMED_PREDICATE_EVENT, {
+          layer: layer.id,
+          rule: ruleIndex,
+          predicate: rule.predicate,
+        });
+      }
+      return { effect: rule.effect, predicate };
     });
+    active.push({ layer, rules });
   }
   return active;
+}
+
+/**
+ * Wrap a `Logger` so the §4.3 override-conflict warning surfaces once per
+ * resolution rather than once per candidate (#107). A conflict between two
+ * `override` layers is an AUTHORING property of the layer stack, not of any single
+ * candidate, but `resolveLayers` runs per candidate (§4.1 loop) and so re-emits
+ * the same warning N times. This suppresses the repeats — keyed by the conflict's
+ * identity (which layer was kept, which ignored, the decision) — while every other
+ * event passes straight through unchanged. Logging stays a pure side channel
+ * (INV-2): dropping duplicates changes nothing a replay observes.
+ */
+function dedupeOverrideConflicts(logger: Logger): Logger {
+  const seen = new Set<string>();
+  return {
+    log(level, event, fields) {
+      if (event === OVERRIDE_CONFLICT_EVENT) {
+        const key = JSON.stringify([
+          fields?.kept,
+          fields?.ignored,
+          fields?.decision,
+        ]);
+        if (seen.has(key)) return;
+        seen.add(key);
+      }
+      logger.log(level, event, fields);
+    },
+  };
 }
 
 // ── The shared core (§4.1 loop) ───────────────────────────────────────────────
@@ -290,6 +380,9 @@ export function evaluateLayers(
   options: EvaluateLayersOptions = {},
 ): EvaluateLayersResult {
   const logger = options.logger ?? new NoopLogger();
+  // The override-conflict warning is per-authoring-conflict, but the resolution
+  // loop below evaluates it per candidate; dedupe so it surfaces once (#107).
+  const conflictLogger = dedupeOverrideConflicts(logger);
   const debug = options.debug;
   // §0.9.0 (A13) / §3.7.1 — a substrate query returns UNINTERPRETED spans; an
   // `Entity` is minted here, per resolution, through the interpretation lookup.
@@ -309,7 +402,7 @@ export function evaluateLayers(
     embedding_distance: sc.embedding_distance,
   }));
   const rng = seededRng(state.session_seed, state.turn_count, query);
-  const activeLayers = prepareActiveLayers(layers, state);
+  const activeLayers = prepareActiveLayers(layers, state, logger);
   const ordered = resolutionOrder(activeLayers.map((a) => a.layer));
 
   // Index prepared rules by layer id so the resolution-ordered walk can pull each
@@ -359,7 +452,7 @@ export function evaluateLayers(
       return { layer, effects };
     });
 
-    const resolution = resolveLayers(layerEffects, logger);
+    const resolution = resolveLayers(layerEffects, conflictLogger);
     if (recorder) {
       // Soft scores stack regardless of the hard decision (§4.3.4), so record
       // every candidate's — even one about to be hard_forbidden out of the pool.
@@ -570,10 +663,14 @@ export function populate(
   const movementAffordances =
     options.movementAffordances ?? DEFAULT_MOVEMENT_AFFORDANCES;
 
+  // §4.4 B3 — supply the engine-default radius when the caller omits one, so the
+  // "radius bounded by embedding proximity" query is bounded rather than an
+  // unbounded k-NN (#107). An explicit `radius` (including 0) overrides it.
+  const radius = options.radius ?? DEFAULT_QUERY_RADIUS;
   const query: Query = {
     origin: { vector_ref: room.embedding_ref },
     k,
-    ...(options.radius !== undefined ? { radius: options.radius } : {}),
+    radius,
   };
 
   const result = solverCore.evaluateLayers(graph, query, state, layers, {
