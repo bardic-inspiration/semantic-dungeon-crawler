@@ -339,6 +339,33 @@ function toPattern(value: EvalValue): MatchPattern | undefined {
 
 // ── MATCHES glob (§4.2 pattern grammar over §3.6 structured tags) ─────────────
 
+/**
+ * True iff one structured tag matches one §4.2 `MATCHES` pattern string.
+ *
+ * The same glob the `MATCHES` operator uses, exposed for the §0.9.0 (A13)
+ * interpretation lookup, whose `by_tag` entries are "`pattern`" strings in that
+ * grammar (§3.4). Sharing the implementation is the point: an author who learns
+ * the pattern rules for a predicate must not find different rules in a lookup.
+ *
+ * A pattern that does not parse is a defined NON-MATCH rather than a throw
+ * (INV-4) — a malformed lookup entry is legal and simply never matches.
+ */
+export function matchesTagPattern(tag: string, rawPattern: string): boolean {
+  let pattern: MatchPattern;
+  try {
+    pattern = parseMatchPattern(rawPattern, -1);
+  } catch {
+    return false;
+  }
+  const parsed = parseTag(tag);
+  if (parsed === null) return false;
+  return (
+    modifierMatches(pattern.modifier, parsed.modifier) &&
+    segmentsMatch(pattern.segments, parsed.segments) &&
+    valueMatches(pattern.value, parsed.value)
+  );
+}
+
 // True iff any tag in `tags` matches `pattern`. A non-string-array haystack or an
 // absent pattern is a defined non-match; an ill-formed tag string simply doesn't
 // match (INV-4).
