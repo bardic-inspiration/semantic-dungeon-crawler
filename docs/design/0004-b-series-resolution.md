@@ -69,8 +69,14 @@ overlap, no tokenizer loaded.
 **Tokenizer.** `char`/`word`/`sentence` are zero-dependency regex tilings
 (`sentence` is a fixed, documented, deliberately-crude splitter — `INV-4` makes
 crude-but-deterministic legal). `unit: token` lazily loads a tokenizer behind a
-swappable `Tokenizer` interface (default `cl100k_base` via a pure-JS BPE library),
-so the dependency lands only on builds that ask for it.
+swappable `Tokenizer` interface. **The shipped alpha default is a zero-dependency,
+deterministic approximate tokenizer (`approx-token-v1`, a GPT-style regex
+pre-tokenizer), not `cl100k_base`** (spec §0.13.1). A production BPE tokenizer
+(`cl100k_base` et al., via a pure-JS BPE library) is the deferred richer swap-in
+behind the same interface, so the BPE dependency lands only if a build opts into
+it — keeping the default build model-free and byte-identical from scratch. Either
+way the tokenizer's pinned `id` feeds `substrate_version`, so a tokenizer swap is
+a visible new build id, not a silent drift.
 
 **Determinism.** Normalize line endings (CRLF→LF) first; apply the mode's fixed
 split; record each span's exact `char_ranges` (overlap → legitimately overlapping

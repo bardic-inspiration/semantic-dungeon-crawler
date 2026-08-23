@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.13.0`
+`spec-version: 0.13.1`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -184,6 +184,21 @@
 > `INV-2` is untouched: given `(graph.json, ruleset, session_seed, input-log)`,
 > output stays byte-identical — only the seed's *components* change. Additive/
 > corrective at the 0.x level (MINOR under §3.5's convention), hence `0.13.0`.
+
+> **§0.13.1 — tokenizer default named (issue #107).** A conformance audit found
+> §0.10.0 B1 (and `docs/design/0004`) naming `cl100k_base` as the pinned default
+> `Tokenizer` for `unit: token`, while the pipeline ships a zero-dependency,
+> deterministic approximate tokenizer (`approx-token-v1`). Rather than pull a BPE
+> dependency into the otherwise model-free, byte-identical default build, this
+> amendment **names the shipped approximate tokenizer as the alpha default** and
+> records `cl100k_base` (and other production BPE tokenizers) as the deferred
+> richer swap-in behind the same `Tokenizer` interface — the B-series "interface +
+> one default now, richer impl later" pattern, and the reason token-counting is
+> defined as *approximate sizing* (B1). The tokenizer's pinned `id` still feeds
+> `substrate_version`, so swapping in a production tokenizer stays a visible new
+> build id, never a silent drift. No schema/protocol surface changes; a
+> documentation/decision correction (PATCH under §3.5's convention), hence
+> `0.13.1`.
 > Cross-referenced from §3.3 (A6), §3.8, §4.5. **Making the code conform (removing
 > `turn_count` from the seed derivation and updating when the server advances it) is
 > a follow-on code issue, out of scope here** — the spec is the contract; code
@@ -1274,11 +1289,18 @@ Each phase has explicit **Entry** (what must already be true), **Build** (what t
 >   ∈ char/word/sentence/token × `grouping` ∈ boundary (blank-line / newline /
 >   delimiter) | fixed (N units, overlap k). Default: boundary on blank lines,
 >   overlap 0 (paragraphs). `char`/`word`/`sentence` are zero-dep regex tilings;
->   `unit: token` lazily loads a pinned `Tokenizer` (default `cl100k_base`),
->   whose identity feeds `substrate_version`. Line endings are normalized
->   (CRLF→LF) first; token-counting is approximate sizing, decoupled from the
->   embedding provider's tokenizer. Structureless / half-sentence corpora are
->   legal (`INV-4`).
+>   `unit: token` lazily loads a pinned `Tokenizer` whose identity feeds
+>   `substrate_version`. **§0.13.1 — the shipped alpha default `Tokenizer` is a
+>   zero-dependency, deterministic approximate tokenizer (`approx-token-v1`, a
+>   GPT-style regex pre-tokenizer), not `cl100k_base`.** A production BPE tokenizer
+>   (`cl100k_base` et al., via a pure-JS BPE library) is the deferred richer
+>   swap-in behind the same `Tokenizer` interface — the B-series "interface + one
+>   default now, richer impl later" pattern, and the reason token-counting is
+>   defined as *approximate sizing* in the first place. Swapping it in bumps the
+>   pinned `id` and therefore `substrate_version`, so it is a visible new build id,
+>   never a silent drift. Line endings are normalized (CRLF→LF) first;
+>   token-counting is approximate sizing, decoupled from the embedding provider's
+>   tokenizer. Structureless / half-sentence corpora are legal (`INV-4`).
 > - **Embedding + normalization (B2)** — after the provider embeds each span,
 >   **L2-normalize every vector at build time**. This fixes
 >   `static.embedding_distance` as **cosine distance, range `[0,2]`, smaller =
