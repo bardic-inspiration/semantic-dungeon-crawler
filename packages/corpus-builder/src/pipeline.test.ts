@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runBuild, serializeBuildTrace, serializeBundle } from "./pipeline";
 import { CollectingLogger } from "./instrumentation";
+import type { Tagger, TagResult } from "./tagging";
 import type { ResolvedDocument } from "./sources/types";
 
 const CORPUS: ResolvedDocument[] = [
@@ -157,5 +158,67 @@ describe("substrate_version covers every content-determining build input (§6.3)
 
     expect(a.bundle.substrate_version).toBe(b.bundle.substrate_version);
     expect(serializeBundle(a.bundle)).toBe(serializeBundle(b.bundle));
+  });
+});
+
+// ── §6.3.1 (#107) — the tagger receives document metadata (incl. title) ────────
+
+describe("runBuild passes document metadata through to the tagger (§6.3.1, #107)", () => {
+  it("hands each span its document's metadata with the title folded in", async () => {
+    const seen: (Record<string, unknown> | undefined)[] = [];
+    const spyTagger: Tagger = {
+      id: "spy-tagger-v1",
+      tag(_text: string, metadata?: Record<string, unknown>): TagResult {
+        seen.push(metadata);
+        return { tags: [], archetype: "prop" };
+      },
+    };
+
+    const documents: ResolvedDocument[] = [
+      {
+        source_id: "file:doc.txt",
+        title: "The Real Title",
+        raw_text:
+          "A winding river ran through the green forest.\n\n" +
+          "Gold coins set the market price of every traded good.",
+        metadata: { author: "Ada", subjects: ["fiction"] },
+      },
+    ];
+
+    await runBuild({ documents }, { tagger: spyTagger });
+
+    expect(seen.length).toBeGreaterThan(0);
+    for (const meta of seen) {
+      expect(meta).toMatchObject({
+        title: "The Real Title",
+        author: "Ada",
+        subjects: ["fiction"],
+      });
+    }
+  });
+
+  it("the document's title field wins over a metadata.title key", async () => {
+    let captured: Record<string, unknown> | undefined;
+    const spyTagger: Tagger = {
+      id: "spy-tagger-v2",
+      tag(_text: string, metadata?: Record<string, unknown>): TagResult {
+        captured = metadata;
+        return { tags: [], archetype: "prop" };
+      },
+    };
+
+    const documents: ResolvedDocument[] = [
+      {
+        source_id: "file:doc.txt",
+        title: "Canonical",
+        raw_text:
+          "A winding river ran through the green forest.\n\n" +
+          "Gold coins set the market price of every traded good.",
+        metadata: { title: "Stale" },
+      },
+    ];
+
+    await runBuild({ documents }, { tagger: spyTagger });
+    expect(captured?.title).toBe("Canonical");
   });
 });
