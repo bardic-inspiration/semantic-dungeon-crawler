@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_NN_K,
   evaluateBuild,
   formatEvalReport,
   parseRegistryText,
@@ -88,5 +89,59 @@ describe("evaluateBuild — build-quality reporting (C4)", () => {
     if (report.tag_orphan_rate.total_tags > 0) {
       expect(report.tag_orphan_rate.orphan_rate).toBeGreaterThan(0);
     }
+  });
+});
+
+// ── C4 (#107) — nearest-neighbour spread is a k-NN distribution ────────────────
+
+describe("nearest-neighbour spread uses a documented k-NN default (C4, #107)", () => {
+  it("exports a sensible default k", () => {
+    expect(DEFAULT_NN_K).toBeGreaterThanOrEqual(1);
+  });
+
+  it("keeps one value per span (count === span count) at the default k", async () => {
+    const { bundle } = await runBuild({ documents: COHERENT });
+    const report = evaluateBuild(bundle);
+    expect(report.nearest_neighbor_spread.count).toBe(bundle.spans.length);
+  });
+
+  it("still distinguishes coherent from noise at k=1 and at a larger k", async () => {
+    const coherent = (await runBuild({ documents: COHERENT })).bundle;
+    const noise = (await runBuild({ documents: NOISE })).bundle;
+    for (const k of [1, 3]) {
+      expect(
+        evaluateBuild(coherent, undefined, k).nearest_neighbor_spread.mean,
+      ).toBeLessThan(
+        evaluateBuild(noise, undefined, k).nearest_neighbor_spread.mean,
+      );
+    }
+  });
+
+  it("a degenerate k (< 1) is clamped, never throws", async () => {
+    const { bundle } = await runBuild({ documents: COHERENT });
+    expect(() => evaluateBuild(bundle, undefined, 0)).not.toThrow();
+    expect(
+      evaluateBuild(bundle, undefined, 0).nearest_neighbor_spread.count,
+    ).toBe(bundle.spans.length);
+  });
+});
+
+// ── C4 (#107) — orphan rate is a drift signal, not a build-quality one ─────────
+
+describe("tag orphan rate reflects registry drift, not build quality (C4, #107)", () => {
+  it("is structurally 0 for a build checked against its own registry", async () => {
+    const { bundle, registryYaml } = await runBuild({ documents: COHERENT });
+    const report = evaluateBuild(bundle, parseRegistryText(registryYaml));
+    expect(report.tag_orphan_rate.checked_against_registry).toBe(true);
+    expect(report.tag_orphan_rate.orphan_rate).toBe(0);
+  });
+
+  it("only fires against a stale/hand-edited registry missing a produced path", async () => {
+    const { bundle } = await runBuild({ documents: COHERENT });
+    const stale = parseRegistryText("substrate_version: sv_x\ntags:\n");
+    const report = evaluateBuild(bundle, stale);
+    // COHERENT produces tags, so an empty registry orphans all of them.
+    expect(report.tag_orphan_rate.total_tags).toBeGreaterThan(0);
+    expect(report.tag_orphan_rate.orphan_rate).toBeGreaterThan(0);
   });
 });

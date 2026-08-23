@@ -11,6 +11,15 @@
 // fraction of tags orphaned against `tag-registry.yaml`), and NEAREST-NEIGHBOR
 // SPREAD (k-NN cosine-distance distribution — what makes a shuffled-noise corpus
 // visibly distinguishable from a coherent one, the silent failure mode C4 names).
+//
+// ORPHAN RATE — a scope note (#107). The DEFAULT pipeline seeds
+// `tag-registry.yaml` from the corpus's own tags (`pipeline.ts`), so a build's
+// own registry can never orphan its own tags: the orphan rate is structurally 0
+// for a matched (bundle, registry) pair. It is a DRIFT signal, not a build-quality
+// signal: it only fires when `evaluateBuild` is handed a HAND-EDITED or STALE
+// registry that no longer lists a path the substrate still produces (the C5
+// "orphaned reference after a rebuild" case). `checked_against_registry` records
+// whether any registry was supplied at all.
 
 import { parseTag } from "schema";
 import { FlatIndex } from "./index-flat";
@@ -18,6 +27,15 @@ import { parseTagRegistry, type ParsedRegistry } from "./tag-registry";
 import { DETAIL_RANK, type Verbosity } from "./inspect";
 import type { Logger, Metrics } from "./instrumentation";
 import type { SubstrateBundle } from "./types";
+
+/**
+ * Default `k` for the nearest-neighbour spread (C4: "k-NN cosine-distance
+ * distribution", #107). Each span contributes the MEAN cosine distance to its `k`
+ * nearest neighbours; `k = 1` recovers the single-nearest spread. A small `k`
+ * keeps the signal local (a coherent corpus keeps a tight neighbourhood, noise
+ * does not) without averaging the whole corpus away.
+ */
+export const DEFAULT_NN_K = 5;
 
 export interface Distribution {
   count: number;
@@ -34,6 +52,12 @@ export interface EvalReport {
   tag_orphan_rate: {
     total_tags: number;
     orphan_tags: number;
+    /**
+     * Fraction of produced tags absent from the supplied registry. A DRIFT signal,
+     * not a build-quality one (#107): structurally 0 for a matched (bundle,
+     * registry) pair, since the default pipeline seeds the registry from the same
+     * tags — it fires only against a hand-edited or stale registry.
+     */
     orphan_rate: number;
     checked_against_registry: boolean;
   };
@@ -62,11 +86,14 @@ function distribution(values: number[]): Distribution {
 /**
  * Compute the build-quality report. Pure and total on a well-formed bundle — it
  * never throws on legal input (reporting, not gating). Pass the parsed
- * `tag-registry.yaml` to compute an orphan rate against the vocabulary contract.
+ * `tag-registry.yaml` to compute an orphan rate against the vocabulary contract
+ * (a drift signal — see the module header). `nnK` sets the nearest-neighbour
+ * spread's `k` (C4's k-NN distribution); defaults to {@link DEFAULT_NN_K}.
  */
 export function evaluateBuild(
   bundle: SubstrateBundle,
   registry?: ParsedRegistry,
+  nnK: number = DEFAULT_NN_K,
 ): EvalReport {
   const spans = bundle.spans;
 
@@ -85,14 +112,23 @@ export function evaluateBuild(
     }
   }
 
-  // Nearest-neighbor spread: distance to each span's single nearest neighbor.
+  // Nearest-neighbour spread: for each span, the MEAN cosine distance to its `k`
+  // nearest neighbours (C4: "k-NN cosine-distance distribution", #107). One value
+  // per span keeps the distribution's `count` equal to the span count; a coherent
+  // corpus shows a smaller mean than shuffled noise (the silent failure mode C4
+  // names). `k = 1` recovers the single-nearest spread. A span with fewer than `k`
+  // neighbours available averages over what it has.
+  const k = Math.max(1, Math.floor(nnK));
   const vectors = spans.map((s) => s.embedding);
   const nnDistances: number[] = [];
   if (vectors.length > 1) {
     const index = new FlatIndex(vectors);
     for (let i = 0; i < vectors.length; i++) {
-      const nearest = index.queryByIndex(i, 1)[0];
-      if (nearest) nnDistances.push(nearest.distance);
+      const neighbors = index.queryByIndex(i, k);
+      if (neighbors.length === 0) continue;
+      const mean =
+        neighbors.reduce((sum, nb) => sum + nb.distance, 0) / neighbors.length;
+      nnDistances.push(mean);
     }
   }
 
