@@ -8,49 +8,53 @@
 // work is done (zero overhead, §4.6).
 
 import { describe, it, expect } from "vitest";
-import type { DebugTrace, Entity, Ruleset } from "schema";
+import type { DebugTrace, Ruleset } from "schema";
 import { SPEC_VERSION } from "schema";
-import type { GraphSpan } from "rule-engine";
+import type { GraphSpan, SubstrateSpanView } from "rule-engine";
 import { createServer, type ServerConfig } from "./server";
 import { CollectingLogger, InMemoryMetrics } from "./instrumentation";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-function makeEntity(id: string, over: Partial<Entity> = {}): Entity {
+function makeSpan(
+  id: string,
+  over: Partial<SubstrateSpanView> = {},
+): SubstrateSpanView {
   return {
-    id,
-    archetype: "prop",
+    id: `vec:${id}`,
     semantic_tags: [],
-    embedding_ref: `vec:${id}`,
-    affordances: [],
-    salience: 0.5,
+    archetype: "prop",
     prose: "",
     source_span: { source: "test", char_ranges: "0-1" },
-    contains: [],
-    layout_hint: { scale: "medium", density: 0.5, shape_bias: "" },
-    state: { local_coherence: 0.5, visited: false },
+    local_coherence: 0.5,
     ...over,
   };
 }
 
-function span(entity: Entity, embedding: number[]): GraphSpan {
-  return { entity, embedding };
+function span(view: SubstrateSpanView, embedding: number[]): GraphSpan {
+  return { span: view, embedding };
 }
 
-const RULESET: Ruleset = { spec_version: "0.1.0", layers: [] };
+const RULESET: Ruleset = {
+  spec_version: "0.1.0",
+  layers: [],
+  interpretation_lookup: {
+    by_archetype: {
+      container: {
+        layout_hint: { scale: "large", density: 1, shape_bias: "" },
+      },
+    },
+  },
+};
 
 function fullSubstrate(): GraphSpan[] {
-  const room = makeEntity("origin", {
-    archetype: "container",
-    embedding_ref: "vec:origin",
-    layout_hint: { scale: "large", density: 1, shape_bias: "" },
-  });
+  const room = makeSpan("origin", { archetype: "container" });
   return [
     span(room, [1, 0]),
-    span(makeEntity("a", { affordances: ["traverse"] }), [0.99, 0.14]),
-    span(makeEntity("b", { affordances: ["enter"] }), [0.9, 0.44]),
-    span(makeEntity("c", { affordances: ["traverse"] }), [0.7, 0.71]),
-    span(makeEntity("d", { affordances: ["traverse"] }), [0.5, 0.87]),
+    span(makeSpan("a", { archetype: "portal" }), [0.99, 0.14]),
+    span(makeSpan("b", { archetype: "container" }), [0.9, 0.44]),
+    span(makeSpan("c", { archetype: "portal" }), [0.7, 0.71]),
+    span(makeSpan("d", { archetype: "portal" }), [0.5, 0.87]),
   ];
 }
 

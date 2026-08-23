@@ -12,9 +12,8 @@
 // INV-2: ranking is total and deterministic — cosine distance, ties broken by
 // span declaration order (mirrors the Phase 2 `FlatIndex`), no wall-clock entropy.
 
-import type { Entity } from "schema";
 import type { Query } from "./query";
-import type { EntityCandidate } from "./evaluate";
+import type { SubstrateSpanView } from "./interpretation";
 
 /**
  * The substrate-query surface the solver depends on. One method — the unified
@@ -31,17 +30,31 @@ export interface Graph {
    * position). `q.radius`, when set, drops candidates beyond that cosine-distance
    * cutoff (the region / embedding-proximity query, §4.4). Never throws.
    */
-  query(q: Query): EntityCandidate[];
+  query(q: Query): SpanCandidate[];
 }
 
 /**
- * One indexed substrate span for {@link createSubstrateGraph}: a minted `Entity`
- * view (its `embedding_ref` is the `vector_ref` token a `Query.origin` addresses
- * it by) paired with the internal vector the ranking runs over. The vector is
- * build-artifact data (INV-3) — it lives here, never on the `Entity`.
+ * One ranked substrate result: the span itself, UNINTERPRETED, plus its distance
+ * from the query origin. The graph deals in substrate data only — turning a span
+ * into an `Entity` is the interpretation lookup's job at resolution (§0.9.0 A13,
+ * §3.7.1), so it happens in the solver, not here.
+ */
+export interface SpanCandidate {
+  span: SubstrateSpanView;
+  embedding_distance: number;
+}
+
+/**
+ * One indexed substrate span for {@link createSubstrateGraph}: the span's own
+ * data (its `id` is the `vector_ref` token a `Query.origin` addresses it by)
+ * paired with the internal vector the ranking runs over. The vector is
+ * build-artifact data (INV-3) — it lives here and never reaches an `Entity`.
+ *
+ * This shape maps 1:1 onto a `graph.json` span (`GRAPH_FORMAT.md`), which is the
+ * point: the loader is a projection, not a translation with judgement in it.
  */
 export interface GraphSpan {
-  entity: Entity;
+  span: SubstrateSpanView;
   embedding: number[];
 }
 
@@ -72,10 +85,10 @@ function cosineDistance(a: readonly number[], b: readonly number[]): number {
  */
 export function createSubstrateGraph(spans: readonly GraphSpan[]): Graph {
   const byRef = new Map<string, GraphSpan>();
-  for (const span of spans) byRef.set(span.entity.embedding_ref, span);
+  for (const s of spans) byRef.set(s.span.id, s);
 
   return {
-    query(q: Query): EntityCandidate[] {
+    query(q: Query): SpanCandidate[] {
       const originVec = byRef.get(q.origin.vector_ref)?.embedding;
       const ranked = spans
         .map((span, declIndex) => ({
@@ -83,7 +96,7 @@ export function createSubstrateGraph(spans: readonly GraphSpan[]): Graph {
           declIndex,
           distance: originVec ? cosineDistance(originVec, span.embedding) : 0,
         }))
-        .filter((r) => r.span.entity.embedding_ref !== q.origin.vector_ref)
+        .filter((r) => r.span.span.id !== q.origin.vector_ref)
         .filter((r) => q.radius === undefined || r.distance <= q.radius)
         .sort((a, b) =>
           a.distance !== b.distance
@@ -93,7 +106,7 @@ export function createSubstrateGraph(spans: readonly GraphSpan[]): Graph {
 
       const k = Number.isFinite(q.k) ? Math.max(0, Math.floor(q.k)) : 0;
       return ranked.slice(0, k).map((r) => ({
-        entity: r.span.entity,
+        span: r.span.span,
         embedding_distance: r.distance,
       }));
     },

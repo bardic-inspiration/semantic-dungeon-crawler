@@ -12,59 +12,37 @@
 // that signal its own field, `InteractResponse.movement_blocked`.
 
 import { describe, it, expect } from "vitest";
-import type { Entity, InteractResponse, Ruleset } from "schema";
-import type { GraphSpan } from "rule-engine";
+import type { InteractResponse, Ruleset } from "schema";
+import type { GraphSpan, SubstrateSpanView } from "rule-engine";
 import { createServer, type ServerConfig } from "./server";
 
-function makeEntity(id: string, over: Partial<Entity> = {}): Entity {
+function makeSpan(
+  id: string,
+  over: Partial<SubstrateSpanView> = {},
+): SubstrateSpanView {
   return {
-    id,
-    archetype: "prop",
+    id: `vec:${id}`,
     semantic_tags: [],
-    embedding_ref: `vec:${id}`,
-    affordances: [],
-    salience: 0.5,
+    archetype: "prop",
     prose: "",
     source_span: { source: "test", char_ranges: "0-1" },
-    contains: [],
-    layout_hint: { scale: "medium", density: 0.5, shape_bias: "" },
-    state: { local_coherence: 0.5, visited: false },
+    local_coherence: 0.5,
     ...over,
   };
 }
 
 /** A room with several neighbours, so a re-sample would visibly reshuffle. */
 function substrate(): GraphSpan[] {
-  const room = makeEntity("origin", {
-    archetype: "container",
-    embedding_ref: "vec:origin",
-    layout_hint: { scale: "large", density: 0.5, shape_bias: "" },
-  });
   return [
-    { entity: room, embedding: [1, 0] },
+    { span: makeSpan("origin", { archetype: "container" }), embedding: [1, 0] },
+    { span: makeSpan("a", { archetype: "portal" }), embedding: [0.99, 0.14] },
     {
-      entity: makeEntity("a", { affordances: ["traverse"] }),
-      embedding: [0.99, 0.14],
-    },
-    {
-      entity: makeEntity("book", {
-        archetype: "readable",
-        affordances: ["read"],
-      }),
+      span: makeSpan("book", { archetype: "readable" }),
       embedding: [0.95, 0.31],
     },
-    {
-      entity: makeEntity("c", { affordances: ["traverse"] }),
-      embedding: [0.9, 0.44],
-    },
-    {
-      entity: makeEntity("d", { affordances: ["inspect"] }),
-      embedding: [0.7, 0.71],
-    },
-    {
-      entity: makeEntity("e", { affordances: ["inspect"] }),
-      embedding: [0.5, 0.87],
-    },
+    { span: makeSpan("c", { archetype: "portal" }), embedding: [0.9, 0.44] },
+    { span: makeSpan("d", { archetype: "prop" }), embedding: [0.7, 0.71] },
+    { span: makeSpan("e", { archetype: "prop" }), embedding: [0.5, 0.87] },
   ];
 }
 

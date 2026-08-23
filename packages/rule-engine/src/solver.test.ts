@@ -6,34 +6,33 @@
 // and INV-4 conformance (contradictory overrides never throw).
 
 import { describe, it, expect, vi } from "vitest";
-import type { Entity, Layer, SessionState } from "schema";
+import type { Entity, InterpretationLookup, Layer, SessionState } from "schema";
 import * as solver from "./solver";
 import { resolveMove, populate, MAX_ROOM_OBJECTS } from "./solver";
 import { createSubstrateGraph, type Graph, type GraphSpan } from "./graph";
+import { mintEntity, type SubstrateSpanView } from "./interpretation";
 import { CollectingLogger } from "./instrumentation";
 import { OVERRIDE_CONFLICT_EVENT } from "./layer-resolution";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-function makeEntity(id: string, over: Partial<Entity> = {}): Entity {
+function makeSpan(
+  id: string,
+  over: Partial<SubstrateSpanView> = {},
+): SubstrateSpanView {
   return {
-    id,
-    archetype: "prop",
+    id: `vec:${id}`,
     semantic_tags: [],
-    embedding_ref: `vec:${id}`,
-    affordances: [],
-    salience: 0.5,
+    archetype: "prop",
     prose: "",
     source_span: { source: "test", char_ranges: "0-1" },
-    contains: [],
-    layout_hint: { scale: "medium", density: 0.5, shape_bias: "" },
-    state: { local_coherence: 0.5, visited: false },
+    local_coherence: 0.5,
     ...over,
   };
 }
 
-function span(entity: Entity, embedding: number[]): GraphSpan {
-  return { entity, embedding };
+function span(view: SubstrateSpanView, embedding: number[]): GraphSpan {
+  return { span: view, embedding };
 }
 
 function makeState(over: Partial<SessionState> = {}): SessionState {
@@ -57,18 +56,24 @@ function makeState(over: Partial<SessionState> = {}): SessionState {
 
 // A small substrate: an origin span plus four neighbours, all traversal-capable
 // so exits derive from them. Vectors are 2-D; nearer angle = nearer candidate.
+// §0.9.0 (A13) — `layout_hint`/`salience`/`affordances` are interpretations now,
+// not fixture fields. These fixtures used to set `density: 1` on the room entity
+// directly; the equivalent is an interpretation the room's archetype resolves to.
+const TEST_INTERPRETATION: InterpretationLookup = {
+  by_archetype: {
+    container: { layout_hint: { scale: "large", density: 1, shape_bias: "" } },
+  },
+};
+
 function buildGraph(): { graph: Graph; room: Entity } {
-  const room = makeEntity("origin", {
-    archetype: "container",
-    embedding_ref: "vec:origin",
-    layout_hint: { scale: "large", density: 1, shape_bias: "" },
-  });
+  const roomSpan = makeSpan("origin", { archetype: "container" });
+  const room = mintEntity(roomSpan, TEST_INTERPRETATION, []);
   const spans: GraphSpan[] = [
-    span(room, [1, 0]),
-    span(makeEntity("a", { affordances: ["traverse"] }), [0.99, 0.14]),
-    span(makeEntity("b", { affordances: ["enter"] }), [0.9, 0.44]),
-    span(makeEntity("c", { affordances: ["traverse"] }), [0.7, 0.71]),
-    span(makeEntity("d", { affordances: ["traverse"] }), [0.5, 0.87]),
+    span(roomSpan, [1, 0]),
+    span(makeSpan("a", { archetype: "portal" }), [0.99, 0.14]),
+    span(makeSpan("b", { archetype: "container" }), [0.9, 0.44]),
+    span(makeSpan("c", { archetype: "portal" }), [0.7, 0.71]),
+    span(makeSpan("d", { archetype: "portal" }), [0.5, 0.87]),
   ];
   return { graph: createSubstrateGraph(spans), room };
 }
@@ -144,40 +149,47 @@ describe("populate — zero-radius query and exit derivation (§4.4, A4)", () =>
 
   it("scales the object count down by density", () => {
     const { graph } = buildGraph();
-    // density 0.25 ⇒ round(0.25 * 12) = 3.
-    const room = makeEntity("origin", {
-      archetype: "container",
-      embedding_ref: "vec:origin",
-      layout_hint: { scale: "small", density: 0.25, shape_bias: "" },
+    // density 0.25 ⇒ round(0.25 * 12) = 3. Density is an interpretation now
+    // (A13), so the fixture asks for it through a lookup.
+    const sparse: InterpretationLookup = {
+      by_archetype: {
+        container: {
+          layout_hint: { scale: "small", density: 0.25, shape_bias: "" },
+        },
+      },
+    };
+    const room = mintEntity(
+      makeSpan("origin", { archetype: "container" }),
+      sparse,
+      [],
+    );
+    const result = populate(room, makeState(), graph, [], {
+      interpretation: sparse,
     });
-    const result = populate(room, makeState(), graph, []);
     expect(result.objects.length).toBe(3);
   });
 
   it("derives exits only from objects with a movement affordance", () => {
-    const room = makeEntity("origin", {
-      archetype: "container",
-      embedding_ref: "vec:origin",
-      layout_hint: { scale: "large", density: 1, shape_bias: "" },
-    });
+    const roomSpan = makeSpan("origin", { archetype: "container" });
+    const room = mintEntity(roomSpan, TEST_INTERPRETATION, []);
     const spans: GraphSpan[] = [
-      span(room, [1, 0]),
-      span(makeEntity("mover", { affordances: ["traverse"] }), [0.99, 0.14]),
-      span(
-        makeEntity("gate", { archetype: "portal", affordances: [] }),
-        [0.98, 0.2],
-      ),
-      span(makeEntity("inert", { affordances: ["inspect"] }), [0.9, 0.44]),
+      span(roomSpan, [1, 0]),
+      span(makeSpan("mover", { archetype: "portal" }), [0.99, 0.14]),
+      // A `portal` whose affordance list an author has emptied: §3.2 (A4) makes
+      // the ARCHETYPE a movement trigger in its own right, so it still yields an
+      // exit. Stronger than the old fixture, which set `affordances: []` directly.
+      span(makeSpan("gate", { archetype: "portal" }), [0.98, 0.2]),
+      span(makeSpan("inert", { archetype: "prop" }), [0.9, 0.44]),
     ];
     const graph = createSubstrateGraph(spans);
     const result = populate(room, makeState(), graph, []);
 
     const viaIds = result.exits.map((e) => e.via_object_id).sort();
-    expect(viaIds).toEqual(["gate", "mover"]);
-    const mover = result.exits.find((e) => e.via_object_id === "mover")!;
+    expect(viaIds).toEqual(["vec:gate", "vec:mover"]);
+    const mover = result.exits.find((e) => e.via_object_id === "vec:mover")!;
     expect(mover.affordance_required).toBe("traverse");
     expect(mover.target_entity_id).toBe("vec:mover");
-    const gate = result.exits.find((e) => e.via_object_id === "gate")!;
+    const gate = result.exits.find((e) => e.via_object_id === "vec:gate")!;
     expect(gate.affordance_required).toBe("traverse"); // portal is traversal-capable
   });
 });
@@ -315,12 +327,9 @@ describe("empty / stuck resolution (§0.11.0 C2)", () => {
   });
 
   it("resolves a zero-neighbour substrate to an empty room, never throwing", () => {
-    const room = makeEntity("lonely", {
-      archetype: "container",
-      embedding_ref: "vec:lonely",
-      layout_hint: { scale: "small", density: 1, shape_bias: "" },
-    });
-    const graph = createSubstrateGraph([span(room, [1, 0])]);
+    const lonelySpan = makeSpan("lonely", { archetype: "container" });
+    const room = mintEntity(lonelySpan, TEST_INTERPRETATION, []);
+    const graph = createSubstrateGraph([span(lonelySpan, [1, 0])]);
     let result!: ReturnType<typeof populate>;
     expect(() => {
       result = populate(
