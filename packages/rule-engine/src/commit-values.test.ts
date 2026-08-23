@@ -10,35 +10,34 @@
 // commit-phase writes"; it existed only as a type.
 
 import { describe, it, expect } from "vitest";
-import type { Entity, Layer, SessionState } from "schema";
+import type { Layer, SessionState } from "schema";
+import type { SubstrateSpanView } from "./interpretation";
 import { createSubstrateGraph, type GraphSpan } from "./graph";
 import { resolveMove } from "./solver";
 
-function entity(id: string, over: Partial<Entity> = {}): Entity {
+function makeSpan(
+  id: string,
+  over: Partial<SubstrateSpanView> = {},
+): SubstrateSpanView {
   return {
-    id,
-    archetype: "prop",
+    id: `vec:${id}`,
     semantic_tags: [],
-    embedding_ref: `vec:${id}`,
-    affordances: ["traverse"],
-    salience: 0.5,
+    archetype: "prop",
     prose: "",
     source_span: { source: "test", char_ranges: "0-1" },
-    contains: [],
-    layout_hint: { scale: "medium", density: 0.5, shape_bias: "" },
-    state: { local_coherence: 0.5, visited: false },
+    local_coherence: 0.5,
     ...over,
   };
 }
 
 function graph() {
   const spans: GraphSpan[] = [
-    { entity: entity("origin", { archetype: "container" }), embedding: [1, 0] },
+    { span: makeSpan("origin", { archetype: "container" }), embedding: [1, 0] },
     {
-      entity: entity("a", { semantic_tags: ["mood:tense"] }),
+      span: makeSpan("a", { semantic_tags: ["mood:tense"] }),
       embedding: [0.99, 0.14],
     },
-    { entity: entity("b"), embedding: [0.9, 0.44] },
+    { span: makeSpan("b"), embedding: [0.9, 0.44] },
   ];
   return createSubstrateGraph(spans);
 }

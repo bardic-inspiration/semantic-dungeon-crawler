@@ -7,32 +7,31 @@
 // flag on vs off.
 
 import { describe, it, expect, vi } from "vitest";
-import type { Entity, Layer, SessionState } from "schema";
+import type { Entity, InterpretationLookup, Layer, SessionState } from "schema";
 import { resolveMove, populate } from "./solver";
 import { createDebugTrace, DebugTraceRecorder } from "./debug-trace";
 import { createSubstrateGraph, type Graph, type GraphSpan } from "./graph";
+import { mintEntity, type SubstrateSpanView } from "./interpretation";
 
 // ── Fixtures (mirrors solver.test.ts) ─────────────────────────────────────────
 
-function makeEntity(id: string, over: Partial<Entity> = {}): Entity {
+function makeSpan(
+  id: string,
+  over: Partial<SubstrateSpanView> = {},
+): SubstrateSpanView {
   return {
-    id,
-    archetype: "prop",
+    id: `vec:${id}`,
     semantic_tags: [],
-    embedding_ref: `vec:${id}`,
-    affordances: [],
-    salience: 0.5,
+    archetype: "prop",
     prose: "",
     source_span: { source: "test", char_ranges: "0-1" },
-    contains: [],
-    layout_hint: { scale: "medium", density: 0.5, shape_bias: "" },
-    state: { local_coherence: 0.5, visited: false },
+    local_coherence: 0.5,
     ...over,
   };
 }
 
-function span(entity: Entity, embedding: number[]): GraphSpan {
-  return { entity, embedding };
+function span(view: SubstrateSpanView, embedding: number[]): GraphSpan {
+  return { span: view, embedding };
 }
 
 function makeState(over: Partial<SessionState> = {}): SessionState {
@@ -56,18 +55,23 @@ function makeState(over: Partial<SessionState> = {}): SessionState {
 
 // Origin plus four traversal-capable neighbours; nearer angle = nearer candidate,
 // so the query ranks them a, b, c, d.
+// §0.9.0 (A13) — `layout_hint` is an interpretation now, not a fixture field.
+// These fixtures used to set `density: 1` on the room entity directly.
+const TEST_INTERPRETATION: InterpretationLookup = {
+  by_archetype: {
+    container: { layout_hint: { scale: "large", density: 1, shape_bias: "" } },
+  },
+};
+
 function buildGraph(): { graph: Graph; room: Entity } {
-  const room = makeEntity("origin", {
-    archetype: "container",
-    embedding_ref: "vec:origin",
-    layout_hint: { scale: "large", density: 1, shape_bias: "" },
-  });
+  const roomSpan = makeSpan("origin", { archetype: "container" });
+  const room = mintEntity(roomSpan, TEST_INTERPRETATION, []);
   const spans: GraphSpan[] = [
-    span(room, [1, 0]),
-    span(makeEntity("a", { affordances: ["traverse"] }), [0.99, 0.14]),
-    span(makeEntity("b", { affordances: ["enter"] }), [0.9, 0.44]),
-    span(makeEntity("c", { affordances: ["traverse"] }), [0.7, 0.71]),
-    span(makeEntity("d", { affordances: ["traverse"] }), [0.5, 0.87]),
+    span(roomSpan, [1, 0]),
+    span(makeSpan("a", { archetype: "portal" }), [0.99, 0.14]),
+    span(makeSpan("b", { archetype: "container" }), [0.9, 0.44]),
+    span(makeSpan("c", { archetype: "portal" }), [0.7, 0.71]),
+    span(makeSpan("d", { archetype: "portal" }), [0.5, 0.87]),
   ];
   return { graph: createSubstrateGraph(spans), room };
 }
@@ -136,7 +140,12 @@ describe("DebugTrace content over a fixture resolution (§4.6)", () => {
     expect(trace).toBeDefined();
 
     // Initial candidate pool, nearest-first, before any filtering.
-    expect(trace.candidates_initial).toEqual(["a", "b", "c", "d"]);
+    expect(trace.candidates_initial).toEqual([
+      "vec:a",
+      "vec:b",
+      "vec:c",
+      "vec:d",
+    ]);
 
     // Both layers appear, in declaration order; only "gate" activated.
     expect(trace.per_layer.map((l) => l.layer_id)).toEqual([
@@ -156,12 +165,12 @@ describe("DebugTrace content over a fixture resolution (§4.6)", () => {
       {
         rule_index: 0,
         effect: { kind: "hard_allow" },
-        matched_entities: ["a", "b", "c", "d"],
+        matched_entities: ["vec:a", "vec:b", "vec:c", "vec:d"],
       },
       {
         rule_index: 1,
         effect: { kind: "soft_reweight", factor: 0.5 },
-        matched_entities: ["a"],
+        matched_entities: ["vec:a"],
       },
     ]);
 
@@ -169,7 +178,12 @@ describe("DebugTrace content over a fixture resolution (§4.6)", () => {
     expect(trace.final_hard_decision_source).toBe("gate");
 
     // Soft scores: "a" carries the 0.5 reweight, the rest stay at 1.
-    expect(trace.final_soft_scores).toEqual({ a: 0.5, b: 1, c: 1, d: 1 });
+    expect(trace.final_soft_scores).toEqual({
+      "vec:a": 0.5,
+      "vec:b": 1,
+      "vec:c": 1,
+      "vec:d": 1,
+    });
   });
 
   it("records a null hard-decision source when no hard decision fired", () => {
@@ -199,7 +213,12 @@ describe("DebugTrace content over a fixture resolution (§4.6)", () => {
       debug: { enabled: true },
     });
     expect(result.debug).toBeDefined();
-    expect(result.debug!.candidates_initial).toEqual(["a", "b", "c", "d"]);
+    expect(result.debug!.candidates_initial).toEqual([
+      "vec:a",
+      "vec:b",
+      "vec:c",
+      "vec:d",
+    ]);
     expect(result.debug!.final_hard_decision_source).toBe("gate");
   });
 });

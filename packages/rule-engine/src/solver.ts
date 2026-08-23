@@ -28,6 +28,7 @@ import type {
   DebugTrace,
   Effect,
   Entity,
+  InterpretationLookup,
   Layer,
   ResolutionStatus,
   ResolvedExit,
@@ -47,6 +48,7 @@ import {
 import { createDebugTrace, type DebugConfig } from "./debug-trace";
 import { NoopLogger, type Logger } from "./instrumentation";
 import type { Query } from "./query";
+import { mintEntity } from "./interpretation";
 import { seededRng } from "./prng";
 import { sample } from "./sample";
 import type { Graph } from "./graph";
@@ -160,6 +162,13 @@ export interface ResolveMoveOptions {
   k?: number;
   logger?: Logger;
   /**
+   * §0.9.0 (A13) — the author's `Ruleset.interpretation_lookup`. Applied to every
+   * span the substrate returns, before predicates see it. Absent means engine
+   * defaults only.
+   */
+  interpretation?: InterpretationLookup;
+
+  /**
    * §4.6 debug trace flag — SERVER config, never sourced from a client request
    * (INV-3). When `enabled`, the returned {@link MoveResolution} carries a
    * `debug` trace; off (or omitted) is the zero-overhead hot path.
@@ -175,6 +184,13 @@ export interface PopulateOptions {
   /** Movement affordances; defaults to {@link DEFAULT_MOVEMENT_AFFORDANCES} (+ `portal`). */
   movementAffordances?: readonly Affordance[];
   logger?: Logger;
+  /**
+   * §0.9.0 (A13) — the author's `Ruleset.interpretation_lookup`. Applied to every
+   * span the substrate returns, before predicates see it. Absent means engine
+   * defaults only.
+   */
+  interpretation?: InterpretationLookup;
+
   /**
    * §4.6 debug trace flag — SERVER config, never client-supplied (INV-3). When
    * `enabled`, the returned {@link RoomResolution} carries a `debug` trace; off
@@ -251,15 +267,38 @@ function prepareActiveLayers(
  * predicate simply never fires. The drift fallthrough (§4.1) is the caller's, so
  * the loop itself stays the single shared primitive.
  */
+export interface EvaluateLayersOptions {
+  /** §2.1 sink for solver warnings (notably §4.3's override conflict). */
+  logger?: Logger;
+  /** §4.6 trace config; absent means the recorder is never constructed. */
+  debug?: DebugConfig;
+  /**
+   * §0.9.0 (A13) — the author's interpretation lookup. Applied to every span the
+   * substrate returns, BEFORE predicates see it, so `static.archetype` reads the
+   * interpreted archetype rather than the tagger's build-time default. Absent
+   * means engine defaults only (§3.4: "engine ships defaults").
+   */
+  interpretation?: InterpretationLookup;
+}
+
 export function evaluateLayers(
   graph: Graph,
   query: Query,
   state: SessionState,
   layers: readonly Layer[],
-  logger: Logger = new NoopLogger(),
-  debug?: DebugConfig,
+  options: EvaluateLayersOptions = {},
 ): EvaluateLayersResult {
-  const candidates = graph.query(query);
+  const logger = options.logger ?? new NoopLogger();
+  const debug = options.debug;
+  // §0.9.0 (A13) / §3.7.1 — a substrate query returns UNINTERPRETED spans; an
+  // `Entity` is minted here, per resolution, through the interpretation lookup.
+  // This is the ordering the spec requires: interpretation precedes predicate
+  // evaluation, so a rule reading `static.archetype` sees what the author's
+  // lookup produced, not what the tagger guessed at build time.
+  const candidates: EntityCandidate[] = graph.query(query).map((sc) => ({
+    entity: mintEntity(sc.span, options.interpretation, state.visited_set),
+    embedding_distance: sc.embedding_distance,
+  }));
   const rng = seededRng(state.session_seed, state.turn_count, query);
   const activeLayers = prepareActiveLayers(layers, state);
   const ordered = resolutionOrder(activeLayers.map((a) => a.layer));
@@ -467,27 +506,25 @@ export function resolveMove(
     ? { origin: { vector_ref: options.anchor.target_ref }, k }
     : driftQuery;
 
-  let result = solverCore.evaluateLayers(
-    graph,
-    query,
-    state,
-    layers,
+  let result = solverCore.evaluateLayers(graph, query, state, layers, {
     logger,
-    options.debug,
-  );
+    ...(options.debug ? { debug: options.debug } : {}),
+    ...(options.interpretation
+      ? { interpretation: options.interpretation }
+      : {}),
+  });
 
   // Drift fallthrough (§4.1): when no hard decision engaged an anchored move,
   // fall back to plain nearest-neighbor drift from the player's position. The
   // re-resolve produces a fresh trace, so `debug` reflects the drift resolution.
   if (options.anchor && !result.anyHardDecision) {
-    result = solverCore.evaluateLayers(
-      graph,
-      driftQuery,
-      state,
-      layers,
+    result = solverCore.evaluateLayers(graph, driftQuery, state, layers, {
       logger,
-      options.debug,
-    );
+      ...(options.debug ? { debug: options.debug } : {}),
+      ...(options.interpretation
+        ? { interpretation: options.interpretation }
+        : {}),
+    });
   }
 
   const draw = sample(result.pool, (wc) => wc.weight, result.rng);
@@ -530,14 +567,13 @@ export function populate(
     ...(options.radius !== undefined ? { radius: options.radius } : {}),
   };
 
-  const result = solverCore.evaluateLayers(
-    graph,
-    query,
-    state,
-    layers,
+  const result = solverCore.evaluateLayers(graph, query, state, layers, {
     logger,
-    options.debug,
-  );
+    ...(options.debug ? { debug: options.debug } : {}),
+    ...(options.interpretation
+      ? { interpretation: options.interpretation }
+      : {}),
+  });
 
   const n = Math.round(room.layout_hint.density * MAX_ROOM_OBJECTS);
   const chosen = sampleDistinct(result.pool, n, result.rng);

@@ -6,40 +6,41 @@
 import { describe, it, expect, afterEach } from "vitest";
 import type { Entity, Ruleset } from "schema";
 import { SPEC_VERSION } from "schema";
-import type { GraphSpan } from "rule-engine";
+import type { GraphSpan, SubstrateSpanView } from "rule-engine";
 import { createHttpServer, type HttpServer } from "./http";
 
-function makeEntity(id: string, over: Partial<Entity> = {}): Entity {
+function makeSpan(
+  id: string,
+  over: Partial<SubstrateSpanView> = {},
+): SubstrateSpanView {
   return {
-    id,
-    archetype: "prop",
+    id: `vec:${id}`,
     semantic_tags: [],
-    embedding_ref: `vec:${id}`,
-    affordances: [],
-    salience: 0.5,
+    archetype: "prop",
     prose: "",
     source_span: { source: "test", char_ranges: "0-1" },
-    contains: [],
-    layout_hint: { scale: "medium", density: 0.5, shape_bias: "" },
-    state: { local_coherence: 0.5, visited: false },
+    local_coherence: 0.5,
     ...over,
   };
 }
 
-const RULESET: Ruleset = { spec_version: "0.1.0", layers: [] };
+const RULESET: Ruleset = {
+  spec_version: "0.1.0",
+  layers: [],
+  interpretation_lookup: {
+    by_archetype: {
+      container: {
+        layout_hint: { scale: "large", density: 1, shape_bias: "" },
+      },
+    },
+  },
+};
 
 function substrate(): GraphSpan[] {
-  const room = makeEntity("origin", {
-    archetype: "container",
-    embedding_ref: "vec:origin",
-    layout_hint: { scale: "large", density: 1, shape_bias: "" },
-  });
+  const room = makeSpan("origin", { archetype: "container" });
   return [
-    { entity: room, embedding: [1, 0] },
-    {
-      entity: makeEntity("a", { affordances: ["traverse"] }),
-      embedding: [0.99, 0.14],
-    },
+    { span: room, embedding: [1, 0] },
+    { span: makeSpan("a", { archetype: "portal" }), embedding: [0.99, 0.14] },
   ];
 }
 

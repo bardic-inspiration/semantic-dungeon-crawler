@@ -38,6 +38,7 @@ import type {
 import { SPEC_VERSION } from "schema";
 import {
   createSubstrateGraph,
+  mintEntity,
   populate,
   resolveMove,
   DEFAULT_MOVEMENT_AFFORDANCES,
@@ -46,6 +47,7 @@ import {
   type Graph,
   type GraphSpan,
   type RoomResolution,
+  type SubstrateSpanView,
 } from "rule-engine";
 import { SessionStore } from "./sessions";
 import {
@@ -172,9 +174,11 @@ function counterIdSource(): () => string {
 export function createServer(config: ServerConfig): Server {
   const { spans, start_ref } = config.substrate;
 
-  const entityByRef = new Map<string, Entity>();
-  for (const s of spans) entityByRef.set(s.entity.embedding_ref, s.entity);
-  if (!entityByRef.has(start_ref)) {
+  // The room a session stands in is minted through the interpretation lookup
+  // like any other span (§0.9.0 A13), so index the SPANS and mint on demand.
+  const spanByRef = new Map<string, SubstrateSpanView>();
+  for (const s of spans) spanByRef.set(s.span.id, s.span);
+  if (!spanByRef.has(start_ref)) {
     throw new Error(
       `server config: start_ref "${start_ref}" names no substrate span`,
     );
@@ -376,9 +380,17 @@ export function createServer(config: ServerConfig): Server {
     session: SessionState,
     debug?: DebugConfig,
   ): { room: Entity; resolution: RoomResolution } | null {
-    const room = entityByRef.get(session.position.vector_ref);
-    if (room === undefined) return null;
+    const span = spanByRef.get(session.position.vector_ref);
+    if (span === undefined) return null;
     const ruleset = rulesetFor(session);
+    // §0.9.0 (A13) — the room is an interpreted view of its span, minted through
+    // the SAME lookup its objects are, so an author's interpretation governs the
+    // room the player stands in as well as what they see in it.
+    const room = mintEntity(
+      span,
+      ruleset.interpretation_lookup,
+      session.visited_set,
+    );
     const resolution = populate(room, session, graph, ruleset.layers, {
       // §2.1 / §4.3 — the solver's warnings (notably the conflicting-`override`
       // "messy resolution" warn, a §6.4 Exit criterion) are emitted through the
@@ -390,6 +402,9 @@ export function createServer(config: ServerConfig): Server {
       // did nothing.
       ...(ruleset.movement_affordances
         ? { movementAffordances: ruleset.movement_affordances }
+        : {}),
+      ...(ruleset.interpretation_lookup
+        ? { interpretation: ruleset.interpretation_lookup }
         : {}),
       ...(debug ? { debug } : {}),
     });
@@ -558,6 +573,11 @@ export function createServer(config: ServerConfig): Server {
     const move = resolveMove(session, graph, ruleset.layers, {
       // §2.1 / §4.3 — see `resolveRoom`: the solver reports through this sink.
       logger,
+      // §0.9.0 (A13) — the same lookup that shaped the room shapes the
+      // destination; a move must not resolve into an uninterpreted entity.
+      ...(ruleset.interpretation_lookup
+        ? { interpretation: ruleset.interpretation_lookup }
+        : {}),
       ...(exit ? { anchor: { target_ref: exit.target_entity_id } } : {}),
       ...(debugConfig ? { debug: debugConfig } : {}),
     });

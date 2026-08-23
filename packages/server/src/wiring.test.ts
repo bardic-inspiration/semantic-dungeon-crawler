@@ -12,33 +12,31 @@
 // `createServer().handle` rather than calling the solver.
 
 import { describe, it, expect } from "vitest";
-import type { Entity, Ruleset } from "schema";
+import type { InterpretationLookup, Ruleset } from "schema";
 import { SPEC_VERSION } from "schema";
-import type { GraphSpan } from "rule-engine";
+import type { GraphSpan, SubstrateSpanView } from "rule-engine";
 import { createServer, type ServerConfig } from "./server";
 import { CollectingLogger, InMemoryMetrics } from "./instrumentation";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-function makeEntity(id: string, over: Partial<Entity> = {}): Entity {
+function makeSpan(
+  id: string,
+  over: Partial<SubstrateSpanView> = {},
+): SubstrateSpanView {
   return {
-    id,
-    archetype: "prop",
+    id: `vec:${id}`,
     semantic_tags: [],
-    embedding_ref: `vec:${id}`,
-    affordances: [],
-    salience: 0.5,
+    archetype: "prop",
     prose: "",
     source_span: { source: "test", char_ranges: "0-1" },
-    contains: [],
-    layout_hint: { scale: "medium", density: 0.5, shape_bias: "" },
-    state: { local_coherence: 0.5, visited: false },
+    local_coherence: 0.5,
     ...over,
   };
 }
 
-function span(entity: Entity, embedding: number[]): GraphSpan {
-  return { entity, embedding };
+function span(view: SubstrateSpanView, embedding: number[]): GraphSpan {
+  return { span: view, embedding };
 }
 
 /**
@@ -48,21 +46,29 @@ function span(entity: Entity, embedding: number[]): GraphSpan {
  * `movement_affordances` reaches `populate` (§3.4, A4).
  */
 function substrate(): GraphSpan[] {
-  const room = makeEntity("origin", {
-    archetype: "container",
-    embedding_ref: "vec:origin",
-    layout_hint: { scale: "large", density: 1, shape_bias: "" },
-  });
+  const room = makeSpan("origin", { archetype: "container" });
   return [
     span(room, [1, 0]),
-    span(makeEntity("a", { affordances: ["traverse"] }), [0.99, 0.14]),
-    span(makeEntity("b", { affordances: ["enter"] }), [0.9, 0.44]),
-    span(makeEntity("c", { affordances: ["squeeze"] }), [0.7, 0.71]),
-    span(makeEntity("d", { affordances: ["squeeze"] }), [0.5, 0.87]),
+    span(makeSpan("a", { archetype: "portal" }), [0.99, 0.14]),
+    span(makeSpan("b", { archetype: "container" }), [0.9, 0.44]),
+    span(makeSpan("c", { archetype: "crevice" }), [0.7, 0.71]),
+    span(makeSpan("d", { archetype: "crevice" }), [0.5, 0.87]),
   ];
 }
 
-const NULL_RULESET: Ruleset = { spec_version: "0.1.0", layers: [] };
+// §0.9.0 (A13) — the room's `layout_hint` is an interpretation now, not a
+// fixture field. Hoisted so both rulesets share one definitely-defined value.
+const ROOM_INTERPRETATION: InterpretationLookup = {
+  by_archetype: {
+    container: { layout_hint: { scale: "large", density: 1, shape_bias: "" } },
+  },
+};
+
+const NULL_RULESET: Ruleset = {
+  spec_version: "0.1.0",
+  layers: [],
+  interpretation_lookup: ROOM_INTERPRETATION,
+};
 
 /**
  * §4.3 rule 3 / §6.4 Exit — two `override`-mode layers producing contradictory
@@ -71,6 +77,7 @@ const NULL_RULESET: Ruleset = { spec_version: "0.1.0", layers: [] };
  */
 const CONFLICTING_RULESET: Ruleset = {
   spec_version: "0.1.0",
+  interpretation_lookup: ROOM_INTERPRETATION,
   layers: [
     {
       id: "allow-all",
@@ -78,7 +85,7 @@ const CONFLICTING_RULESET: Ruleset = {
       mode: "override",
       rules: [
         {
-          predicate: 'static.archetype == "prop"',
+          predicate: "static.embedding_distance >= 0",
           effect: { kind: "hard_allow" },
         },
       ],
@@ -89,7 +96,7 @@ const CONFLICTING_RULESET: Ruleset = {
       mode: "override",
       rules: [
         {
-          predicate: 'static.archetype == "prop"',
+          predicate: "static.embedding_distance >= 0",
           effect: { kind: "hard_forbid" },
         },
       ],
@@ -208,13 +215,27 @@ describe("W2 — Ruleset.movement_affordances reaches populate (§3.4 A4)", () =
     const exits = exitsFor({
       spec_version: "0.1.0",
       layers: [],
+      // Under A13 the affordance itself is authored: the `crevice` spans carry
+      // none until this lookup gives them one. That coupling is the point —
+      // movement affordances and the interpretation that produces them are two
+      // halves of the same authored bundle (§3.4).
+      interpretation_lookup: {
+        by_archetype: {
+          ...ROOM_INTERPRETATION.by_archetype,
+          crevice: { affordances: ["squeeze"] },
+        },
+      },
       movement_affordances: ["squeeze"],
     });
     const affordances = exits.map((e) => e.affordance_required);
 
-    // The author replaced the movement set: `squeeze` now moves, `traverse` does not.
+    // The author's designation ADDS `squeeze`. `traverse` survives on the
+    // `portal` span because §3.2 (A4) makes the portal ARCHETYPE a movement
+    // trigger in its own right, independent of `movement_affordances` — so an
+    // author cannot accidentally strand a portal by redefining the set.
     expect(affordances).toContain("squeeze");
-    expect(affordances).not.toContain("traverse");
+    expect(affordances.filter((a) => a === "squeeze")).toHaveLength(2);
+    expect(affordances).toContain("traverse");
   });
 });
 
