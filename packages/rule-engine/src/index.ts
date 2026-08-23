@@ -38,7 +38,23 @@ export {
 export type {
   SubstrateSpanView,
   ResolvedInterpretation,
+  EntityTokenView,
 } from "./interpretation";
+
+// §0.9.0 (A3) — the overlay address-token tree: opaque, replay-deterministic
+// minting, the parent→children tree `Entity.contains` resolves from, and
+// backtracking by truncating to an ancestor.
+export {
+  ADDRESS_TOKEN_PREFIX,
+  mintAddressToken,
+  childTokens,
+  visitedCoordinateRefs,
+  ancestorTokens,
+  establishRoot,
+  recordVisit,
+  backtrackTo,
+} from "./address-token";
+export type { MintTokenInput } from "./address-token";
 
 // §3.6.3 resolver dispatch + the three defaults, and the §3.6.1 modifier lookup.
 export {

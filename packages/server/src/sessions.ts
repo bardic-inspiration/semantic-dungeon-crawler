@@ -11,6 +11,7 @@
 // with is a pure function of its seed and start position, so replay reproduces it.
 
 import type { Ruleset, SessionState } from "schema";
+import { establishRoot } from "rule-engine";
 
 export interface SessionStoreOptions {
   /** `vector_ref` of the room a fresh session starts positioned in (§A3). */
@@ -63,12 +64,19 @@ export class SessionStore {
       momentum: null,
       path_coherence: 0,
       visited_set: [],
+      address_tokens: [],
+      current_token: null,
       vars: {},
       registry: [],
       links: [],
       ended: false,
       input_log: [],
     };
+    // §0.9.0 (A3): seed the address-token tree with the ROOT token for the start
+    // place, so every later move has a parent and `Entity.contains` has a root
+    // composite to resolve from. Deterministic from `(seed, start)` (INV-2); the
+    // start is not itself "visited" (it enters no `visited_set`).
+    establishRoot(session);
     this.#byId.set(session.session_id, session);
     if (ruleset !== undefined)
       this.#rulesetById.set(session.session_id, ruleset);

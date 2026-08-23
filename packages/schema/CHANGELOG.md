@@ -10,6 +10,30 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ### Added
 
+- **`AddressToken` and `SessionState.address_tokens` / `current_token` (§3.8,
+  SPEC §0.9.0 A3)** — the append-only overlay address-token tree, realized as
+  concrete run-state. `AddressToken` is `{ token, parent, position }`: an opaque,
+  engine-minted, replay-deterministic handle (`token`), its place in the
+  parent→children exploration tree (`parent`), and the substrate coordinate it
+  names (`position`). `SessionState` gains `address_tokens` (the tree) and
+  `current_token` (the token at the player's current place — the parent of the
+  next mint and the ancestor backtracking truncates to; `null` before the first
+  place is minted).
+
+  It exists because §3.8 says `visited_set` holds "overlay ADDRESS-TOKENS (A3),
+  not ephemeral ids", but the engine had no token to hold — `packages/server`
+  was pushing the destination's substrate `embedding_ref` (a `vector_ref`) into
+  `visited_set`, collapsing the three-way `Entity.id` / address-token / substrate
+  `position` distinction the whole A-series rests on. With no token tree there was
+  nothing for backtracking (A3) to truncate and no source for `Entity.contains`
+  (§3.1), which no code path populated. These fields give the token a home.
+
+  Additive, and **not a spec-version bump**: `SessionState` is server-internal
+  (INV-3, never on the wire), so it is not one of the versioned wire surfaces
+  (`Entity`, `ResolvedRoomResponse`, `Ruleset`, the DSL) `X-Spec-Version` guards
+  for adapters (`docs/spec-guidelines.md`). The SPEC §3.8 block is updated to
+  match. Surfaced by the Conformance Audit 1 overlay sequence (issue #108).
+
 - **`InteractResponse.movement_blocked?` (§3.3, SPEC §0.12.0)** — optional
   boolean, true iff a movement affordance was invoked and resolution yielded no
   destination. Additive, so nothing breaks.

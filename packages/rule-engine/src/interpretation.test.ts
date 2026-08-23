@@ -162,7 +162,7 @@ describe("INV-4 — the lookup is not policed", () => {
 describe("mintEntity produces a complete §3.1 Entity", () => {
   it("carries the substrate's own fields through unchanged", () => {
     const s = span();
-    const entity = mintEntity(s, undefined, []);
+    const entity = mintEntity(s, undefined);
 
     expect(entity.prose).toBe(s.prose);
     expect(entity.source_span).toEqual(s.source_span);
@@ -171,20 +171,50 @@ describe("mintEntity produces a complete §3.1 Entity", () => {
     expect(entity.embedding_ref).toBe(s.id);
   });
 
-  it("derives state.visited from the visited set rather than storing it (§3.1)", () => {
+  it("derives state.visited over the address-token, not stored per-entity (§3.1 A3)", () => {
+    // `visited` is true iff a visited token names this place's coordinate.
     const s = span();
-    expect(mintEntity(s, undefined, []).state.visited).toBe(false);
-    expect(mintEntity(s, undefined, [s.id]).state.visited).toBe(true);
+    expect(mintEntity(s, undefined).state.visited).toBe(false);
+    expect(
+      mintEntity(s, undefined, { visitedCoordinates: new Set() }).state.visited,
+    ).toBe(false);
+    expect(
+      mintEntity(s, undefined, { visitedCoordinates: new Set([s.id]) }).state
+        .visited,
+    ).toBe(true);
+  });
+
+  it("resolves contains from the token tree — children of ownToken (§3.1 A3)", () => {
+    const s = span();
+    const tree = [
+      { token: "ovl:self", parent: null, position: { vector_ref: s.id } },
+      {
+        token: "ovl:child-a",
+        parent: "ovl:self",
+        position: { vector_ref: "vec:a" },
+      },
+      {
+        token: "ovl:child-b",
+        parent: "ovl:self",
+        position: { vector_ref: "vec:b" },
+      },
+    ];
+    // A recorded place resolves its children into `contains`.
+    expect(
+      mintEntity(s, undefined, { ownToken: "ovl:self", tree }).contains,
+    ).toEqual(["ovl:child-a", "ovl:child-b"]);
+    // A leaf/candidate (no ownToken) has empty contains.
+    expect(mintEntity(s, undefined, { tree }).contains).toEqual([]);
   });
 
   it("never leaks an embedding vector to the minted Entity (INV-3)", () => {
-    const entity = mintEntity(span(), undefined, []);
+    const entity = mintEntity(span(), undefined);
     expect(Object.keys(entity)).not.toContain("embedding");
     expect(JSON.stringify(entity)).not.toContain('embedding":[');
   });
 
-  it("is a pure function of (span, lookup, visited) — INV-2", () => {
+  it("is a pure function of (span, lookup, tokens) — INV-2", () => {
     const s = span();
-    expect(mintEntity(s, undefined, [])).toEqual(mintEntity(s, undefined, []));
+    expect(mintEntity(s, undefined)).toEqual(mintEntity(s, undefined));
   });
 });

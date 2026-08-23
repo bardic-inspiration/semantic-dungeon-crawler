@@ -750,6 +750,10 @@ interface SessionState {
                                      // trace_centroid/momentum/visited: how tight/consistent the recent trajectory
                                      // through embedding space has been. Distinct from a place's local_coherence (§3.1).
   visited_set: string[];             // dynamic.visited_set — overlay ADDRESS-TOKENS (A3), not ephemeral ids
+  address_tokens: AddressToken[];    // §0.9.0 (A3): the append-only parent→children token tree the durable handle lives in;
+                                     // `Entity.contains` (§3.1) resolves from it. SERVER-INTERNAL (INV-3), like the rest of this type.
+  current_token: string | null;      // §0.9.0 (A3): the token at the player's current place — parent of the next mint, and the
+                                     // ancestor backtracking truncates to. `null` before the first place is minted.
   vars: Record<string, string>;      // §0.9.0 (A8): dynamic.vars.* scratch — write target for `write` effects (A5),
                                      // readable in the DSL (§4.2). Values are strings; coerce per predicate use.
   registry: AddressRegistryEntry[];  // §0.9.0: the PLAYER-overlay layer (provenance "player"); reads merge this
@@ -760,7 +764,21 @@ interface SessionState {
 }
 
 type CoordinateRef = { vector_ref: string };  // a reference into the substrate index, never a raw vector (INV-3)
+
+interface AddressToken {          // §0.9.0 (A3) — one node of the durable overlay token tree
+  token: string;                  // opaque, engine-minted, replay-deterministic (INV-2/INV-3): not a vector_ref, not an Entity.id
+  parent: string | null;          // parent token; null for the session root — the parent→children grouping is Entity.contains (§3.1)
+  position: CoordinateRef;        // the substrate coordinate this token names (server-internal)
+}
 ```
+
+The **address-token tree is the durable memory** `position` is distinct from
+(A3): `position` is a live substrate coordinate (Tier 2, re-approximated on
+return), while a token is the append-only, opaque handle for a *place* (Tier 3).
+Backtracking truncates `current_token` to an ancestor and re-resolves that
+coordinate fresh; a subsequent move mints a **sibling** token, and the tree stays
+monotonic so old branches remain addressable. `Entity.contains` (§3.1) is exactly
+a token's children in this tree.
 
 The **Address Registry is layered** (A8): build- and author_runtime-provenance
 entries are shared per-world and immutable during play; player-provenance writes

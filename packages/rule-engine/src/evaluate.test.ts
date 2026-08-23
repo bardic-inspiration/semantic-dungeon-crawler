@@ -40,6 +40,8 @@ function makeState(overrides: Partial<SessionState> = {}): SessionState {
     momentum: null,
     path_coherence: 0.6,
     visited_set: [],
+    address_tokens: [],
+    current_token: null,
     vars: {},
     registry: [],
     links: [],

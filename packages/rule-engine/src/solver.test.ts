@@ -45,6 +45,8 @@ function makeState(over: Partial<SessionState> = {}): SessionState {
     momentum: null,
     path_coherence: 0,
     visited_set: [],
+    address_tokens: [],
+    current_token: null,
     vars: {},
     registry: [],
     links: [],
@@ -67,7 +69,7 @@ const TEST_INTERPRETATION: InterpretationLookup = {
 
 function buildGraph(): { graph: Graph; room: Entity } {
   const roomSpan = makeSpan("origin", { archetype: "container" });
-  const room = mintEntity(roomSpan, TEST_INTERPRETATION, []);
+  const room = mintEntity(roomSpan, TEST_INTERPRETATION);
   const spans: GraphSpan[] = [
     span(roomSpan, [1, 0]),
     span(makeSpan("a", { archetype: "portal" }), [0.99, 0.14]),
@@ -161,7 +163,6 @@ describe("populate — zero-radius query and exit derivation (§4.4, A4)", () =>
     const room = mintEntity(
       makeSpan("origin", { archetype: "container" }),
       sparse,
-      [],
     );
     const result = populate(room, makeState(), graph, [], {
       interpretation: sparse,
@@ -171,7 +172,7 @@ describe("populate — zero-radius query and exit derivation (§4.4, A4)", () =>
 
   it("derives exits only from objects with a movement affordance", () => {
     const roomSpan = makeSpan("origin", { archetype: "container" });
-    const room = mintEntity(roomSpan, TEST_INTERPRETATION, []);
+    const room = mintEntity(roomSpan, TEST_INTERPRETATION);
     const spans: GraphSpan[] = [
       span(roomSpan, [1, 0]),
       span(makeSpan("mover", { archetype: "portal" }), [0.99, 0.14]),
@@ -328,7 +329,7 @@ describe("empty / stuck resolution (§0.11.0 C2)", () => {
 
   it("resolves a zero-neighbour substrate to an empty room, never throwing", () => {
     const lonelySpan = makeSpan("lonely", { archetype: "container" });
-    const room = mintEntity(lonelySpan, TEST_INTERPRETATION, []);
+    const room = mintEntity(lonelySpan, TEST_INTERPRETATION);
     const graph = createSubstrateGraph([span(lonelySpan, [1, 0])]);
     let result!: ReturnType<typeof populate>;
     expect(() => {
