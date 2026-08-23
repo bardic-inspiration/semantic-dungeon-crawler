@@ -56,9 +56,19 @@ Other requirements, both templates:
   mid-implementation.
 - State explicitly what's **out of scope** in the issue body. This is the
   primary guard against scope creep into SPEC §6.8 items.
+- **Implement the acceptance criteria — not more.** Once you're in the code,
+  the issue's acceptance criteria are the entire spec for the PR. A file or
+  package the acceptance criteria don't mention isn't part of this PR, even
+  if the change is one line and obviously correct.
 - A PR that touches more than its issue's concern is a sign the issue was
   under-scoped, not license to expand the PR — file the extra ground as its
   own issue (see below) and keep the PR narrow.
+- This matters more here than in a single-contributor repo: the build is
+  worked by many independent, memoryless agent sessions. Nobody is tracking
+  "temporary" scope expansion across sessions, so an out-of-scope change
+  doesn't get cleaned up later — it just becomes permanent drift from the
+  issue trail. Treat every PR's diff as if a reviewer will check it
+  file-by-file against the acceptance criteria, because eventually one will.
 
 ## Docs-only issues & PRs
 

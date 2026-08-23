@@ -135,7 +135,9 @@ open questions or follow-on work that surfaces mid-issue. Summary:
    the lowest-numbered open `design` issue whose dependencies are resolved
    (the tier ordering and "Depends on" links in
    [`docs/design/open-scope.md`](docs/design/open-scope.md)), resolving **one tier
-   at a time (A → B → C)**. Scope your work to that issue only.
+   at a time (A → B → C)**. Scope your work to that issue only — implement its
+   acceptance criteria, nothing else, even if you notice other build-order work
+   that seems related.
 2. **Read the spec.** Read the SPEC section the issue references before touching
    code. The acceptance criteria are your pre-written failing tests.
 3. **TDD, always.** Write a failing Vitest test first (red), then the minimal code
@@ -175,8 +177,15 @@ Changing only Markdown (`SPEC.md`, docs, `AGENTS.md`, etc.) — no code? Steps
   silently invent behavior** — flag it in the issue/PR and, if it's a spec defect,
   follow [`docs/spec-guidelines.md`](docs/spec-guidelines.md) to amend `SPEC.md`
   (versioned) rather than diverging in code.
-- Stay in scope. SPEC §6.8 lists things that look tempting but are explicitly
-  post-alpha — do not scope-creep into them.
+- Stay in scope. Implement only what your issue's acceptance criteria call
+  for — nothing more. SPEC §6.8 lists things that look tempting but are
+  explicitly post-alpha; do not scope-creep into them. That same discipline
+  applies inside the current phase too: don't fold in adjacent refactors,
+  drive-by fixes, or "while I'm in here" improvements that aren't part of the
+  acceptance criteria, even when they're small and even when a later issue in
+  the same phase would clearly need them. A PR touching files or packages the
+  acceptance criteria don't call for is a sign of drift — narrow it back down
+  before committing.
 - Anything else that comes up mid-issue — an edge case, a follow-on idea, a
   question that isn't a spec defect — gets filed as its own issue per
   [`docs/issue-standards.md`](docs/issue-standards.md), not solved inline.

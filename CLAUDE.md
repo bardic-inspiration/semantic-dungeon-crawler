@@ -8,7 +8,14 @@ file only adds Claude-Code specifics.
 
 - The build is delegated to agents via scheduled tasks; you may cold-start on a
   single build-order step. Scope your work to that step's issue and its spec
-  section — don't range ahead into later steps.
+  section — don't range ahead into later steps. Implement only what the
+  issue's acceptance criteria require; resist folding in adjacent fixes,
+  refactors, or improvements you notice along the way, even small ones —
+  file those as separate issues instead
+  ([`docs/issue-standards.md`](docs/issue-standards.md)). Because each
+  cold start has no memory of prior sessions, this restraint is the only
+  thing standing between the build and scope drift across agents — don't
+  rely on a later session to notice and revert an out-of-scope change.
 - Read the relevant section of [`SPEC.md`](SPEC.md) before touching code. The
   invariants `INV-1`..`INV-5` (AGENTS.md §2) are non-negotiable.
 
