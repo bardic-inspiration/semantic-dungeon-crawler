@@ -83,8 +83,16 @@ const STARTER_LEXICON: LexiconRule[] = [
   },
 ];
 
-/** Fallback archetype when no rule assigns one (§3.1 open extension point). */
-const DEFAULT_ARCHETYPE: Archetype = "prop";
+/**
+ * The named engine-default archetype (#107). `docs/design/0004:174-175` specifies
+ * only "fallback to a base archetype"; this makes that base a NAMED, exported
+ * default rather than a private const, so it is documented rather than a silent
+ * substitution. Every span the lexicon leaves untagged resolves to `"prop"` — the
+ * most neutral archetype (an inert object, §3.1). B4 owns assigning this string;
+ * A13 owns what it means at resolution (a clean producer/consumer split), and a
+ * ruleset's interpretation lookup can still reinterpret a `prop` at runtime.
+ */
+export const DEFAULT_ARCHETYPE: Archetype = "prop";
 
 export class LexiconTagger implements Tagger {
   readonly id = "lexicon-v1";

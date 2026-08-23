@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isWellFormedTag } from "schema";
-import { LexiconTagger } from "./tagging";
+import { DEFAULT_ARCHETYPE, LexiconTagger } from "./tagging";
 
 const tagger = new LexiconTagger();
 
@@ -30,6 +30,12 @@ describe("LexiconTagger", () => {
     const result = tagger.tag("zzz qqq xxx");
     expect(result.tags).toEqual([]);
     expect(result.archetype).toBe("prop");
+  });
+
+  it("falls back to the named DEFAULT_ARCHETYPE for an untagged span (#107)", () => {
+    // The fallback is a named, exported engine default, not a private const.
+    expect(DEFAULT_ARCHETYPE).toBe("prop");
+    expect(tagger.tag("zzz qqq xxx").archetype).toBe(DEFAULT_ARCHETYPE);
   });
 
   it("exposes a pinned identity for substrate_version", () => {

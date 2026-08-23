@@ -81,6 +81,15 @@ interface WorkingSpan {
   prose: string;
   start: number;
   end: number;
+  /**
+   * §6.3.1 `ResolvedDocument.metadata` ("subjects, authors, etc. — passed through
+   * for tagging"), with the document's `title` folded in (#107) — §6.3.1 documents
+   * both as tagger inputs but the pipeline was calling `tagger.tag(prose)` with
+   * neither. The `Tagger` interface takes `tag(text, metadata?)`; a custom/model
+   * tagger reads this, the default lexicon tagger ignores it (so the default build
+   * stays byte-identical, INV-2).
+   */
+  metadata: Record<string, unknown>;
 }
 
 export async function runBuild(
@@ -132,6 +141,12 @@ export async function runBuild(
         source_id: doc.source_id,
       });
     }
+    // §6.3.1 — the tagger's metadata input: the document's `metadata` with its
+    // dedicated `title` field folded in (title wins over any `metadata.title`).
+    const docMetadata: Record<string, unknown> = {
+      ...doc.metadata,
+      title: doc.title,
+    };
     for (const raw of rawSpans) {
       working.push({
         id: `${doc.source_id}:${raw.start}-${raw.end}`,
@@ -139,6 +154,7 @@ export async function runBuild(
         prose: raw.text,
         start: raw.start,
         end: raw.end,
+        metadata: docMetadata,
       });
     }
   }
@@ -181,7 +197,9 @@ export async function runBuild(
   // ---- Tagging --------------------------------------------------------------
   const taggingStarted = clock();
   logger.log("info", "stage.tagging.start", { spans: working.length });
-  const tagResults = working.map((w) => tagger.tag(w.prose));
+  // §6.3.1 — pass each span's document metadata (incl. title) through to the
+  // tagger (#107); the default lexicon tagger ignores it, custom taggers read it.
+  const tagResults = working.map((w) => tagger.tag(w.prose, w.metadata));
   metrics.observe("stage.tagging.duration_ms", clock() - taggingStarted);
   let orphanSpans = 0;
   for (const r of tagResults) if (r.tags.length === 0) orphanSpans++;
