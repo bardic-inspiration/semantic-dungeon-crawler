@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.12.0`
+`spec-version: 0.13.0`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -154,6 +154,41 @@
 >   "exist at startup" while no §6.x Build list claimed them, so none was ever
 >   built. They are now `packages/rule-engine`'s, listed in §6.4.
 
+> **§0.13.0 — turn_count decoupled from resolution (issue #118).** Resolves the
+> gap surfaced during #104: §3.8 declared `turn_count` with no semantics and §4.5
+> made it a **seed component**, so whatever advanced it silently re-sampled every
+> room. #104 had to freeze `turn_count` while the player stood still to keep §3.3
+> (A6) true ("a local interaction returns the unchanged room"). This amendment
+> removes that coupling instead of leaving it inferred:
+> - **`turn_count` is a pure runtime metric**, not a seed component. It is a
+>   game-state counter readable as `dynamic.turn_count` (§3.8, §4.2) and nothing
+>   more. The substrate seed no longer includes it (§4.5).
+> - **A room is a deterministic function of `(session_seed, normalized_query)`**,
+>   and `normalized_query` already carries the player's position (`origin`, §4.4 /
+>   §0.10.0 B3). So A6 now holds **structurally**: a stationary player issues the
+>   same normalized query and the room re-resolves byte-identically no matter how
+>   many turns have passed — the freeze-while-still workaround is unnecessary.
+> - **Turn advancement is a game event.** By default `turn_count` advances once per
+>   resolved interaction (`POST /interact`), independent of whether the player moved
+>   or the move was blocked — it measures turns taken, the "how long have I been
+>   playing" meaning an author expects. Making its advancement *conditions*
+>   author-configurable is a natural extension left to a future versioned amendment;
+>   the machinery is not defined here.
+> - **The §0.8.0 "similar-but-not-identical place" property is now
+>   position/session-relative**, not turn-relative: it appears across *different*
+>   positions, *different* sessions (`session_seed`), and corpus rebuilds
+>   (`substrate_version`, §3.7.3/§6.3) — never on returning to the same coordinate
+>   within a replay, where the room is stable by design (what A6 and the §0.9.0 (A3)
+>   address-token backtracking model both want).
+>
+> `INV-2` is untouched: given `(graph.json, ruleset, session_seed, input-log)`,
+> output stays byte-identical — only the seed's *components* change. Additive/
+> corrective at the 0.x level (MINOR under §3.5's convention), hence `0.13.0`.
+> Cross-referenced from §3.3 (A6), §3.8, §4.5. **Making the code conform (removing
+> `turn_count` from the seed derivation and updating when the server advances it) is
+> a follow-on code issue, out of scope here** — the spec is the contract; code
+> conforms to it.
+
 ## 0. Purpose and Reading Order
 
 This document is the authoritative build specification for an **authoring engine for semantic-space games** — not a single game. It is written to drive a phased, iterative Claude Code development process. Each phase in Section 6 is independently checkable: it lists file paths to create, exact schemas to implement, and pass/fail done-criteria.
@@ -163,7 +198,7 @@ This document is the authoritative build specification for an **authoring engine
 **Non-negotiable invariants** (referenced throughout as `INV-n`, must hold at every phase boundary):
 
 - `INV-1`: The traversal/rule engine (Section 4) never imports a rendering library. It is pure, headless, testable with no client attached.
-- `INV-2`: A game session is fully reproducible from `(seed, ruleset-file, input-log)`. No hidden state, no wall-clock dependence, no non-seeded randomness in backend logic. Substrate queries (§3.7 Tier 2) are *stochastic across seeds* by design, but their randomness is drawn from a PRNG seeded from `(session_seed, turn_count, query)`, so replaying an identical input-log reproduces every result byte-for-byte — determinism is a replay guarantee, not a same-question-twice guarantee (§4.5).
+- `INV-2`: A game session is fully reproducible from `(seed, ruleset-file, input-log)`. No hidden state, no wall-clock dependence, no non-seeded randomness in backend logic. Substrate queries (§3.7 Tier 2) are *stochastic across seeds* by design, but their randomness is drawn from a PRNG seeded from `(session_seed, normalized_query)` — `normalized_query` carries the discretized position (§0.10.0 B3), and `turn_count` is **not** a seed component (§0.13.0) — so replaying an identical input-log reproduces every result byte-for-byte — determinism is a replay guarantee, not a same-question-twice guarantee (§4.5).
 - `INV-3`: The client (Three.js and terminal reference adapters, Section 5) never receives the graph, embeddings, or rule definitions. It receives only resolved JSON matching the Entity Schema (Section 3). **(§0.9.0 refinement.)** "Resolved output" explicitly includes two things the client *does* receive: an entity's resolved `prose` and its `source_span` positional metadata (§3.1, A1), and overlay Address Registry **names/labels** of player-provenance entries (§3.7, §5.1, A10). INV-3 still forbids the client from receiving embedding vectors, the ANN index, rule definitions, internal ids, or raw snapshot payloads beyond their resolved entities. The line is *resolved output vs. engine internals*, not *text vs. no-text*.
 - `INV-4`: The engine does not validate ruleset *coherence* or *taste*. It validates ruleset *well-formedness* (parses, references exist, types match). Contradictory or "bad" rules are legal and must run, not be rejected.
 - `INV-5`: Every schema and protocol surface is versioned (Section 3.5). Breaking changes require a version bump and a changelog entry, not silent mutation.
@@ -743,7 +778,9 @@ interface SessionState {
   session_id: string;
   session_seed: number;              // the only entropy source (§4.5)
   position: CoordinateRef;           // §0.9.0 (A3): live substrate coordinate, by ref (INV-3), never a raw vector
-  turn_count: number;                // dynamic.turn_count
+  turn_count: number;                // dynamic.turn_count — §0.13.0: a pure runtime metric (turns taken),
+                                     // NOT a substrate-seed component (§4.5). Advances as a game event, once per
+                                     // resolved interaction; room resolution is independent of it.
   trace_centroid: number[] | null;   // dynamic.trace_centroid (vector, server-internal)
   momentum: number[] | null;         // dynamic.momentum
   path_coherence: number;            // §0.10.0 (B5): dynamic.path_coherence — 0.0–1.0, ENGINE-computed per turn from
@@ -997,7 +1034,7 @@ seed-controlled per §4.5, so the determinism test still holds.
 
 ### 4.5 Determinism (implements INV-2)
 
-- All sampling (`sample()` in 4.1/4.4) uses a seeded PRNG. The seed is derived deterministically from `(session_seed, turn_count)` — never from wall-clock or external entropy.
+- All sampling (`sample()` in 4.1/4.4) uses a seeded PRNG. The seed is derived deterministically from `(session_seed, normalized_query)` — never from wall-clock or external entropy. `turn_count` is **not** a seed component (§0.13.0); the query's `origin` carries the player's position (below), so the room is a function of where the player stands, not of how many turns have elapsed.
 - Given identical `(graph.json, ruleset.dsl, session_seed, input-log)`, `resolveMove` and `populate` MUST produce byte-identical output across runs. This is a Phase 3 test requirement (Section 6.5), not a nice-to-have.
 
 **Determinism across the three tiers (§0.8.0 precision amendment).** The §0.8.0
@@ -1007,16 +1044,23 @@ model splits determinism cleanly rather than weakening it:
   write is a logged, replayable record. Unchanged, fully required.
 - **Substrate (Tier 2)** — queries are *stochastic across seeds by design*
   (re-approximable "vibes," not noise to engineer out), but their randomness is
-  drawn from the same seeded PRNG rule above, extended to
-  `(session_seed, turn_count, normalized_query)`. Consequences:
+  drawn from the seeded PRNG rule above: `(session_seed, normalized_query)`.
+  `turn_count` is **not** a component (§0.13.0); `normalized_query` carries the
+  discretized position, so the seed keys on *where* the player stands. Consequences:
   - Replaying an identical `(graph.json, ruleset.dsl, session_seed, input-log)`
     reproduces every substrate result **byte-for-byte** — the `INV-2` replay
     guarantee holds unchanged.
+  - A stationary player re-issues the same normalized query and gets the **same
+    room byte-for-byte**, which is exactly what §3.3 (A6) requires of a local
+    interaction — the room's stability is now structural, not something a
+    turn-counter freeze has to preserve.
   - The "same question twice yields a similar-but-not-identical place" property is
-    **seed-relative**: it appears across *different* invocations (a new turn
-    advances `turn_count`; a new session changes `session_seed`) and across a
-    corpus rebuild (a new `substrate_version`, §3.7.3/§6.3) — never within a
-    replay of one log.
+    **position/session-relative**: it appears across *different* positions,
+    *different* sessions (a new session changes `session_seed`), and a corpus
+    rebuild (a new `substrate_version`, §3.7.3/§6.3) — never on returning to the
+    same coordinate within a replay, where the place is stable by design (the
+    §0.9.0 (A3) address-token backtracking model wants a revisited place to read
+    the same).
 
 This is a precision fix to `INV-2`, not a relaxation: the substrate sits one layer
 below the solver's hard/soft decision logic, but its *seeded* results remain
