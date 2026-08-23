@@ -11,5 +11,11 @@
   "dependencies": {
     "rule-engine": "*",
     "schema": "*"
+  },
+  "bin": {
+    "sdc-server": "./bin/sdc-server.mjs"
+  },
+  "scripts": {
+    "sdc-server": "tsx src/cli.ts"
   }
 }

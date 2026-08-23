@@ -40,6 +40,20 @@ export type {
   ResolvedInterpretation,
 } from "./interpretation";
 
+// §3.6.3 resolver dispatch + the three defaults, and the §3.6.1 modifier lookup.
+export {
+  DEFAULT_RESOLVERS,
+  EMPTY_REGISTRY,
+  createResolverSet,
+  displayResolver,
+  isLeafPath,
+  lookupModifier,
+  matchResolver,
+  numericResolver,
+  resolveTag,
+} from "./resolvers";
+export type { Resolver, ResolvedValue, TagRegistryView } from "./resolvers";
+
 export {
   resolutionOrder,
   resolveLayers,
