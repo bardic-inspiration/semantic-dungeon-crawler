@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { evaluateBuild, formatEvalReport, parseRegistryText } from "./eval";
+import {
+  evaluateBuild,
+  formatEvalReport,
+  parseRegistryText,
+  reportEvalMetrics,
+} from "./eval";
+import { CollectingLogger, InMemoryMetrics } from "./instrumentation";
 import { runBuild } from "./pipeline";
 import type { ResolvedDocument } from "./sources/types";
 
@@ -60,6 +66,19 @@ describe("evaluateBuild — build-quality reporting (C4)", () => {
     const { bundle } = await runBuild({ documents: NOISE });
     expect(() => evaluateBuild(bundle)).not.toThrow();
     expect(() => formatEvalReport(evaluateBuild(bundle))).not.toThrow();
+  });
+
+  it("reports through the same Logger/Metrics as the build (§0.11.0 C4)", async () => {
+    const { bundle } = await runBuild({ documents: COHERENT });
+    const report = evaluateBuild(bundle);
+    const logger = new CollectingLogger();
+    const metrics = new InMemoryMetrics();
+    reportEvalMetrics(report, logger, metrics);
+    // A single `info`-level `eval.report` event, mirroring the build's stage events.
+    const event = logger.entries.find((e) => e.event === "eval.report");
+    expect(event?.level).toBe("info");
+    expect(metrics.counters.get("eval.span_count")).toBe(report.span_count);
+    expect(metrics.observations.has("eval.nearest_neighbor.mean")).toBe(true);
   });
 
   it("reports orphan tags when a registry lacks a produced path", async () => {

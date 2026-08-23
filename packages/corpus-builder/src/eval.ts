@@ -15,7 +15,8 @@
 import { parseTag } from "schema";
 import { FlatIndex } from "./index-flat";
 import { parseTagRegistry, type ParsedRegistry } from "./tag-registry";
-import type { Verbosity } from "./inspect";
+import { DETAIL_RANK, type Verbosity } from "./inspect";
+import type { Logger, Metrics } from "./instrumentation";
 import type { SubstrateBundle } from "./types";
 
 export interface Distribution {
@@ -122,10 +123,35 @@ function fmt(d: Distribution): string {
   return `n=${d.count} min=${d.min.toFixed(4)} mean=${d.mean.toFixed(4)} median=${d.median.toFixed(4)} max=${d.max.toFixed(4)}`;
 }
 
+/**
+ * Emit the report through the SAME `Logger`/`Metrics` as the build (§0.11.0 C4:
+ * `eval` is "a sibling of `corpus-builder inspect` reusing the same
+ * `Logger`/`Metrics` and `--verbosity` conventions"). Side-channel only — it never
+ * gates the build (INV-4) and its return value is ignored by callers.
+ */
+export function reportEvalMetrics(
+  report: EvalReport,
+  logger: Logger,
+  metrics: Metrics,
+): void {
+  metrics.increment("eval.span_count", report.span_count);
+  metrics.observe("eval.local_coherence.mean", report.local_coherence.mean);
+  metrics.observe(
+    "eval.nearest_neighbor.mean",
+    report.nearest_neighbor_spread.mean,
+  );
+  logger.log("info", "eval.report", {
+    span_count: report.span_count,
+    tag_coverage: report.tag_coverage.coverage,
+    orphan_rate: report.tag_orphan_rate.orphan_rate,
+    nearest_neighbor_mean: report.nearest_neighbor_spread.mean,
+  });
+}
+
 /** Human-readable report for the CLI. `eval` never fails a build — this only prints. */
 export function formatEvalReport(
   report: EvalReport,
-  verbosity: Verbosity = "normal",
+  verbosity: Verbosity = "warn",
 ): string {
   const cov = report.tag_coverage;
   const orphan = report.tag_orphan_rate;
@@ -140,7 +166,7 @@ export function formatEvalReport(
     }`,
     `  nearest-neighbor spread:       ${fmt(report.nearest_neighbor_spread)}`,
   ];
-  if (verbosity === "verbose") {
+  if (DETAIL_RANK[verbosity] >= DETAIL_RANK.debug) {
     lines.push(
       `  (a coherent corpus shows a smaller nearest-neighbor mean than shuffled noise — C4)`,
     );

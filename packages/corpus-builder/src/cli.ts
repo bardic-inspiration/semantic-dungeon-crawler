@@ -12,13 +12,24 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { BuildTrace } from "./build-trace";
-import { evaluateBuild, formatEvalReport, parseRegistryText } from "./eval";
-import { inspectNode, inspectTrace, parseVerbosity } from "./inspect";
 import {
-  NoopLogger,
+  evaluateBuild,
+  formatEvalReport,
+  parseRegistryText,
+  reportEvalMetrics,
+} from "./eval";
+import {
+  inspectNode,
+  inspectTrace,
+  parseVerbosity,
+  VERBOSITY_LEVELS,
+  type Verbosity,
+} from "./inspect";
+import {
   ConsoleLogger,
   InMemoryMetrics,
   type Logger,
+  type LogLevel,
 } from "./instrumentation";
 import { parseManifest } from "./manifest";
 import {
@@ -77,28 +88,69 @@ async function loadBundle(path: string): Promise<SubstrateBundle> {
   return JSON.parse(await readFile(path, "utf8")) as SubstrateBundle;
 }
 
+/** Injectable seams so tests can observe the wired logger and env without a subprocess. */
+export interface CliDeps {
+  /** Build the run's `Logger` from the resolved level. Default: a `ConsoleLogger`. */
+  makeLogger?(level: LogLevel): Logger;
+  /** Environment lookup for `SDC_LOG_LEVEL` (§5.4). Default: `process.env`. */
+  env?: Record<string, string | undefined>;
+}
+
+/**
+ * §5.4 verbosity resolution: an explicit `--verbosity` flag wins, then the
+ * `SDC_LOG_LEVEL` env var, then the `warn` default. An unrecognized value is
+ * surfaced (returned as `{ error }`) rather than silently downgraded.
+ */
+function resolveVerbosity(
+  flags: Record<string, string | boolean>,
+  env: string | undefined,
+): { level: LogLevel } | { error: string } {
+  const flagValue =
+    typeof flags.verbosity === "string" ? flags.verbosity : undefined;
+  const envValue = env !== undefined && env.length > 0 ? env : undefined;
+  const raw = flagValue ?? envValue;
+  const level = parseVerbosity(raw);
+  if (level === null) {
+    const source = flagValue !== undefined ? "--verbosity" : "SDC_LOG_LEVEL";
+    return {
+      error: `unrecognized ${source} "${raw}" (expected: ${VERBOSITY_LEVELS.join(" | ")})`,
+    };
+  }
+  return { level };
+}
+
 export async function runCli(
   argv: string[],
   io: CliIO = DEFAULT_IO,
+  deps: CliDeps = {},
 ): Promise<number> {
   const [command, ...rest] = argv;
   const flags = parseFlags(rest);
-  const verbosity = parseVerbosity(
-    typeof flags.verbosity === "string" ? flags.verbosity : undefined,
+
+  const env = deps.env ?? process.env;
+  const resolved = resolveVerbosity(flags, env.SDC_LOG_LEVEL);
+  if ("error" in resolved) {
+    io.stderr(`error: ${resolved.error}`);
+    return 2;
+  }
+  const level = resolved.level;
+
+  // §5.4: `--verbosity` IS the `Logger`'s `minLevel`. The CLI does not reimplement
+  // filtering — it hands the level to one `ConsoleLogger` and lets it gate. So
+  // `--verbosity=debug` yields the MOST output (including every §6.3 stage event,
+  // emitted at `info`), which the old `verbose`→debug / else→Noop wiring inverted.
+  const logger: Logger = (deps.makeLogger ?? ((l) => new ConsoleLogger(l)))(
+    level,
   );
-  const logger: Logger =
-    flags.verbosity === "verbose"
-      ? new ConsoleLogger("debug")
-      : new NoopLogger();
 
   try {
     switch (command) {
       case "build":
         return await cmdBuild(flags, io, logger);
       case "inspect":
-        return await cmdInspect(flags, io, verbosity);
+        return await cmdInspect(flags, io, level);
       case "eval":
-        return await cmdEval(flags, io, verbosity);
+        return await cmdEval(flags, io, level, logger);
       default:
         io.stderr(
           `unknown command "${command ?? ""}". Expected: build | inspect | eval`,
@@ -184,7 +236,7 @@ async function cmdBuild(
 async function cmdInspect(
   flags: Record<string, string | boolean>,
   io: CliIO,
-  verbosity: ReturnType<typeof parseVerbosity>,
+  verbosity: Verbosity,
 ): Promise<number> {
   const graphPath = requireString(flags, "graph");
   const bundle = await loadBundle(graphPath);
@@ -212,7 +264,8 @@ async function cmdInspect(
 async function cmdEval(
   flags: Record<string, string | boolean>,
   io: CliIO,
-  verbosity: ReturnType<typeof parseVerbosity>,
+  verbosity: Verbosity,
+  logger: Logger,
 ): Promise<number> {
   const graphPath = requireString(flags, "graph");
   const bundle = await loadBundle(graphPath);
@@ -222,7 +275,11 @@ async function cmdEval(
     ? parseRegistryText(await readFile(registryPath, "utf8"))
     : undefined;
 
-  io.stdout(formatEvalReport(evaluateBuild(bundle, registry), verbosity));
+  const report = evaluateBuild(bundle, registry);
+  // §0.11.0 C4 — `eval` reuses the same `Logger`/`Metrics` as the build. The
+  // report flows through the side channel (never gating, INV-4) as well as stdout.
+  reportEvalMetrics(report, logger, new InMemoryMetrics());
+  io.stdout(formatEvalReport(report, verbosity));
   return 0;
 }
 

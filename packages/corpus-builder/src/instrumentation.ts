@@ -37,7 +37,14 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
  * this only decides what to print.
  */
 export class ConsoleLogger implements Logger {
-  constructor(private readonly minLevel: LogLevel = "info") {}
+  constructor(
+    private readonly minLevel: LogLevel = "info",
+    // The sink is injectable so a caller (tests, a CLI capturing to a buffer) can
+    // observe gated output without racing `process.stderr`. Default keeps the
+    // side-channel-to-stderr discipline above.
+    private readonly sink: (line: string) => void = (line) =>
+      process.stderr.write(line + "\n"),
+  ) {}
 
   log(level: LogLevel, event: string, fields?: Record<string, unknown>): void {
     if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
@@ -45,7 +52,7 @@ export class ConsoleLogger implements Logger {
       fields && Object.keys(fields).length > 0
         ? `[${level}] ${event} ${JSON.stringify(fields)}`
         : `[${level}] ${event}`;
-    process.stderr.write(line + "\n");
+    this.sink(line);
   }
 }
 
