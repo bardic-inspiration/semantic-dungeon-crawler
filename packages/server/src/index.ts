@@ -16,6 +16,15 @@ export type {
   SubstrateConfig,
   HttpRequest,
 } from "./server";
+// §0.9.0 (A12) — the substrate bundle as server-wide startup config.
+export {
+  loadSubstrate,
+  parseSubstrateBundle,
+  parseTagRegistryPaths,
+} from "./graph-loader";
+export type { LoadedSubstrate } from "./graph-loader";
+export { main as runServerCli } from "./cli";
+
 export { createHttpServer } from "./http";
 export type { HttpServer } from "./http";
 export { SessionStore } from "./sessions";
