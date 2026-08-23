@@ -17,6 +17,7 @@
 // INV-4: an interpretation that produces nonsense is legal and runs.
 
 import type {
+  AddressToken,
   Affordance,
   Archetype,
   Entity,
@@ -26,6 +27,7 @@ import type {
   SourceSpan,
 } from "schema";
 import { matchesTagPattern } from "./evaluate";
+import { childTokens } from "./address-token";
 
 /**
  * The substrate data a build artifact actually holds for one span — everything
@@ -167,16 +169,49 @@ export function resolveInterpretation(
 }
 
 /**
+ * The overlay-token context `mintEntity` reads to derive `Entity.state.visited`
+ * and `Entity.contains` (§3.1 A3). Both are runtime-derived, not stored per-entity
+ * — they come from the session's address-token tree (§3.8), passed in here so
+ * `mintEntity` stays a pure function of its arguments (INV-2).
+ */
+export interface EntityTokenView {
+  /**
+   * The substrate coordinates a VISITED token names (§3.8, via
+   * `visitedCoordinateRefs`). `state.visited` is true iff this span's coordinate
+   * is among them — the operational form of §3.1's "true iff this entity's overlay
+   * address-token is in `dynamic.visited_set`", since a visited token is exactly
+   * one that names a visited coordinate. Absent ⇒ nothing is visited.
+   */
+  visitedCoordinates?: ReadonlySet<string>;
+  /**
+   * This place's own address-token, when it is a RECORDED place — e.g. the room
+   * the player stands in, keyed by `SessionState.current_token`. Its children in
+   * {@link tree} populate `Entity.contains`. Absent/`null` ⇒ `contains` is empty:
+   * a candidate object is a leaf in the history tree, not a composite (§3.1).
+   */
+  ownToken?: string | null;
+  /** The address-token tree, to resolve `contains` = children of {@link ownToken} (§3.1). */
+  tree?: readonly AddressToken[];
+}
+
+/**
  * Mint the client-facing `Entity` (§3.1) for one resolved span.
  *
- * `visitedSet` derives `state.visited` — §3.1 makes it "runtime-derived … not a
- * stored per-entity field". It is compared against `embedding_ref` today; §3.8
- * specifies overlay ADDRESS-TOKENS there instead, which is issue #108's scope,
- * so this reads whatever `visited_set` currently holds and will follow it.
+ * `tokens` derives the two runtime-owned §3.1 fields (A3), both "runtime-derived …
+ * not stored per-entity":
+ *  - `state.visited` — true iff this span's coordinate is named by a visited
+ *    address-token (`tokens.visitedCoordinates`). `visited_set` holds tokens now
+ *    (§3.8), not coordinates, so the coordinate bridge stands in for the literal
+ *    "token in `visited_set`" membership.
+ *  - `contains` — the child address-tokens of this entity's `composite`, i.e. the
+ *    children of `tokens.ownToken` in `tokens.tree` (the exploration tree's
+ *    parent→children grouping). A candidate object passes no `ownToken`, so its
+ *    `contains` is empty — correct for a leaf/prop entity.
  *
- * `Entity.id` is likewise the durable span id for now. §3.1 (A2) specifies an
- * EPHEMERAL per-resolution id whose durable counterpart is the address-token —
- * also #108. Interpretation does not depend on which it is.
+ * `Entity.id` is the durable span id for now. §3.1 (A2) specifies an EPHEMERAL
+ * per-resolution id whose durable counterpart is the address-token; making `id`
+ * ephemeral is a later step in the overlay sequence. Interpretation does not
+ * depend on which it is.
  *
  * Per INV-4 no value is range-checked: an author salience of 40 is legal and is
  * passed through, because judging it would be taste-policing.
@@ -184,9 +219,16 @@ export function resolveInterpretation(
 export function mintEntity(
   span: SubstrateSpanView,
   lookup: InterpretationLookup | undefined,
-  visitedSet: readonly string[],
+  tokens: EntityTokenView = {},
 ): Entity {
   const interpretation = resolveInterpretation(span, lookup);
+  // §3.1 (A3): the child address-tokens of this entity's `composite` registry
+  // entry — the exploration tree's parent→children grouping. Non-empty only for a
+  // recorded place (an `ownToken` with children); empty for a leaf/prop entity.
+  const contains =
+    tokens.ownToken != null && tokens.tree !== undefined
+      ? childTokens(tokens.tree, tokens.ownToken)
+      : [];
   return {
     id: span.id,
     archetype: interpretation.archetype,
@@ -196,14 +238,11 @@ export function mintEntity(
     salience: interpretation.salience,
     prose: span.prose,
     source_span: span.source_span,
-    // §3.1 (A3): the child address-tokens of this entity's `composite` registry
-    // entry. The overlay is #109's scope and B6's composition strategies are
-    // deferred, so no composite exists to resolve — empty is correct today.
-    contains: [],
+    contains,
     layout_hint: interpretation.layout_hint,
     state: {
       local_coherence: span.local_coherence,
-      visited: visitedSet.includes(span.id),
+      visited: tokens.visitedCoordinates?.has(span.id) ?? false,
     },
   };
 }

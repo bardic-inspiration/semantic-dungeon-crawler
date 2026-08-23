@@ -52,6 +52,8 @@ function state(over: Partial<SessionState> = {}): SessionState {
     momentum: null,
     path_coherence: 0,
     visited_set: [],
+    address_tokens: [],
+    current_token: null,
     vars: {},
     registry: [],
     links: [],

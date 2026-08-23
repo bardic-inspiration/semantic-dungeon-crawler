@@ -44,6 +44,8 @@ function makeState(over: Partial<SessionState> = {}): SessionState {
     momentum: null,
     path_coherence: 0,
     visited_set: [],
+    address_tokens: [],
+    current_token: null,
     vars: {},
     registry: [],
     links: [],
@@ -65,7 +67,7 @@ const TEST_INTERPRETATION: InterpretationLookup = {
 
 function buildGraph(): { graph: Graph; room: Entity } {
   const roomSpan = makeSpan("origin", { archetype: "container" });
-  const room = mintEntity(roomSpan, TEST_INTERPRETATION, []);
+  const room = mintEntity(roomSpan, TEST_INTERPRETATION);
   const spans: GraphSpan[] = [
     span(roomSpan, [1, 0]),
     span(makeSpan("a", { archetype: "portal" }), [0.99, 0.14]),

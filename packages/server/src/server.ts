@@ -40,7 +40,9 @@ import {
   createSubstrateGraph,
   mintEntity,
   populate,
+  recordVisit,
   resolveMove,
+  visitedCoordinateRefs,
   DEFAULT_MOVEMENT_AFFORDANCES,
   type CommitResult,
   type DebugConfig,
@@ -386,11 +388,19 @@ export function createServer(config: ServerConfig): Server {
     // §0.9.0 (A13) — the room is an interpreted view of its span, minted through
     // the SAME lookup its objects are, so an author's interpretation governs the
     // room the player stands in as well as what they see in it.
-    const room = mintEntity(
-      span,
-      ruleset.interpretation_lookup,
-      session.visited_set,
-    );
+    //
+    // §0.9.0 (A3) — the room is the player's CURRENT recorded place, so it carries
+    // its own address-token (`current_token`): `Entity.contains` resolves to that
+    // token's children in the exploration tree, and `visited` is derived over the
+    // durable tokens (via the coordinates they name), not the ephemeral id.
+    const room = mintEntity(span, ruleset.interpretation_lookup, {
+      visitedCoordinates: visitedCoordinateRefs(
+        session.visited_set,
+        session.address_tokens,
+      ),
+      ownToken: session.current_token,
+      tree: session.address_tokens,
+    });
     const resolution = populate(room, session, graph, ruleset.layers, {
       // §2.1 / §4.3 — the solver's warnings (notably the conflicting-`override`
       // "messy resolution" warn, a §6.4 Exit criterion) are emitted through the
@@ -624,7 +634,15 @@ export function createServer(config: ServerConfig): Server {
       session.turn_count += 1;
       const ref = move.destination!.entity.embedding_ref;
       session.position = { vector_ref: ref };
-      if (!session.visited_set.includes(ref)) session.visited_set.push(ref);
+      // §0.9.0 (A3): a transition mints a durable overlay ADDRESS-TOKEN for the
+      // place just reached — a child under `current_token` in the append-only
+      // tree — and it is the TOKEN, not the substrate `embedding_ref`, that
+      // enters `visited_set` (§3.8). `position` stays the live substrate
+      // coordinate; the two are deliberately distinct. Deterministic from the
+      // replay inputs, so an identical input-log re-mints identical tokens
+      // (INV-2). Every visit mints afresh, so a revisited coordinate records a
+      // sibling token rather than deduping — A3's "re-approximate on return".
+      recordVisit(session);
     }
 
     const after = resolveRoom(session);

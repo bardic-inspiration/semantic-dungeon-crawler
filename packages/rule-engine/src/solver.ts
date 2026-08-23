@@ -49,6 +49,7 @@ import { createDebugTrace, type DebugConfig } from "./debug-trace";
 import { NoopLogger, type Logger } from "./instrumentation";
 import type { Query } from "./query";
 import { mintEntity } from "./interpretation";
+import { visitedCoordinateRefs } from "./address-token";
 import { seededRng } from "./prng";
 import { sample } from "./sample";
 import type { Graph } from "./graph";
@@ -295,8 +296,16 @@ export function evaluateLayers(
   // This is the ordering the spec requires: interpretation precedes predicate
   // evaluation, so a rule reading `static.archetype` sees what the author's
   // lookup produced, not what the tagger guessed at build time.
+  // §3.1 (A3) — `visited` is derived over the durable address-token, not the
+  // ephemeral id: a candidate at coordinate `X` is visited iff a token in
+  // `visited_set` names `X`. Candidates carry no `ownToken` (they are potential
+  // destinations, not recorded places), so their `contains` stays empty.
+  const visitedCoordinates = visitedCoordinateRefs(
+    state.visited_set,
+    state.address_tokens,
+  );
   const candidates: EntityCandidate[] = graph.query(query).map((sc) => ({
-    entity: mintEntity(sc.span, options.interpretation, state.visited_set),
+    entity: mintEntity(sc.span, options.interpretation, { visitedCoordinates }),
     embedding_distance: sc.embedding_distance,
   }));
   const rng = seededRng(state.session_seed, state.turn_count, query);
