@@ -28,14 +28,33 @@ makes it pass.
 - **Schema validation** (Phase 1): required/optional fields, type guards, that
   `fixtures/entity.example.json` validates against `Entity` (SPEC §6.2 Exit).
 - **Determinism** (`INV-2`, SPEC §4.5): given identical
-  `(graph.json, ruleset.dsl, session_seed, input-log)`, `resolveMove` and
-  `populate` produce **byte-identical** output across independent runs. Sampling
-  uses a seeded PRNG derived from `(session_seed, normalized_query)`
-  (SPEC §0.10.0 B3 — `normalized_query` is the canonicalized, hashed substrate
-  query, so two spellings of one query seed identically; SPEC §0.13.0 —
-  `turn_count` is not a seed component) — never wall-clock or unseeded randomness.
+  `(graph.json, ruleset, session_seed, input-log)`, output is **byte-identical**
+  across independent runs. Sampling uses a seeded PRNG derived from
+  `(session_seed, normalized_query)` (SPEC §0.10.0 B3 — `normalized_query` is
+  the canonicalized, hashed substrate query, so two spellings of one query seed
+  identically; SPEC §0.13.0 — `turn_count` is not a seed component) — never
+  wall-clock or unseeded randomness. This is tested at two levels, and both are
+  required:
+  - **Mechanism**, in-process (`packages/rule-engine/src/determinism.test.ts`,
+    `solver.test.ts`): repeated `resolveMove`/`populate` calls over a hand-built
+    graph agree, and the draw moves when a seed component does.
+  - **Criterion**, end to end (`packages/server/src/replay.test.ts`): a real
+    `graph.json` built by the `corpus-builder` CLI, a real
+    `fixtures/rulesets/*.json` bundle bound through dev-mode
+    `POST /session/new`, and the session's §3.9 `input_log` re-POSTed in order —
+    the replay procedure §3.9 states — with the raw response bodies compared
+    across two runs booted under a reset module registry (`vi.resetModules()` +
+    dynamic `import()`), so no PRNG, cache, or counter is shared between them.
+    "Byte-identical" is asserted over those raw bodies, never over a
+    re-serialization of parsed objects, which would hide key-order drift.
 - **Function identity** (SPEC §4.4): a test asserts `resolveMove` and `populate`
   call the *same* `evaluateLayers` reference — not merely equivalent output.
+  Since TypeScript cannot compare the reference a function body closed over,
+  `solver.test.ts` asserts it in three parts: `solverCore.evaluateLayers` **is**
+  the exported `evaluateLayers` (`toBe`), a single spy planted on that property
+  observes both entry points, and no call site in `solver.ts` reaches
+  `evaluateLayers` outside that indirection (asserted over the module's source
+  text, so the indirection cannot be quietly bypassed).
 - **`INV-4` conformance** (SPEC §4.3): two `override`-mode layers with
   contradictory hard decisions **do not throw** — resolution is by declaration
   order with a logged warning. The null-ruleset case (`layers: []`) produces pure
