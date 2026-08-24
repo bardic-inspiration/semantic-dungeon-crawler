@@ -47,6 +47,22 @@ file only adds Claude-Code specifics.
   None of the above applies — use
   [`docs/docs-only-changes.md`](docs/docs-only-changes.md) instead.
 
+## CI watch protocol
+
+- **Code change → always watch.** Once you open a PR that touches anything
+  beyond Markdown, call `subscribe_pr_activity` on it before ending the turn.
+  Cold-start sessions have no memory of prior runs, so this subscription is
+  what keeps CI failures, merge conflicts, and review comments from going
+  unhandled between agent sessions — drive the PR to green per the
+  babysitting rules rather than leaving it to be noticed later.
+- **Docs-only → never watch.** A PR that qualifies as docs-only under
+  [`docs/docs-only-changes.md`](docs/docs-only-changes.md) skips CI's
+  install/lint/typecheck/test steps entirely, so there's no build state to
+  babysit — don't call `subscribe_pr_activity` on it.
+- If a docs-only PR later picks up a code change, it stops being docs-only
+  ([`docs/docs-only-changes.md`](docs/docs-only-changes.md), "mixes a docs
+  edit with any code change") — subscribe as soon as that happens.
+
 ## Useful commands
 
 ```
