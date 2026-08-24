@@ -1,0 +1,28 @@
+{
+  "spec_version": "0.12.0",
+  "layers": [
+    {
+      "id": "favor-portals",
+      "scope": "global",
+      "mode": { "priority": 1 },
+      "rules": [
+        {
+          "predicate": "static.archetype == \"portal\"",
+          "effect": { "kind": "soft_reweight", "factor": 3 }
+        },
+        {
+          "predicate": "static.local_coherence < 0.05",
+          "effect": { "kind": "hard_forbid" }
+        },
+        {
+          "predicate": "dynamic.turn_count >= 0",
+          "effect": {
+            "kind": "write",
+            "target": "dynamic.vars.last_turn",
+            "value": "dynamic.turn_count"
+          }
+        }
+      ]
+    }
+  ]
+}

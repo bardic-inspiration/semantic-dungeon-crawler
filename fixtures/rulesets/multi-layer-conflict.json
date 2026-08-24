@@ -1,0 +1,38 @@
+{
+  "spec_version": "0.12.0",
+  "layers": [
+    {
+      "id": "allow-everything",
+      "scope": "dynamic.turn_count >= 0",
+      "mode": "override",
+      "rules": [
+        {
+          "predicate": "static.embedding_distance >= 0",
+          "effect": { "kind": "hard_allow" }
+        }
+      ]
+    },
+    {
+      "id": "forbid-everything",
+      "scope": "dynamic.turn_count >= 0",
+      "mode": "override",
+      "rules": [
+        {
+          "predicate": "static.embedding_distance >= 0",
+          "effect": { "kind": "hard_forbid" }
+        }
+      ]
+    },
+    {
+      "id": "narrate",
+      "scope": "global",
+      "mode": "yield",
+      "rules": [
+        {
+          "predicate": "static.embedding_distance >= 0",
+          "effect": { "kind": "emit", "text": "the room shifts underfoot" }
+        }
+      ]
+    }
+  ]
+}
