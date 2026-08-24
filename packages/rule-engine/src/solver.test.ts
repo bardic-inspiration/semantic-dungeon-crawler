@@ -5,6 +5,8 @@
 // the degenerate/stuck resolution (C2), null-ruleset drift, determinism (INV-2),
 // and INV-4 conformance (contradictory overrides never throw).
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi } from "vitest";
 import type { Entity, InterpretationLookup, Layer, SessionState } from "schema";
 import * as solver from "./solver";
@@ -104,7 +106,49 @@ function globalLayer(
 
 // ── §4.4 / §6.4 Exit — the identical-evaluateLayers guarantee ─────────────────
 
+// §4.4 asks for "a test that asserts this (same function reference, not just
+// same output)". A reference comparison at the call site is not expressible in
+// TypeScript — a function does not publish which reference its body closed over
+// — so the requirement is met in three parts, and it is the THIRD that makes the
+// first two more than a test of the indirection itself:
+//
+//   1. `solverCore.evaluateLayers` IS the exported `evaluateLayers` — a direct
+//      `toBe` on the reference the holder carries.
+//   2. Both entry points call through that one property (the spy below): one
+//      planted function is observed by both, so neither holds a private copy.
+//   3. The indirection cannot be bypassed — no call site in `solver.ts` reaches
+//      `evaluateLayers` other than through `solverCore`, asserted over the
+//      module's own source text. Without this, a future edit could call the
+//      bare function directly from one entry point and both assertions above
+//      would still pass.
 describe("resolveMove and populate call the identical evaluateLayers (§4.4, §6.4)", () => {
+  it("the holder carries the exported evaluateLayers itself (reference identity)", () => {
+    expect(solver.solverCore.evaluateLayers).toBe(solver.evaluateLayers);
+  });
+
+  it("no call site in solver.ts bypasses the solverCore indirection", () => {
+    const source = readFileSync(
+      fileURLToPath(new URL("./solver.ts", import.meta.url)),
+      "utf8",
+    );
+    // Call sites only — comment lines (which name `evaluateLayers()` in prose)
+    // and the declaration itself are not calls.
+    const code = source
+      .split("\n")
+      .filter((line) => !/^\s*(\/\/|\/?\*)/.test(line));
+    const bypasses = code
+      .filter((line) => /(?<!\.)\bevaluateLayers\s*\(/.test(line))
+      .filter((line) => !/function evaluateLayers\s*\(/.test(line));
+
+    expect(bypasses).toEqual([]);
+    // And the indirected call sites are really there — a rename that silently
+    // removed them all would otherwise satisfy the assertion above.
+    const routed = code.filter((line) =>
+      /solverCore\.evaluateLayers\s*\(/.test(line),
+    );
+    expect(routed.length).toBeGreaterThan(0);
+  });
+
   it("both entry points route through solverCore.evaluateLayers (same reference)", () => {
     const { graph, room } = buildGraph();
     const spy = vi.spyOn(solver.solverCore, "evaluateLayers");
@@ -534,7 +578,14 @@ describe("malformed predicates and scopes surface through the Logger (#107)", ()
   });
 });
 
-// ── §4.5 (INV-2) — determinism ────────────────────────────────────────────────
+// ── §4.5 (INV-2) — determinism, at the unit level ─────────────────────────────
+//
+// These cover the MECHANISM in-process: one solver call against a hand-built
+// graph, repeated. The §6.4 Exit CRITERION — the same
+// `(graph.json, ruleset, session_seed, input_log)` replayed across two
+// independent runs — is executed in `packages/server/src/replay.test.ts`, which
+// is where the whole tuple exists (a built `graph.json`, a
+// `fixtures/rulesets/*.json` bundle, and the §3.9 input log).
 
 describe("determinism (§4.5, INV-2)", () => {
   it("gives byte-identical move output across two independent runs", () => {
