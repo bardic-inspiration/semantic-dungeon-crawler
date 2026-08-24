@@ -47,6 +47,17 @@ Verification was not possible when this note was written (the environment's
 network policy blocks `gutendex.com`), so treat every ID above as a candidate,
 not a fact.
 
+**Re-checked 2026-08-24, still blocked.** `gutendex.com` remains unreachable
+from the build environment: `GET https://gutendex.com/books?ids=...` is refused
+at the egress layer (`CONNECT` returns `403` — an organization egress-policy
+denial, host `gutendex.com:443` `connect_rejected`), not a transient failure.
+No verification was possible, and routing around a policy denial is not an
+option. Verification is deferred to pre-alpha testing, where the corpus will
+first be fetched for real against a live network; a wrong ID surfaces there
+harmlessly (the wrong book, or none) rather than corrupting anything earlier in
+the build, since every CI test mocks Gutendex. The register roles above are the
+selection contract; the IDs remain candidates until that fetch confirms them.
+
 **They were locked into `fixtures/corpus-manifest.default.json` anyway, and
 Phase 2 closed over it.** §6.3 Exit requires the manifest be "checked in with
 **verified** Gutenberg IDs"; that criterion is outstanding. A conformance audit
@@ -76,4 +87,7 @@ than forcing it.
 Accepted. Phase 2 is complete and `fixtures/corpus-manifest.default.json` is
 checked in with this set. What remains outstanding is the ID verification §6.3.1
 requires (above) — the selection is settled, its correctness is not yet
-confirmed.
+confirmed. That verification is blocked by the environment's egress policy
+(re-checked 2026-08-24, above) and is deferred to pre-alpha testing's first real
+corpus fetch; the §6.3 Exit "verified IDs" criterion stays openly unmet until
+then, rather than being closed with a silently-unverified fixture.
