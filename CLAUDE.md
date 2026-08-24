@@ -47,6 +47,19 @@ file only adds Claude-Code specifics.
   None of the above applies — use
   [`docs/docs-only-changes.md`](docs/docs-only-changes.md) instead.
 
+## PR protocol
+
+- **Always open a PR when a session's work is ready**, overriding the
+  general default of only opening one when explicitly asked. This repo's
+  build runs on memoryless, scheduled cold starts — nobody is watching a
+  session to ask for a PR, so the build only moves forward if finishing
+  work reliably produces one.
+- The one exception: the user explicitly says not to (this turn or in
+  standing instructions) — then don't.
+- This doesn't relax anything else in this file: an issue's acceptance
+  criteria, the TDD gate, and the `docs-only-changes.md` exception all
+  still apply before you get to opening the PR.
+
 ## CI watch protocol
 
 - **Code change → always watch.** Once you open a PR that touches anything
