@@ -37,3 +37,14 @@ Fixtures live in fixtures/ and must be engine-agnostic (SPEC §6.5).
 ## Out of scope
 
 <!-- What this task explicitly does NOT address (guard against scope creep; see SPEC §6.8). -->
+
+## TL;DR
+
+<!--
+Required. Plain English, no software-expert jargon, bullet points — explain
+this like you're telling a friend who doesn't code. Cover:
+- Why: the reason this issue exists.
+- Impact: what changes once it's done.
+-->
+
+-

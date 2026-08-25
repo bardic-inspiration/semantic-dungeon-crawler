@@ -55,7 +55,8 @@ contract (fixtures, determinism, import-boundary checks).
 ## Pull requests
 
 - Fill in the [PR template](.github/pull_request_template.md): summary, linked
-  issue (`Closes #N`), affected SPEC section, testing notes, and the checklist.
+  issue (`Closes #N`), affected SPEC section, testing notes, the checklist,
+  and a plain-English TL;DR at the end.
 - CI (lint + typecheck + test matrix) must be green before merge.
 - Keep the PR to a single build-order concern. Do not scope-creep into later
   phases or the post-alpha items in SPEC §6.8.
