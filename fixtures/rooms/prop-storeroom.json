@@ -102,5 +102,5 @@
     }
   ],
   "exits": [],
-  "resolution_status": "resolved"
+  "resolution_status": "stuck"
 }
