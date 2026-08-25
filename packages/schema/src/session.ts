@@ -55,8 +55,8 @@ export interface SessionState {
   address_tokens: AddressToken[]; // §0.9.0 (A3): the append-only parent→children token tree; `Entity.contains` resolves from it. SERVER-INTERNAL (INV-3).
   current_token: string | null; // §0.9.0 (A3): the token at the player's current place — parent of the next mint; the ancestor backtracking truncates to. `null` before the first place is minted.
   vars: Record<string, string>; // §0.9.0 (A8): dynamic.vars.* scratch — write target for `write` effects
-  registry: AddressRegistryEntry[]; // §0.9.0: the PLAYER-overlay layer (provenance "player")
-  links: LinkRecord[]; // player-overlay links (§3.7.2)
+  registry: AddressRegistryEntry[]; // §0.9.0/§3.8: the PER-SESSION overlay layer. Carries BOTH provenances — "author_runtime" (rule-driven writes) and "player" (exposed player invocations, §3.7.4); reads merge it over the shared build base, session wins; the §5.1 client view filters to "player" (INV-3).
+  links: LinkRecord[]; // per-session overlay links (§3.7.2), same layering as `registry`
   ended: boolean; // §0.9.0 (A7): set by the `end` effect; surfaced as InteractResponse.session_ended
   input_log: InputLogEntry[]; // §0.9.0 (A9): accumulated player inputs (§3.9)
 }

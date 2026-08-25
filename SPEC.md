@@ -616,7 +616,8 @@ whether a given exposure configuration is sensible.
 > *contents* remain server-internal; a client-facing **names/labels** view of
 > player-provenance entries is exposed via `GET /session/{id}/registry` (§5.1),
 > within the INV-3 refinement (§0). The registry is owned per §3.8 (layered:
-> shared build/author base + per-session player overlay).
+> a shared build base + a per-session overlay carrying both the `author_runtime`
+> and `player` writes a session makes).
 
 ### 3.8 Session State (§0.9.0, A8)
 
@@ -647,9 +648,10 @@ interface SessionState {
                                      // ancestor backtracking truncates to. `null` before the first place is minted.
   vars: Record<string, string>;      // §0.9.0 (A8): dynamic.vars.* scratch — write target for `write` effects (A5),
                                      // readable in the DSL (§4.2). Values are strings; coerce per predicate use.
-  registry: AddressRegistryEntry[];  // §0.9.0: the PLAYER-overlay layer (provenance "player"); reads merge this
-                                     // over the shared build/author_runtime base bound to the world (§3.7.1)
-  links: LinkRecord[];               // player-overlay links (§3.7.2)
+  registry: AddressRegistryEntry[];  // §0.9.0: the PER-SESSION overlay layer — provenance "author_runtime" (rule-driven)
+                                     // or "player" (exposed invocation); reads merge it over the shared build base (§3.7.1),
+                                     // session wins, and the §5.1 client view filters to "player" (INV-3)
+  links: LinkRecord[];               // per-session overlay links (§3.7.2), same layering as `registry`
   ended: boolean;                    // §0.9.0 (A7): set by the `end` effect; surfaced as InteractResponse.session_ended
   input_log: InputLogEntry[];        // §0.9.0 (A9): accumulated player inputs (§3.9)
 }
@@ -671,9 +673,18 @@ coordinate fresh; a subsequent move mints a **sibling** token, and the tree stay
 monotonic so old branches remain addressable. `Entity.contains` (§3.1) is exactly
 a token's children in this tree.
 
-The **Address Registry is layered** (A8): build- and author_runtime-provenance
-entries are shared per-world and immutable during play; player-provenance writes
-live in `SessionState.registry`; a read is the merge (player over base).
+The **Address Registry is layered** (A8). A shared per-world **base** holds
+`build`-provenance entries — immutable during play, and empty in the current
+alpha: the registry is *emergent*, populated through play rather than seeded
+(`docs/design/0006-overlay-registry-layering.md`). The **per-session overlay**
+(`SessionState.registry` / `links`) holds the writes a session makes: an author
+rule's primitive writes `author_runtime`-provenance entries, and an *exposed*
+player invocation (§3.7.4) writes `player`-provenance ones — the same
+primitive/effect, distinguished only by provenance (A10). A read merges the
+overlay over the base, the session winning; the §5.1 client view then filters to
+`player` (INV-3). `author_runtime` overlay writes are deterministic consequences
+of the input log and re-derive on replay (§3.9), so they are not themselves
+logged.
 
 ### 3.9 Input Log (§0.9.0, A9)
 
