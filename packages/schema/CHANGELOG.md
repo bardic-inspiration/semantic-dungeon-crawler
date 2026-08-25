@@ -23,6 +23,20 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ### Added
 
+- **`Ruleset.substrate` / `SubstrateRulesetConfig` / `GradientSource` (§3.4,
+  SPEC §0.10.0 B3)** — the substrate-query knobs B3 names as "ruleset config with
+  engine defaults". For now the block carries `gradient_source` (`"none"` |
+  `"momentum"`): `"momentum"` feeds the session's `dynamic.momentum` (§3.8) into
+  the movement `Query.direction` so drift is biased along the recent trajectory,
+  and `"none"` (the engine default) issues no direction. Every field is optional
+  with an engine default, so a ruleset omitting the block — and therefore every
+  existing ruleset — resolves exactly as before: pure relativistic drift (§0/§1).
+
+  Additive and **not a spec-version bump**: the field is optional author content
+  (§3.5 — "adding/removing entries is not an engine version bump"), and the
+  zero-config wire behavior is unchanged; only a ruleset that opts in gains the
+  gradient query B3 already reserved.
+
 - **`AddressToken` and `SessionState.address_tokens` / `current_token` (§3.8,
   SPEC §0.9.0 A3)** — the append-only overlay address-token tree, realized as
   concrete run-state. `AddressToken` is `{ token, parent, position }`: an opaque,

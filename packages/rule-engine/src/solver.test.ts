@@ -256,6 +256,7 @@ describe("resolveMove — exit-anchoring (A4)", () => {
         sink.push(q.origin.vector_ref);
         return inner.query(q);
       },
+      embeddingOf: (ref) => inner.embeddingOf(ref),
     };
   }
 

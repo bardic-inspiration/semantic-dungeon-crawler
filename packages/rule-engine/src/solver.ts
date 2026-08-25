@@ -187,6 +187,14 @@ export interface ResolveMoveOptions {
   anchor?: { target_ref: string };
   /** Candidate-pool size for the query; defaults to {@link DEFAULT_QUERY_K}. */
   k?: number;
+  /**
+   * §4.4 (B3) — the gradient bias for the movement query, sourced from the
+   * session's `dynamic.momentum` (§3.8) when the ruleset's `substrate.gradient_source`
+   * opts in. Omitted (the engine default), the move stays pure relativistic drift
+   * (§0/§1). The value is quantized in `normalized_query` (§4.5) so float drift
+   * cannot fork a replay (INV-2).
+   */
+  direction?: number[];
   logger?: Logger;
   /**
    * §0.9.0 (A13) — the author's `Ruleset.interpretation_lookup`. Applied to every
@@ -603,9 +611,23 @@ export function resolveMove(
   const logger = options.logger ?? new NoopLogger();
   const k = options.k ?? DEFAULT_QUERY_K;
 
-  const driftQuery: Query = { origin: state.position, k };
+  // §4.4 (B3) gradient bias — an empty/absent momentum contributes no direction,
+  // so the query stays a pure nearest-neighbor drift (the zero-config default).
+  const direction =
+    options.direction && options.direction.length > 0
+      ? options.direction
+      : undefined;
+  const driftQuery: Query = {
+    origin: state.position,
+    k,
+    ...(direction ? { direction } : {}),
+  };
   const query: Query = options.anchor
-    ? { origin: { vector_ref: options.anchor.target_ref }, k }
+    ? {
+        origin: { vector_ref: options.anchor.target_ref },
+        k,
+        ...(direction ? { direction } : {}),
+      }
     : driftQuery;
 
   let result = solverCore.evaluateLayers(graph, query, state, layers, {

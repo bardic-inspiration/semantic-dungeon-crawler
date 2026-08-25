@@ -28,6 +28,22 @@ export interface InterpretationLookup {
   by_tag?: { pattern: string; interpretation: InterpretationEntry }[]; // first match wins, in array order
 }
 
+// §0.10.0 (B3) — where a substrate `Query.direction` (the gradient bias) is
+// sourced from. `"momentum"` feeds the session's `dynamic.momentum` (§3.8) into
+// the movement query so drift is biased along the recent trajectory; `"none"`
+// (the ENGINE DEFAULT) issues no direction, so a zero-config world stays pure
+// relativistic drift (§0/§1). Adding the parameterization does not change the
+// zero-config behavior — it only unlocks the gradient query B3 already reserved.
+export type GradientSource = "none" | "momentum";
+
+// §0.10.0 (B3) — the substrate-query knobs B3 names as "ruleset config with
+// engine defaults" (the same authored bundle as movement-affordances / the
+// interpretation lookup). Every field is OPTIONAL with an engine default, so a
+// ruleset that omits the block resolves exactly as before (INV-4).
+export interface SubstrateRulesetConfig {
+  gradient_source?: GradientSource; // default "none" (relativistic drift, §0)
+}
+
 // §4.2 DSL expression evaluated once per move to determine layer activation.
 export type ScopeCondition = string;
 
@@ -71,4 +87,5 @@ export interface Ruleset {
   interpretation_lookup?: InterpretationLookup; // §0.9.0 (A13)
   primitive_exposure?: PrimitiveExposure[]; // §3.7.4 — which overlay primitives players may invoke
   movement_affordances?: Affordance[]; // §0.9.0 (A4) — engine default ["enter","traverse"] (+ portal archetype)
+  substrate?: SubstrateRulesetConfig; // §0.10.0 (B3) — substrate-query config (gradient source); engine defaults when omitted
 }
