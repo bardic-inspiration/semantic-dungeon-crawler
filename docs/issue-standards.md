@@ -17,6 +17,11 @@ gets a paper trail instead of getting lost or silently folded in.
   [`design/open-scope.md`](design/open-scope.md)), resolving **one tier at a
   time (A → B → C)**. This is the queue the "stop and escalate on spec
   ambiguity" path below feeds into, so it is no longer an unowned label.
+- **Alongside either queue**, watch for open `[audit]`-titled issues (no
+  `phase:N` label — see [`roadmap.md`](roadmap.md) "Conformance audit
+  track"): compare the lowest-numbered open `phase:N`/`design` issue against
+  the lowest-numbered open `[audit]` issue and take whichever number is
+  lower.
 - Read the `SPEC.md` section it references before touching code. The
   invariants `INV-1`..`INV-5` (`AGENTS.md` §2) hold regardless of phase.
 - Scope work to **that issue only** — don't range ahead into later phases and
