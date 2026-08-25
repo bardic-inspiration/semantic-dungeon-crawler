@@ -336,6 +336,10 @@ interface Ruleset {
   primitive_exposure?: PrimitiveExposure[];             // §3.7.4 — which overlay primitives players may invoke
   movement_affordances?: Affordance[];                  // §0.9.0 (A4) — affordances that trigger movement;
                                                         // engine default = ["enter","traverse"] (+ portal archetype)
+  substrate?: {                                         // §0.10.0 (B3) — substrate-query config (engine defaults when omitted)
+    gradient_source?: "none" | "momentum";              // where Query.direction comes from; default "none" = relativistic drift (§0/§1),
+                                                        // "momentum" feeds dynamic.momentum (§3.8) into the movement query
+  };
 }
 
 // §0.9.0 (A13). Author content (with engine defaults), keyed by archetype and/or tag pattern (§4.2 MATCHES

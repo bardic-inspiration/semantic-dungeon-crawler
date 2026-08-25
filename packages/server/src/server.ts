@@ -45,6 +45,7 @@ import {
   populate,
   recordVisit,
   resolveMove,
+  updateTrajectory,
   visitedCoordinateRefs,
   DEFAULT_MOVEMENT_AFFORDANCES,
   type CommitResult,
@@ -591,6 +592,18 @@ export function createServer(config: ServerConfig): Server {
       ruleset.movement_affordances ?? DEFAULT_MOVEMENT_AFFORDANCES;
     const isMovement = movementAffordances.includes(action.affordance);
 
+    // §4.4 (B3) — the gradient SOURCE is ruleset config with an engine default.
+    // Only `substrate.gradient_source: "momentum"` feeds the session's current
+    // `dynamic.momentum` (§3.8) into the move's `Query.direction`; the default
+    // (absent, or `"none"`) issues no direction, so a zero-config world stays
+    // pure relativistic drift (§0/§1). A session before its first step has a
+    // `null` momentum and so still drifts until one exists.
+    const gradientDirection =
+      ruleset.substrate?.gradient_source === "momentum" &&
+      session.momentum !== null
+        ? session.momentum
+        : undefined;
+
     // Every interaction routes through the identical `resolveMove` (§4.1 / §4.4):
     // it runs `evaluateLayers` + the commit phase whether or not a transition
     // results (§3.3 A6). No rule logic lives in the server (INV-1). The move is the
@@ -607,6 +620,7 @@ export function createServer(config: ServerConfig): Server {
         ? { interpretation: ruleset.interpretation_lookup }
         : {}),
       ...(exit ? { anchor: { target_ref: exit.target_entity_id } } : {}),
+      ...(gradientDirection ? { direction: gradientDirection } : {}),
       ...(debugConfig ? { debug: debugConfig } : {}),
     });
     recordTrace(session.session_id, move.debug);
@@ -686,6 +700,13 @@ export function createServer(config: ServerConfig): Server {
       // (INV-2). Every visit mints afresh, so a revisited coordinate records a
       // sibling token rather than deduping — A3's "re-approximate on return".
       recordVisit(session);
+      // §3.8 / §0.10.0 (B5) — recompute the session's trajectory triple
+      // (`trace_centroid`, `momentum`, `path_coherence`) from the path through
+      // embedding space now that a new place has been recorded. Server-internal
+      // (INV-3 — the vectors never leave the graph seam) and a pure function of
+      // the replay inputs (INV-2), so it re-derives on replay like `recordVisit`
+      // itself and needs no log entry.
+      updateTrajectory(session, graph);
     }
 
     const after = resolveRoom(session);

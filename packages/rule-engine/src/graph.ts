@@ -28,9 +28,20 @@ export interface Graph {
    * Rank the substrate against `q`, returning at most `q.k` candidates nearest
    * first. Excludes the origin span itself (a query never returns its own
    * position). `q.radius`, when set, drops candidates beyond that cosine-distance
-   * cutoff (the region / embedding-proximity query, §4.4). Never throws.
+   * cutoff (the region / embedding-proximity query, §4.4). `q.filter`, when set,
+   * prefilters the pool to spans matching an author tag/archetype filter, and
+   * `q.direction`, when set, biases the ranking toward candidates displaced from
+   * the origin ALONG that gradient (the gradient query, §4.4 B3). Never throws.
    */
   query(q: Query): SpanCandidate[];
+  /**
+   * The build-time embedding for a substrate coordinate, by its `vector_ref`, or
+   * `null` when no span carries that ref. SERVER-INTERNAL (INV-3): the raw vector
+   * lives behind this seam so per-turn trajectory math (§3.8 `trace_centroid` /
+   * `momentum` / `path_coherence`) can read it; it never reaches an `Entity` or
+   * the wire. Returns a defensive copy so a caller cannot mutate the index.
+   */
+  embeddingOf(vectorRef: string): number[] | null;
 }
 
 /**
@@ -76,6 +87,58 @@ function cosineDistance(a: readonly number[], b: readonly number[]): number {
   return 1 - dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
 
+// Cosine SIMILARITY `cos(a,b)` over two vectors, range [-1,1], larger = more
+// aligned. Degenerate (length-mismatched or zero-magnitude) vectors yield 0
+// (orthogonal), never throws — the gradient bias then contributes nothing.
+function cosineSimilarity(a: readonly number[], b: readonly number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let magA = 0;
+  let magB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i]! * b[i]!;
+    magA += a[i]! * a[i]!;
+    magB += b[i]! * b[i]!;
+  }
+  if (magA === 0 || magB === 0) return 0;
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+
+/**
+ * §4.4 (B3) — the weight the gradient bias carries in the ranking score
+ * (`score = embedding_distance − GRADIENT_BIAS_WEIGHT · alignment`). A documented,
+ * deterministic engine default; Phase 6 tunes it (§7, out of scope). It reorders
+ * the radius-bounded pool toward the `direction` gradient WITHOUT changing the
+ * region cutoff (which still bounds the raw cosine distance) or the reported
+ * `embedding_distance` (still the raw distance predicates read).
+ */
+export const GRADIENT_BIAS_WEIGHT = 0.5;
+
+/**
+ * An author-supplied `Query.filter`, interpreted as a tag/archetype PREFILTER
+ * (§4.4 B3). A span passes when — for whichever keys are present — its
+ * `archetype` equals `filter.archetype` AND its `semantic_tags` contain every tag
+ * in `filter.tags`. An absent, null, or unrecognized filter shape matches
+ * everything (INV-4 — a malformed filter narrows nothing rather than throwing).
+ */
+function passesFilter(span: SubstrateSpanView, filter: unknown): boolean {
+  if (filter === undefined || filter === null || typeof filter !== "object") {
+    return true;
+  }
+  const f = filter as { archetype?: unknown; tags?: unknown };
+  if (typeof f.archetype === "string" && span.archetype !== f.archetype) {
+    return false;
+  }
+  if (Array.isArray(f.tags)) {
+    for (const tag of f.tags) {
+      if (typeof tag === "string" && !span.semantic_tags.includes(tag)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 /**
  * Build a deterministic in-memory {@link Graph} over `spans`. Ranking is exact
  * cosine k-NN with ties broken by span declaration order — identical semantics to
@@ -90,18 +153,39 @@ export function createSubstrateGraph(spans: readonly GraphSpan[]): Graph {
   return {
     query(q: Query): SpanCandidate[] {
       const originVec = byRef.get(q.origin.vector_ref)?.embedding;
+      // §4.4 (B3) gradient bias — only when a direction is supplied AND we have an
+      // origin to measure displacement from. `alignment` is the cosine of the
+      // step `candidate − origin` with the gradient, so a candidate that lies
+      // along the momentum scores a LOWER (better) rank while its reported
+      // `embedding_distance` stays the raw cosine distance.
+      const direction =
+        q.direction && q.direction.length > 0 ? q.direction : undefined;
       const ranked = spans
-        .map((span, declIndex) => ({
-          span,
-          declIndex,
-          distance: originVec ? cosineDistance(originVec, span.embedding) : 0,
-        }))
+        .map((span, declIndex) => {
+          const distance = originVec
+            ? cosineDistance(originVec, span.embedding)
+            : 0;
+          const alignment =
+            direction && originVec
+              ? cosineSimilarity(
+                  subtractVectors(span.embedding, originVec),
+                  direction,
+                )
+              : 0;
+          return {
+            span,
+            declIndex,
+            distance,
+            score: distance - GRADIENT_BIAS_WEIGHT * alignment,
+          };
+        })
         .filter((r) => r.span.span.id !== q.origin.vector_ref)
+        .filter((r) => passesFilter(r.span.span, q.filter))
+        // The region cutoff bounds the RAW cosine distance (unchanged by the
+        // gradient bias), so `radius` keeps its §4.4 embedding-proximity meaning.
         .filter((r) => q.radius === undefined || r.distance <= q.radius)
         .sort((a, b) =>
-          a.distance !== b.distance
-            ? a.distance - b.distance
-            : a.declIndex - b.declIndex,
+          a.score !== b.score ? a.score - b.score : a.declIndex - b.declIndex,
         );
 
       const k = Number.isFinite(q.k) ? Math.max(0, Math.floor(q.k)) : 0;
@@ -110,5 +194,18 @@ export function createSubstrateGraph(spans: readonly GraphSpan[]): Graph {
         embedding_distance: r.distance,
       }));
     },
+    embeddingOf(vectorRef: string): number[] | null {
+      const embedding = byRef.get(vectorRef)?.embedding;
+      // INV-3 — hand back a copy; the index vector never escapes for mutation.
+      return embedding ? [...embedding] : null;
+    },
   };
+}
+
+// Componentwise `a − b`, truncated to the shorter length (never throws, INV-4).
+function subtractVectors(a: readonly number[], b: readonly number[]): number[] {
+  const n = Math.min(a.length, b.length);
+  const out = new Array<number>(n);
+  for (let i = 0; i < n; i++) out[i] = a[i]! - b[i]!;
+  return out;
 }

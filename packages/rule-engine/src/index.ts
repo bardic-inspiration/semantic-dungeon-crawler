@@ -87,7 +87,19 @@ export { createDebugTrace, DebugTraceRecorder } from "./debug-trace";
 export type { DebugConfig } from "./debug-trace";
 
 export type { Graph, GraphSpan } from "./graph";
-export { createSubstrateGraph } from "./graph";
+export { createSubstrateGraph, GRADIENT_BIAS_WEIGHT } from "./graph";
+
+// §3.8 / §0.10.0 (B5) — the per-turn trajectory triple (`trace_centroid`,
+// `momentum`, `path_coherence`) computed from the session's path through
+// embedding space, and the server-internal embedding accessor it reads through.
+export {
+  MOMENTUM_DECAY,
+  INITIAL_TRAJECTORY,
+  computeTrajectory,
+  trajectoryEmbeddings,
+  updateTrajectory,
+} from "./trajectory";
+export type { Trajectory } from "./trajectory";
 
 // §3.7.4 — execution of the six overlay primitives from the commit phase, and the
 // §3.8 layered read + §3.7.3 snapshot-staleness helpers over the inert registry.
