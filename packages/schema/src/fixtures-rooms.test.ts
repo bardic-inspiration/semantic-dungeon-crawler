@@ -172,3 +172,23 @@ describe("fixtures/rooms archetype-variety minimums (§6.5)", () => {
     expect(responses.some((r) => r.resolution_status === "stuck")).toBe(true);
   });
 });
+
+// SPEC §3.2 + §0.11.0 C2 — `resolution_status` is `"stuck"` exactly when a
+// well-formed resolution leaves no legal exit; the reference engine implements
+// this literally (`packages/rule-engine/src/solver.ts`:
+// `exits.length === 0 ? "stuck" : "resolved"`). Every §5.3 fixture must assert a
+// status the engine can actually emit, so the set enforces the biconditional over
+// itself: no exits ⟺ stuck. The variety minimum above only checks that *some*
+// fixture is stuck, so it cannot catch a no-exit fixture mislabelled "resolved".
+describe("fixtures/rooms C2 status/exit invariant (§3.2, §0.11.0 C2)", () => {
+  it.each(FIXTURES.map((f) => f.name))(
+    "%s: exits.length === 0 ⟺ resolution_status === 'stuck'",
+    (name) => {
+      const response = FIXTURES.find((f) => f.name === name)!
+        .data as ResolvedRoomResponse;
+      expect(response.resolution_status === "stuck").toBe(
+        response.exits.length === 0,
+      );
+    },
+  );
+});
