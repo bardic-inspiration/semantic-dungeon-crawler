@@ -1,16 +1,22 @@
 # Roadmap
 
 **Status: the design track has closed — all A/B/C spec-gap entries are resolved
-and `SPEC.md` is at 0.11.0. Phases 0, 1, 2, and 3 have completed the full phase
-cycle — their issues are merged (Phase 1's `packages/schema` in #59; Phase 2's
-`packages/corpus-builder`; Phase 3's `packages/rule-engine` in #71–#76) and their
-QA/QC passes confirmed the §6.1/§6.2/§6.3/§6.4 Exit criteria hold, so the
-`Development Phase 3` milestone is closed. Phase 4 (`packages/server` +
-`packages/client-cli` + conformance fixtures, §6.5) is now active: its issues
-(#85–#92) are open under the `Development Phase 4` milestone, sliced from the §6.5
-Build list (server endpoints, `Logger`/`Metrics` + debug gate, conformance
-fixtures, `client-cli`, and the `INV-3` import-boundary lint rule); that milestone
-closes after the phase's QA/QC pass, per [The phase cycle](#the-phase-cycle).**
+— and `SPEC.md` is at 0.13.1 after the `Conformance Audit 1` pass (below) folded
+in a further 0.11.0→0.13.1 run of amendments. Phases 0, 1, 2, and 3 have
+completed the full phase cycle — their issues are merged (Phase 1's
+`packages/schema` in #59; Phase 2's `packages/corpus-builder`; Phase 3's
+`packages/rule-engine` in #71–#76) and their QA/QC passes confirmed the
+§6.1/§6.2/§6.3/§6.4 Exit criteria hold, so the `Development Phase 3` milestone
+is closed. Phase 4 (`packages/server` + `packages/client-cli` + conformance
+fixtures, §6.5) is now active: its issues (#85–#92) were opened under the
+`Development Phase 4` milestone, sliced from the §6.5 Build list (server
+endpoints, `Logger`/`Metrics` + debug gate, conformance fixtures, `client-cli`,
+and the `INV-3` import-boundary lint rule); #85–#88 are merged, #89–#92 remain
+open, and the milestone closes after the phase's QA/QC pass, per
+[The phase cycle](#the-phase-cycle). Interleaved with that queue, `Conformance
+Audit 1` (#98–#118) has run to completion and its milestone is closed; #125 is
+open follow-on code work from that pass — see
+[Conformance audit track](#conformance-audit-track) for its queue status.**
 
 This file tracks the phase-by-phase build order: the
 [development-phase table](#development-phases) mirrors `SPEC.md` §6 and links each
@@ -92,9 +98,7 @@ including the seams between phases that no single phase's QA/QC pass
 (step 4 below) owns. Findings are filed as `[audit]`-titled issues, labeled
 `bug`/`task` (or `task` plus the affected package, e.g. `corpus-builder`),
 deliberately carrying **no `phase:N` label** — the same reasoning the design
-track (above) uses for its own labels. "Conformance Audit 1" (issues #104,
-#107, #108) resolved into `SPEC.md` §0.12.0/§0.13.0/§0.13.1; a second pass is
-open as of this writing.
+track (above) uses for its own labels.
 
 **Queue rule.** `[audit]` issues are worked interleaved with the phase
 queue, not queued behind it: when picking up work, compare the
@@ -104,6 +108,22 @@ lowest-numbered open `phase:N` issue against the lowest-numbered open
 [`issue-standards.md`](issue-standards.md) already use for the phase and
 design-track queues to this parallel backlog, so it stays reachable from a
 cold start instead of going undiscovered.
+
+**Status.** The `Conformance Audit 1` milestone is closed: its `[audit]`
+findings (#100–#117, spanning the overlay seams §3.7/§3.8, the corpus-builder
+seams §6.3, and smaller solver/protocol nits) and the `[docs]` spec amendments
+they drove (#98, #99, #118) are all resolved, carrying `SPEC.md` from `0.11.0`
+to `0.13.1`. No `[audit]`-titled issue is open as of this writing, so the
+audit queue is currently empty — the phase queue below is the only active
+backlog. The one exception is **#125**, follow-on *code* for the §0.13.0
+amendment (#118 was docs-only) that its own body says "belongs in the
+Conformance Audit 1 milestone" but was never assigned there or given the
+`[audit]` title prefix the queue rule above keys on — filed after the
+milestone's issue set was fixed, it closed with #125 outside it. Until it
+picks up the `[audit]` prefix (or a second audit pass opens to absorb it),
+treat it as the queue's de facto lowest-numbered `[audit]` item by the same
+interleaving rule, since it is exactly the kind of cross-phase conformance gap
+this track exists to catch.
 
 ## Design gates
 
