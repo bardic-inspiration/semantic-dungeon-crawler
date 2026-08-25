@@ -1,10 +1,10 @@
 // packages/rule-engine/src/normalized-query.ts
 //
 // SPEC §4.5 / §0.10.0 (B3) — `normalized_query`: a canonical, hashed serialization
-// of a `Query` (§4.4). It is the third component of the PRNG seed
-// (`session_seed`, `turn_count`, `normalized_query`), so it MUST be stable across
-// two spellings of the same query, and MUST NOT admit any float that could drift
-// between runs. Canonicalization (§4.5):
+// of a `Query` (§4.4). It is the second component of the PRNG seed
+// (`session_seed`, `normalized_query`) — `turn_count` is not a seed component
+// (§0.13.0) — so it MUST be stable across two spellings of the same query, and
+// MUST NOT admit any float that could drift between runs. Canonicalization (§4.5):
 //
 //   - `origin`  — serialized as its `vector_ref` token only, never a raw float
 //                 vector (the ref IS the "rounded to the stored index coordinate"

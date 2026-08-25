@@ -605,12 +605,25 @@ describe("determinism (§4.5, INV-2)", () => {
     expect(JSON.stringify(run())).toBe(JSON.stringify(run()));
   });
 
-  it("changes the draw as the seed components advance", () => {
+  it("is invariant to turn_count — turn_count is not a seed component (§0.13.0)", () => {
     const { graph, room } = buildGraph();
-    // Same pool across turns; the seed advances with turn_count, so the sampled
-    // object ORDER is not identical across every turn (§4.5 seed-relativity).
+    // Same seed, same position across every turn: because §0.13.0 drops
+    // turn_count from the §4.5 seed, the sampled object ORDER is identical no
+    // matter how many turns have elapsed — a stationary player's room is stable.
     const orderings = [1, 2, 3, 4, 5, 6].map((turn) =>
       populate(room, makeState({ turn_count: turn }), graph, [])
+        .objects.map((o) => o.id)
+        .join(","),
+    );
+    expect(new Set(orderings).size).toBe(1);
+  });
+
+  it("changes the draw when the session_seed changes (§4.5)", () => {
+    const { graph, room } = buildGraph();
+    // The seed is (session_seed, normalized_query); with position fixed, only the
+    // session_seed can move the draw — and it does.
+    const orderings = [1, 2, 3, 4, 5, 6].map((seed) =>
+      populate(room, makeState({ session_seed: seed }), graph, [])
         .objects.map((o) => o.id)
         .join(","),
     );
