@@ -9,15 +9,13 @@ first** — it is the canonical working guide. This file covers the mechanics.
 ```bash
 git clone https://github.com/bardic-inspiration/semantic-dungeon-crawler
 cd semantic-dungeon-crawler
-npm install     # once the Phase 0 scaffold is merged
+npm install
 npm test
 ```
 
-Until the Phase 0 scaffold lands the workspace and scripts don't exist yet. The
-spec-design track has closed (all entries resolved, `SPEC.md` at 0.11.0); the
-build order has not reopened yet and is repopulated at gate-lift — see
-[`docs/roadmap.md`](docs/roadmap.md) and
-[`docs/design/open-scope.md`](docs/design/open-scope.md).
+See [`docs/roadmap.md`](docs/roadmap.md) for current phase status and the
+active issue queue — it is the single source of truth for where the build
+stands.
 
 ## Branching
 
