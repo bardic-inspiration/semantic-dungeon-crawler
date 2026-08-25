@@ -20,40 +20,30 @@ schema/protocol surface is versioned and no surface mutates silently
   next mint and the ancestor backtracking truncates to; `null` before the first
   place is minted).
 
-  It exists because §3.8 says `visited_set` holds "overlay ADDRESS-TOKENS (A3),
-  not ephemeral ids", but the engine had no token to hold — `packages/server`
-  was pushing the destination's substrate `embedding_ref` (a `vector_ref`) into
-  `visited_set`, collapsing the three-way `Entity.id` / address-token / substrate
-  `position` distinction the whole A-series rests on. With no token tree there was
-  nothing for backtracking (A3) to truncate and no source for `Entity.contains`
-  (§3.1), which no code path populated. These fields give the token a home.
+  `visited_set` holds overlay address-tokens (A3), not ephemeral ids, keeping
+  the three-way `Entity.id` / address-token / substrate `position` distinction
+  the whole A-series rests on. The token tree gives backtracking (A3) an
+  ancestor to truncate to and a source for `Entity.contains` (§3.1).
 
   Additive, and **not a spec-version bump**: `SessionState` is server-internal
   (INV-3, never on the wire), so it is not one of the versioned wire surfaces
   (`Entity`, `ResolvedRoomResponse`, `Ruleset`, the DSL) `X-Spec-Version` guards
   for adapters (`docs/spec-guidelines.md`). The SPEC §3.8 block is updated to
-  match. Surfaced by the Conformance Audit 1 overlay sequence (issue #108).
+  match.
 
 - **`InteractResponse.movement_blocked?` (§3.3, SPEC §0.12.0)** — optional
   boolean, true iff a movement affordance was invoked and resolution yielded no
-  destination. Additive, so nothing breaks.
-
-  It exists because the signal had nowhere to live: `transition_occurred: false`
-  also means "this was a local interaction", so `packages/server` had been
-  overwriting `new_room.resolution_status` to `"stuck"` to report a blocked
-  move. That made `POST /interact` and an immediately-following
-  `GET /room/current` report different statuses for the same room, contradicting
-  §3.3's "full re-resolution, same shape as `GET /room/current`".
-  `resolution_status` now describes the room and only the room.
+  destination. Additive, so nothing breaks. `resolution_status` now describes
+  the room and only the room; it no longer doubles as the movement-blocked
+  signal, so `POST /interact` and an immediately-following `GET /room/current`
+  report the same status for the same room, per §3.3's "full re-resolution,
+  same shape as `GET /room/current`".
 
 - **`SPEC_VERSION` (§3.5)** — the running protocol version as one engine-owned
-  constant, in a new `src/version.ts`. §5.1's `X-Spec-Version` header echoes it.
-  It exists because the package previously had no version of its own: the only
-  `spec_version` here was the `Ruleset` field (§3.4), which is *author-supplied
-  content*, so `packages/server` sourced the protocol header from whatever
-  ruleset it loaded. `INV-4` requires running a ruleset whose version disagrees
-  rather than rejecting it, so validation could not fix that — the engine needed
-  its own value. Surfaced by the Conformance Audit 1 pass.
+  constant, in a new `src/version.ts`. §5.1's `X-Spec-Version` header echoes it,
+  independent of whatever `spec_version` an author's `Ruleset` (§3.4) declares —
+  `INV-4` requires running a ruleset whose version disagrees rather than
+  rejecting it, so the protocol header cannot be sourced from ruleset content.
 
   Keep this constant in step with `SPEC.md`'s `spec-version` header;
   `src/version.test.ts` pins the two together so a bump to one without the other
@@ -61,11 +51,13 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ### Changed
 
-- **`SPEC.md` is now at `0.12.0`** (from `0.11.0`). No type in this package
-  changed shape, so no surface here breaks. Two spec changes land as future work
-  against these types rather than edits to them: `InteractResponse` gains an
-  optional `movement_blocked?` field (§3.3), and §3.6.3's resolver dispatch is
-  assigned to `packages/rule-engine`.
+- **`SPEC.md` is now at `0.13.1`** (from `0.11.0`). No type in this package
+  changed shape, so no surface here breaks. `SPEC.md` §0.12.0 assigns
+  §3.6.3's resolver dispatch to `packages/rule-engine`; §0.13.0 removes
+  `turn_count` from the substrate seed derivation (§4.5) — a
+  `packages/server`/`packages/rule-engine` change, not a type change here;
+  §0.13.1 names the shipped tokenizer as the alpha default with no
+  schema/protocol surface change.
 
 ## [0.1.0] — 2026-08-18
 
