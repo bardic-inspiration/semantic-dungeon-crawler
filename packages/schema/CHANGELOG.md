@@ -8,6 +8,19 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ## [Unreleased]
 
+### Changed
+
+- **`SessionState.registry` / `links` are the PER-SESSION overlay layer, not a
+  player-only layer (§3.8, SPEC §0.9.0 A8)** — a documentation/semantics
+  clarification, no type change. The overlay primitives now execute (issue #109),
+  and a rule-driven (`author_runtime`) write and an exposed player
+  (`player`) write both live in this per-session layer, distinguished by their
+  `provenance` field; a read merges the layer over the shared build base (empty
+  for alpha), session winning, and the §5.1 client view filters to `player`
+  (INV-3). The field comments and the SPEC §3.8 layering paragraph are updated to
+  match (`Provenance` and the field types are unchanged). Server-internal
+  (INV-3), so **not a spec-version bump**.
+
 ### Added
 
 - **`AddressToken` and `SessionState.address_tokens` / `current_token` (§3.8,
