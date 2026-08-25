@@ -1,0 +1,98 @@
+{
+  "room": {
+    "id": "resolved:actor-guardroom:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:structure:guardroom",
+      "mood:wary",
+      "material:stone"
+    ],
+    "embedding_ref": "vec:05520",
+    "affordances": ["enter", "traverse"],
+    "salience": 0.66,
+    "prose": "A cramped guardroom, a brazier guttering low, and someone already watching the door you came through.",
+    "source_span": { "source": "gutenberg:1400", "char_ranges": "20100-20204" },
+    "contains": [
+      "resolved:sentinel:1",
+      "resolved:brazier:2",
+      "resolved:iron-door:3"
+    ],
+    "layout_hint": {
+      "scale": "small",
+      "density": 0.5,
+      "shape_bias": "cluster"
+    },
+    "state": { "local_coherence": 0.62, "visited": false }
+  },
+  "objects": [
+    {
+      "id": "resolved:sentinel:1",
+      "archetype": "actor",
+      "semantic_tags": ["being:sentinel", "stance:guarded", "mood:wary"],
+      "embedding_ref": "vec:05521",
+      "affordances": ["speak", "inspect"],
+      "salience": 0.8,
+      "prose": "A sentinel in dull mail rises, one hand loose at the hilt, and waits for you to speak first.",
+      "source_span": {
+        "source": "gutenberg:1400",
+        "char_ranges": "20205-20298"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.3,
+        "shape_bias": "upright"
+      },
+      "state": { "local_coherence": 0.7, "visited": false }
+    },
+    {
+      "id": "resolved:brazier:2",
+      "archetype": "prop",
+      "semantic_tags": ["object:brazier", "light:ember", "material:iron"],
+      "embedding_ref": "vec:05522",
+      "affordances": ["inspect"],
+      "salience": 0.34,
+      "prose": "A low brazier holds a handful of dying embers.",
+      "source_span": {
+        "source": "gutenberg:1400",
+        "char_ranges": "20299-20352"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "small",
+        "density": 0.1,
+        "shape_bias": "radial"
+      },
+      "state": { "local_coherence": 0.5, "visited": false }
+    },
+    {
+      "id": "resolved:iron-door:3",
+      "archetype": "portal",
+      "semantic_tags": ["portal:door", "state:barred", "material:iron"],
+      "embedding_ref": "vec:05523",
+      "affordances": ["traverse", "inspect"],
+      "salience": 0.57,
+      "prose": "An iron door, barred from this side, leads on into the keep.",
+      "source_span": {
+        "source": "gutenberg:1400",
+        "char_ranges": "20353-20418"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.0,
+        "shape_bias": "arch"
+      },
+      "state": { "local_coherence": 0.58, "visited": false }
+    }
+  ],
+  "exits": [
+    {
+      "target_entity_id": "query:token:keep-interior",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:iron-door:3",
+      "weight": 0.45
+    }
+  ],
+  "resolution_status": "resolved"
+}

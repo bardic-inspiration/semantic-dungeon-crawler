@@ -1,0 +1,103 @@
+{
+  "room": {
+    "id": "resolved:readable-scriptorium:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:structure:scriptorium",
+      "mood:studious",
+      "material:parchment"
+    ],
+    "embedding_ref": "vec:04710",
+    "affordances": ["enter", "traverse"],
+    "salience": 0.6,
+    "prose": "A low room of sloped writing-desks, every surface drifted over with unfinished pages.",
+    "source_span": { "source": "gutenberg:2701", "char_ranges": "15000-15090" },
+    "contains": [
+      "resolved:open-codex:1",
+      "resolved:marginalia:2",
+      "resolved:sealed-letter:3",
+      "resolved:doorway:4"
+    ],
+    "layout_hint": { "scale": "medium", "density": 0.6, "shape_bias": "grid" },
+    "state": { "local_coherence": 0.64, "visited": false }
+  },
+  "objects": [
+    {
+      "id": "resolved:open-codex:1",
+      "archetype": "readable",
+      "semantic_tags": ["object:codex:open", "lang:latin"],
+      "embedding_ref": "vec:04711",
+      "affordances": ["read", "take", "inspect"],
+      "salience": 0.7,
+      "prose": "A codex lies open to a diagram of a room much like this one, annotated in a nervous hand.",
+      "source_span": {
+        "source": "gutenberg:2701",
+        "char_ranges": "15091-15184"
+      },
+      "contains": [],
+      "layout_hint": { "scale": "small", "density": 0.2, "shape_bias": "flat" },
+      "state": { "local_coherence": 0.68, "visited": false }
+    },
+    {
+      "id": "resolved:marginalia:2",
+      "archetype": "readable",
+      "semantic_tags": ["object:note:marginal", "mood:cryptic"],
+      "embedding_ref": "vec:04712",
+      "affordances": ["read", "inspect"],
+      "salience": 0.47,
+      "prose": "A scrap wedged under the desk reads only: it is the same door each time.",
+      "source_span": {
+        "source": "gutenberg:2701",
+        "char_ranges": "15185-15258"
+      },
+      "contains": [],
+      "layout_hint": { "scale": "small", "density": 0.1, "shape_bias": "flat" },
+      "state": { "local_coherence": 0.5, "visited": false }
+    },
+    {
+      "id": "resolved:sealed-letter:3",
+      "archetype": "readable",
+      "semantic_tags": ["object:letter:sealed", "state:unopened"],
+      "embedding_ref": "vec:04713",
+      "affordances": ["read", "take", "inspect"],
+      "salience": 0.53,
+      "prose": "A letter under a cracked wax seal waits, addressed to no one legible.",
+      "source_span": {
+        "source": "gutenberg:2701",
+        "char_ranges": "15259-15325"
+      },
+      "contains": [],
+      "layout_hint": { "scale": "small", "density": 0.1, "shape_bias": "flat" },
+      "state": { "local_coherence": 0.51, "visited": false }
+    },
+    {
+      "id": "resolved:doorway:4",
+      "archetype": "portal",
+      "semantic_tags": ["portal:doorway", "material:oak"],
+      "embedding_ref": "vec:04714",
+      "affordances": ["traverse", "enter"],
+      "salience": 0.58,
+      "prose": "A plain oak door stands ajar on the far side of the desks.",
+      "source_span": {
+        "source": "gutenberg:2701",
+        "char_ranges": "15326-15388"
+      },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.0,
+        "shape_bias": "arch"
+      },
+      "state": { "local_coherence": 0.6, "visited": false }
+    }
+  ],
+  "exits": [
+    {
+      "target_entity_id": "query:token:copyists-corridor",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:doorway:4",
+      "weight": 0.66
+    }
+  ],
+  "resolution_status": "resolved"
+}

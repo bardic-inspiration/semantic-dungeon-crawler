@@ -1,0 +1,106 @@
+{
+  "room": {
+    "id": "resolved:prop-storeroom:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:structure:storeroom",
+      "mood:cluttered",
+      "material:wood"
+    ],
+    "embedding_ref": "vec:06640",
+    "affordances": ["enter", "traverse"],
+    "salience": 0.48,
+    "prose": "A storeroom packed to the rafters, every shelf a small hoard of forgotten things.",
+    "source_span": { "source": "gutenberg:76", "char_ranges": "30500-30582" },
+    "contains": [
+      "resolved:coil-of-rope:1",
+      "resolved:tin-lantern:2",
+      "resolved:sack-of-grain:3",
+      "resolved:rusted-key:4",
+      "resolved:crate:5"
+    ],
+    "layout_hint": { "scale": "medium", "density": 0.8, "shape_bias": "grid" },
+    "state": { "local_coherence": 0.53, "visited": false }
+  },
+  "objects": [
+    {
+      "id": "resolved:coil-of-rope:1",
+      "archetype": "prop",
+      "semantic_tags": ["object:rope", "material:hemp"],
+      "embedding_ref": "vec:06641",
+      "affordances": ["take", "inspect"],
+      "salience": 0.42,
+      "prose": "A stiff coil of hemp rope, serviceable if you trust the last knot.",
+      "source_span": { "source": "gutenberg:76", "char_ranges": "30583-30648" },
+      "contains": [],
+      "layout_hint": { "scale": "small", "density": 0.2, "shape_bias": "coil" },
+      "state": { "local_coherence": 0.5, "visited": false }
+    },
+    {
+      "id": "resolved:tin-lantern:2",
+      "archetype": "prop",
+      "semantic_tags": ["object:lantern", "light:none", "material:tin"],
+      "embedding_ref": "vec:06642",
+      "affordances": ["take", "inspect"],
+      "salience": 0.5,
+      "prose": "A dented tin lantern, its wick long dry.",
+      "source_span": { "source": "gutenberg:76", "char_ranges": "30649-30700" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "small",
+        "density": 0.1,
+        "shape_bias": "radial"
+      },
+      "state": { "local_coherence": 0.47, "visited": false }
+    },
+    {
+      "id": "resolved:sack-of-grain:3",
+      "archetype": "prop",
+      "semantic_tags": ["object:sack:grain", "state:mouldering"],
+      "embedding_ref": "vec:06643",
+      "affordances": ["inspect"],
+      "salience": 0.28,
+      "prose": "A slumped sack of grain, gone to must and small movements.",
+      "source_span": { "source": "gutenberg:76", "char_ranges": "30701-30764" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "medium",
+        "density": 0.3,
+        "shape_bias": "slump"
+      },
+      "state": { "local_coherence": 0.4, "visited": false }
+    },
+    {
+      "id": "resolved:rusted-key:4",
+      "archetype": "prop",
+      "semantic_tags": ["object:key", "state:rusted", "material:iron"],
+      "embedding_ref": "vec:06644",
+      "affordances": ["take", "inspect"],
+      "salience": 0.61,
+      "prose": "A single iron key, red with rust, hangs from a nail by the door.",
+      "source_span": { "source": "gutenberg:76", "char_ranges": "30765-30830" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "small",
+        "density": 0.05,
+        "shape_bias": "flat"
+      },
+      "state": { "local_coherence": 0.52, "visited": false }
+    },
+    {
+      "id": "resolved:crate:5",
+      "archetype": "prop",
+      "semantic_tags": ["object:crate", "state:nailed-shut", "material:pine"],
+      "embedding_ref": "vec:06645",
+      "affordances": ["inspect"],
+      "salience": 0.33,
+      "prose": "A pine crate, nailed shut, its stencilled markings scoured away.",
+      "source_span": { "source": "gutenberg:76", "char_ranges": "30831-30896" },
+      "contains": [],
+      "layout_hint": { "scale": "medium", "density": 0.4, "shape_bias": "box" },
+      "state": { "local_coherence": 0.45, "visited": false }
+    }
+  ],
+  "exits": [],
+  "resolution_status": "resolved"
+}

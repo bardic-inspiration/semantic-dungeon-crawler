@@ -1,0 +1,64 @@
+{
+  "room": {
+    "id": "resolved:mirror-gate:0",
+    "archetype": "container",
+    "semantic_tags": [
+      "environment:chamber:vestibule",
+      "mood:uncanny",
+      "material:obsidian"
+    ],
+    "embedding_ref": "vec:03300",
+    "affordances": ["enter", "traverse"],
+    "salience": 0.64,
+    "prose": "A round vestibule of polished obsidian, and set into its far wall a tall silvered mirror.",
+    "source_span": { "source": "gutenberg:345", "char_ranges": "8800-8894" },
+    "contains": ["resolved:silvered-mirror:1", "resolved:threshold-stone:2"],
+    "layout_hint": {
+      "scale": "medium",
+      "density": 0.3,
+      "shape_bias": "radial"
+    },
+    "state": { "local_coherence": 0.69, "visited": false }
+  },
+  "objects": [
+    {
+      "id": "resolved:silvered-mirror:1",
+      "archetype": "portal",
+      "semantic_tags": ["portal:mirror", "state:active", "material:silver"],
+      "embedding_ref": "vec:03301",
+      "affordances": ["traverse", "inspect"],
+      "salience": 0.77,
+      "prose": "The mirror does not return your reflection; it returns a corridor that is not behind you.",
+      "source_span": { "source": "gutenberg:345", "char_ranges": "8895-8987" },
+      "contains": [],
+      "layout_hint": {
+        "scale": "large",
+        "density": 0.0,
+        "shape_bias": "planar"
+      },
+      "state": { "local_coherence": 0.72, "visited": false }
+    },
+    {
+      "id": "resolved:threshold-stone:2",
+      "archetype": "prop",
+      "semantic_tags": ["object:stone:inscribed", "material:obsidian"],
+      "embedding_ref": "vec:03302",
+      "affordances": ["read", "inspect"],
+      "salience": 0.36,
+      "prose": "A worn stone at the mirror's foot bears a single word, half effaced.",
+      "source_span": { "source": "gutenberg:345", "char_ranges": "8988-9050" },
+      "contains": [],
+      "layout_hint": { "scale": "small", "density": 0.1, "shape_bias": "flat" },
+      "state": { "local_coherence": 0.55, "visited": false }
+    }
+  ],
+  "exits": [
+    {
+      "target_entity_id": "query:token:mirror-corridor",
+      "affordance_required": "traverse",
+      "via_object_id": "resolved:silvered-mirror:1",
+      "weight": 0.88
+    }
+  ],
+  "resolution_status": "resolved"
+}
