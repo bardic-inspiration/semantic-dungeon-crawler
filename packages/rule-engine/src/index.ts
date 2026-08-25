@@ -89,6 +89,20 @@ export type { DebugConfig } from "./debug-trace";
 export type { Graph, GraphSpan } from "./graph";
 export { createSubstrateGraph } from "./graph";
 
+// §3.7.4 — execution of the six overlay primitives from the commit phase, and the
+// §3.8 layered read + §3.7.3 snapshot-staleness helpers over the inert registry.
+export {
+  applyPrimitives,
+  OVERLAY_MALFORMED_PRIMITIVE_EVENT,
+  OVERLAY_MALFORMED_WHEN_EVENT,
+} from "./overlay-exec";
+export type {
+  PrimitiveInvocation,
+  ApplyPrimitivesContext,
+  OverlayWrites,
+} from "./overlay-exec";
+export { effectiveRegistry, effectiveLinks, isSnapshotStale } from "./registry";
+
 export {
   evaluateLayers,
   solverCore,
