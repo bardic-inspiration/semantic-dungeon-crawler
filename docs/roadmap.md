@@ -84,6 +84,27 @@ Resolving an entry meant amending `SPEC.md` per
 [`spec-guidelines.md`](spec-guidelines.md) — the amendment, not the discussion, is
 what unblocked a phase.
 
+## Conformance audit track
+
+Alongside the phase queue, periodic **conformance audits** check the
+assembled build (code, fixtures, and docs) against the current `SPEC.md` —
+including the seams between phases that no single phase's QA/QC pass
+(step 4 below) owns. Findings are filed as `[audit]`-titled issues, labeled
+`bug`/`task` (or `task` plus the affected package, e.g. `corpus-builder`),
+deliberately carrying **no `phase:N` label** — the same reasoning the design
+track (above) uses for its own labels. "Conformance Audit 1" (issues #104,
+#107, #108) resolved into `SPEC.md` §0.12.0/§0.13.0/§0.13.1; a second pass is
+open as of this writing.
+
+**Queue rule.** `[audit]` issues are worked interleaved with the phase
+queue, not queued behind it: when picking up work, compare the
+lowest-numbered open `phase:N` issue against the lowest-numbered open
+`[audit]` issue and take whichever number is lower. This extends the
+"lowest-numbered open issue" rule [`AGENTS.md`](../AGENTS.md) §5 /
+[`issue-standards.md`](issue-standards.md) already use for the phase and
+design-track queues to this parallel backlog, so it stays reachable from a
+cold start instead of going undiscovered.
+
 ## Design gates
 
 A phase must not be declared active while an open design entry blocks it. That is
