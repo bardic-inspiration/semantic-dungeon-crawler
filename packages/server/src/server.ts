@@ -37,7 +37,10 @@ import type {
 } from "schema";
 import { SPEC_VERSION } from "schema";
 import {
+  applyPrimitives,
   createSubstrateGraph,
+  effectiveRegistry,
+  isSnapshotStale,
   mintEntity,
   populate,
   recordVisit,
@@ -73,6 +76,16 @@ export interface SubstrateConfig {
   spans: GraphSpan[];
   /** `embedding_ref` of the room a fresh session starts in; must name one of `spans`. */
   start_ref: string;
+  /**
+   * §3.7.3 / §6.3 — the live substrate build id, read from the `graph.json`
+   * header at load. A fresh `Snapshot` binds to it, and snapshot staleness is
+   * derived by comparing a snapshot's bound version against it. The substrate is
+   * server-wide startup config (§A12): it cannot change within a session, so a
+   * snapshot written this run is never stale this run — staleness only appears
+   * across a rebuild, which is a restart. Optional; defaults to `"unversioned"`
+   * for a config assembled without a real bundle (tests).
+   */
+  substrate_version?: string;
 }
 
 /** Everything a running server is configured with at startup (§A12). */
@@ -187,6 +200,11 @@ export function createServer(config: ServerConfig): Server {
   }
 
   const graph: Graph = createSubstrateGraph(spans);
+  // §3.7.3 — the live substrate version, fixed for this server run (§A12: the
+  // substrate is startup config, so a rebuild is a restart). Snapshots bind to it
+  // and staleness is derived against it. Never crosses the wire (INV-3).
+  const liveSubstrateVersion =
+    config.substrate.substrate_version ?? "unversioned";
   // §5.1 — the `X-Spec-Version` header echoes the ENGINE's running spec_version
   // (§3.5), never the loaded ruleset's. `Ruleset.spec_version` is author-supplied
   // content and INV-4 requires running a ruleset whose version disagrees rather
@@ -613,12 +631,37 @@ export function createServer(config: ServerConfig): Server {
       resolution_status: move.resolution_status,
     });
 
+    // §3.7.4 — execute the overlay primitives the commit phase collected, against
+    // the state the commit evaluated (BEFORE turn_count/position advance below), so
+    // an exposure `when` gate and a `bookmark`'s "current position" see the same
+    // view the primitive's own predicate did. The engine owns the writes and the
+    // provenance/logging decision (INV-1); the server only appends them.
+    const overlay = applyPrimitives(move.commit.primitives, {
+      state: session,
+      graph,
+      substrateVersion: liveSubstrateVersion,
+      exposure: ruleset.primitive_exposure ?? [],
+      logger,
+      ...(ruleset.interpretation_lookup
+        ? { interpretation: ruleset.interpretation_lookup }
+        : {}),
+    });
+
     // Advance run state. Commit-phase writes apply regardless of transition
     // (§4.1 A5); the input log records every player input (§3.9) so the session
     // stays replay-reproducible whether or not the player moved.
     session.vars = move.commit.vars;
     if (move.commit.ended) session.ended = true;
     session.input_log.push({ kind: "interact", action });
+    // §3.9 — a PLAYER-invoked primitive is a logged input, recorded after the
+    // `interact` it rode in on; a rule-invoked one is a deterministic consequence
+    // and re-derives on replay (`overlay.logEntries` holds only the former).
+    session.input_log.push(...overlay.logEntries);
+    // §3.7 / §3.8 — append the overlay writes to the per-session layer. It carries
+    // both `author_runtime` and `player` provenance; the layered read merges it
+    // over the shared build base and the client view filters to `player` (INV-3).
+    session.registry.push(...overlay.entries);
+    session.links.push(...overlay.links);
     if (transitioned) {
       // §3.3 (A6) requires a non-movement interaction to return "the unchanged
       // room". A room is a function of (position, session_seed, turn_count) via
@@ -711,7 +754,31 @@ export function createServer(config: ServerConfig): Server {
         "unknown session",
       );
     }
-    const labels = session.registry
+    // §3.8 (A8) — the layered read: the per-session overlay merged over the shared
+    // build base. The base is empty for alpha (an emergent registry, populated
+    // through play, not seeded); the merge machinery is real so a real base drops
+    // in later. `effectiveRegistry` is last-write-wins by tag, so a re-pinned tag
+    // surfaces once.
+    const effective = effectiveRegistry([], session.registry);
+    // §3.7.3 — surface snapshot staleness at read time (never invalidate/refresh):
+    // a snapshot bound to a substrate version other than the live one is stale but
+    // still fully readable. Within one run the substrate cannot change, so this
+    // fires only for a snapshot carried in from a different build.
+    for (const entry of effective) {
+      if (
+        entry.points_to.kind === "snapshot" &&
+        isSnapshotStale(entry.points_to.snapshot, liveSubstrateVersion)
+      ) {
+        logger.log("warn", "overlay.snapshot_stale", {
+          tag: entry.tag,
+          snapshot_version: entry.points_to.snapshot.substrate_version,
+          live_version: liveSubstrateVersion,
+        });
+      }
+    }
+    // INV-3 — only PLAYER-provenance names/labels cross the wire; references,
+    // snapshot payloads, and build/author entries stay server-internal.
+    const labels = effective
       .filter((entry) => entry.provenance === "player")
       .map(toAddressLabel);
     return jsonResponse(specVersion, 200, labels);
