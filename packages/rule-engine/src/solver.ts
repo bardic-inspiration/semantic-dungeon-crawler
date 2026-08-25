@@ -19,9 +19,10 @@
 //      declaration order, last-write-wins, never throwing.
 //
 // INV-1: pure, headless (schema + engine internals only). INV-2: every draw is
-// seeded from `(session_seed, turn_count, normalized_query)`; identical inputs ⇒
-// byte-identical output. INV-4: nothing here throws on a contradictory or
-// malformed ruleset — a "bad" resolution is a valid resolution.
+// seeded from `(session_seed, normalized_query)` — `turn_count` is not a seed
+// component (§0.13.0); identical inputs ⇒ byte-identical output. INV-4: nothing
+// here throws on a contradictory or malformed ruleset — a "bad" resolution is a
+// valid resolution.
 
 import type {
   Affordance,
@@ -409,7 +410,7 @@ export function evaluateLayers(
     entity: mintEntity(sc.span, options.interpretation, { visitedCoordinates }),
     embedding_distance: sc.embedding_distance,
   }));
-  const rng = seededRng(state.session_seed, state.turn_count, query);
+  const rng = seededRng(state.session_seed, query);
   const activeLayers = prepareActiveLayers(layers, state, logger);
   const ordered = resolutionOrder(activeLayers.map((a) => a.layer));
 

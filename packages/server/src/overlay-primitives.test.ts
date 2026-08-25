@@ -179,9 +179,9 @@ describe("exposure gating (§3.7.4)", () => {
     // turn_count is 0 on the first interaction's commit → gated out (author_runtime).
     interact(s, id, "book", "read");
     expect(registry(s, id)).toEqual([]);
-    // A movement turn advances turn_count; the next interaction's commit sees > 0.
-    // (Reading a book does not move, so drive a second interaction to advance it
-    // only if a transition occurs — here we assert the gate held on turn 0.)
+    // The commit runs BEFORE turn_count advances (§0.13.0: every interaction
+    // advances it once, afterward), so the first commit always sees turn_count 0
+    // and the `> 0` gate holds on turn 0 — which is what we assert here.
     expect(s.sessions.get(id)!.registry[0]!.provenance).toBe("author_runtime");
   });
 });

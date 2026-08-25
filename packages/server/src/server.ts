@@ -13,8 +13,8 @@
 // server; the substrate embeddings, the graph, `SessionState`, and rule/commit
 // internals never appear in a response body — not on the happy path, and not in an
 // error envelope. INV-2: a session is reproducible from its seed — `populate` seeds
-// on `(session_seed, turn_count, query)`, so two sessions with the same seed resolve
-// byte-identical rooms.
+// on `(session_seed, normalized_query)` (`turn_count` is not a seed component,
+// §0.13.0), so two sessions with the same seed resolve byte-identical rooms.
 //
 // §0.9.0 (A12): the substrate is server-wide startup config, and a session binds
 // the one server-wide ruleset — except that with dev mode ON, `POST /session/new`
@@ -580,8 +580,8 @@ export function createServer(config: ServerConfig): Server {
 
     // Exit-anchoring (§0.9.0 A4): a move initiated through a traversal-capable
     // object anchors `resolveMove` to that exit's target; the client names the
-    // object by id, we look it up in this turn's derived exits (same seed +
-    // turn_count the client saw, so the exit set is reproduced byte-for-byte).
+    // object by id, we look it up in this turn's derived exits (same seed and
+    // position the client saw, so the exit set is reproduced byte-for-byte).
     const exit = before.resolution.exits.find(
       (e) =>
         e.via_object_id === action.object_id &&
@@ -676,19 +676,15 @@ export function createServer(config: ServerConfig): Server {
     // over the shared build base and the client view filters to `player` (INV-3).
     session.registry.push(...overlay.entries);
     session.links.push(...overlay.links);
+    // §3.8 / §0.13.0 — `turn_count` is a pure runtime metric (turns taken), not a
+    // seed component: it advances once per resolved `POST /interact` — movement,
+    // blocked move, and local interaction alike. A6's "unchanged room" for a
+    // stationary player is now STRUCTURAL, not a `turn_count` freeze: the §4.5
+    // seed keys on `(session_seed, normalized_query)`, and `normalized_query`
+    // carries the discretized position, so a player who does not move re-seeds
+    // identically regardless of how many turns have elapsed.
+    session.turn_count += 1;
     if (transitioned) {
-      // §3.3 (A6) requires a non-movement interaction to return "the unchanged
-      // room". A room is a function of (position, session_seed, turn_count) via
-      // the §4.5 seed, so a stationary player's room is stable only if
-      // `turn_count` does not advance while they stand still — advancing it and
-      // re-resolving re-sampled `objects[]`, and reading a book handed the player
-      // a differently-populated room.
-      //
-      // §3.8 does not define when `turn_count` advances, so this is derived from
-      // the A6 constraint rather than stated: it counts turns that CHANGED
-      // POSITION. A blocked move does not advance it either, for the same reason
-      // — the player is still standing in the same room.
-      session.turn_count += 1;
       const ref = move.destination!.entity.embedding_ref;
       session.position = { vector_ref: ref };
       // §0.9.0 (A3): a transition mints a durable overlay ADDRESS-TOKEN for the

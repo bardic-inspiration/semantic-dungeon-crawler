@@ -3,21 +3,20 @@ import { deriveSeed, createPrng } from "./prng";
 
 describe("deriveSeed", () => {
   it("is deterministic for identical inputs", () => {
-    expect(deriveSeed(42, 3, "abc")).toBe(deriveSeed(42, 3, "abc"));
+    expect(deriveSeed(42, "abc")).toBe(deriveSeed(42, "abc"));
   });
 
   it("returns an unsigned 32-bit integer", () => {
-    const seed = deriveSeed(42, 3, "abc");
+    const seed = deriveSeed(42, "abc");
     expect(Number.isInteger(seed)).toBe(true);
     expect(seed).toBeGreaterThanOrEqual(0);
     expect(seed).toBeLessThanOrEqual(0xffffffff);
   });
 
-  it("changes when session_seed, turn_count, or normalized_query changes", () => {
-    const base = deriveSeed(42, 3, "abc");
-    expect(deriveSeed(43, 3, "abc")).not.toBe(base);
-    expect(deriveSeed(42, 4, "abc")).not.toBe(base);
-    expect(deriveSeed(42, 3, "abd")).not.toBe(base);
+  it("changes when session_seed or normalized_query changes", () => {
+    const base = deriveSeed(42, "abc");
+    expect(deriveSeed(43, "abc")).not.toBe(base);
+    expect(deriveSeed(42, "abd")).not.toBe(base);
   });
 });
 
