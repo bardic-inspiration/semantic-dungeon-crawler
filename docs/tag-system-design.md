@@ -445,7 +445,7 @@ grammar. Example:
   "salience": 0.8,
   "contains": ["obj-01", "obj-02"],
   "layout_hint": { "scale": "large", "density": 0.6, "shape_bias": "radial" },
-  "state": { "coherence": 0.9, "visited": false }
+  "state": { "local_coherence": 0.9, "visited": false }
 }
 ```
 
