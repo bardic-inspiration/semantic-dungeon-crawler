@@ -162,18 +162,25 @@ function interact(r: Run, id: string, action: Action): HttpResult {
   });
 }
 
-/** Re-POST one logged input (§3.9). */
-function replayEntry(r: Run, id: string, entry: InputLogEntry): HttpResult {
+/**
+ * Re-POST one logged input (§3.9), or `null` when the entry is a re-derived
+ * record that replay must not re-POST.
+ *
+ * A player-invoked primitive (#110) is logged as a `{ kind: "primitive" }` entry
+ * AND rides in on the `{ kind: "interact" }` for the same turn (A10 — the only
+ * client input is `{object_id, affordance}`; there is no primitive endpoint). The
+ * interact re-fires the author rule that re-executes the primitive, so the
+ * registry/link writes re-derive deterministically; the primitive entry is a
+ * record for diffing, not a separately replayable action. Re-POSTing the interact
+ * and SKIPPING the primitive entry is the §3.9 procedure for a log with both.
+ */
+function replayEntry(
+  r: Run,
+  id: string,
+  entry: InputLogEntry,
+): HttpResult | null {
   if (entry.kind === "interact") return interact(r, id, entry.action);
-  // §3.9 also logs `{ kind: "primitive" }` inputs, but the surface that would
-  // produce and re-POST one does not exist yet (#110 — `primitive_exposure`
-  // gating and the primitive input-log entry). Nothing here can synthesize a
-  // player-invoked primitive without inventing that surface, so a primitive
-  // entry fails loudly rather than being silently skipped: when #110 lands,
-  // this branch is where its replay leg attaches.
-  throw new Error(
-    `input log carries a "${entry.kind}" entry, which this replay cannot re-POST (#110)`,
-  );
+  return null;
 }
 
 interface Session {
@@ -224,6 +231,7 @@ async function replay(
   const frames: string[] = [opening.body];
   for (const entry of log) {
     const res = replayEntry(r, id, entry);
+    if (res === null) continue; // a re-derived `primitive` record — not re-POSTed
     expect(res.status).toBe(200);
     frames.push(res.body);
   }
