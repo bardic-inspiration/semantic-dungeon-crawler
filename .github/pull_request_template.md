@@ -41,3 +41,14 @@ Closes #
 - [ ] Atomic commits in Conventional Commits format (`docs: ...`)
 - [ ] Cross-references updated where a shared term or section number changed (docs/documentation-standards.md)
 - [ ] If `SPEC.md` changed: versioned per docs/spec-guidelines.md
+
+## TL;DR
+
+<!--
+Required. Plain English, no software-expert jargon, bullet points — explain
+this like you're telling a friend who doesn't code. Cover:
+- Why: what problem or reason this PR exists for.
+- Impact: what changes for someone using or building the project.
+-->
+
+-

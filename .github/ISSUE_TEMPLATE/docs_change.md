@@ -30,3 +30,14 @@ Resolving a docs/design/open-scope.md entry? Keep using its existing labels
 ## Out of scope
 
 <!-- Anything explicitly not addressed, if relevant. -->
+
+## TL;DR
+
+<!--
+Required. Plain English, no software-expert jargon, bullet points — explain
+this like you're telling a friend who doesn't code. Cover:
+- Why: the reason this doc/spec change exists.
+- Impact: what changes once it's done.
+-->
+
+-

@@ -46,6 +46,12 @@ Other requirements, both templates:
 - **Acceptance criteria must be testable statements.** They are the
   pre-written failing tests for TDD ([`testing-standards.md`](testing-standards.md))
   — if a criterion can't become a test, it isn't specific enough yet.
+- **End with a TL;DR.** Every issue closes with a `## TL;DR` section: a few
+  plain-English bullet points, no software-expert jargon, ELI5 style,
+  covering why the issue exists and what its impact is. Someone unfamiliar
+  with the code should be able to read just that section and get the point.
+  Both issue templates already have the section built in — fill it in, don't
+  delete it.
 - **Label** with the phase it belongs to (`phase:N`) plus `task` or `bug`
   ([`naming-conventions.md`](naming-conventions.md) "Git & process"), and
   **assign it to the matching `Development Phase N` milestone**
@@ -90,6 +96,10 @@ Everything else in this doc assumes a code change.
   links) are exempt — see [`docs-only-changes.md`](docs-only-changes.md).
 - State the spec section the issue implements or affects in the PR — the
   reviewer should be able to trace PR → issue → spec section without asking.
+- **End the PR with a TL;DR too**, same rule as issues: a few plain-English,
+  jargon-free bullet points (ELI5 style) covering why the change was made
+  and what its impact is. The PR template
+  (`.github/pull_request_template.md`) has the section built in.
 - Issues close **only** via a merged PR carrying `Closes #N`. Don't close an
   issue by hand outside that flow — it breaks the trace from issue to the
   commit that resolved it.
