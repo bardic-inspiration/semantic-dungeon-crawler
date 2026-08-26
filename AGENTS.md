@@ -64,10 +64,11 @@ if it passes tests.
 > The two easiest to break by accident: **`INV-2` (determinism)** — reach for a
 > seeded PRNG derived from `(session_seed, normalized_query)` (SPEC §0.13.0 —
 > `normalized_query` carries the position; `turn_count` is not a seed component),
-> never `Math.random()` or `Date.now()`; and **`INV-3` (import boundary)** — to be
+> never `Math.random()` or `Date.now()`; and **`INV-3` (import boundary)** —
 > enforced by an ESLint rule (added in Phase 4 for `client-cli`, SPEC §6.5;
-> extended to `client-threejs` in Phase 5, SPEC §6.6). That rule does not exist
-> yet, so today the boundary holds by discipline alone — respect it from day one.
+> extended to `client-threejs` in Phase 5, SPEC §6.6). That rule now guards
+> `client-cli` (a shared, parameterized factory in `eslint/`), so a forbidden
+> engine import fails `npm run lint` — respect the boundary from day one.
 
 ## 3. Repo layout (target — SPEC §2, §6.1)
 
@@ -166,7 +167,8 @@ Changing only Markdown (`SPEC.md`, docs, `AGENTS.md`, etc.) — no code? Steps
   `evaluateLayers` function-identity test (SPEC §4.4) are required where the
   phase calls for them.
 - **ESLint + Prettier** — lint and format. The `INV-3` import-boundary rule is a
-  real ESLint rule (Phase 5, SPEC §6.6), not a convention.
+  real ESLint rule (added Phase 4 for `client-cli`, SPEC §6.5; extended to
+  `client-threejs` in Phase 5, SPEC §6.6), not a convention.
 - **`tsc --noEmit`** — typecheck across packages.
 - **Naming** — [`docs/naming-conventions.md`](docs/naming-conventions.md) is
   authoritative for identifier, file, package, and wire-field casing. SPEC.md
