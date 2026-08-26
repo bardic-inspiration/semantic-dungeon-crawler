@@ -10,6 +10,19 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ### Changed
 
+- **`SPEC_VERSION` is now `0.13.1`, in step with SPEC.md's `spec-version`
+  header (§3.5, INV-5)** — the constant (and the `X-Spec-Version` header §5.1
+  echoes from it) had been left at `0.12.0` when SPEC.md advanced to `0.13.0`
+  and `0.13.1`; those two amendments carried no schema/protocol **surface**
+  change (turn_count decoupled from the seed, §0.13.0; tokenizer default named,
+  §0.13.1), so no type here breaks, but the version this build advertises must
+  still track the document header the constant is defined to mirror. Bringing it
+  in line closes the drift. `version.test.ts` now reads the header out of
+  SPEC.md and asserts equality rather than pinning a literal, so a future
+  SPEC.md-only bump fails the suite the way its comment always claimed — the
+  hardcoded expectation could not catch a document-only bump, which is how this
+  drift slipped through.
+
 - **`SessionState.registry` / `links` are the PER-SESSION overlay layer, not a
   player-only layer (§3.8, SPEC §0.9.0 A8)** — a documentation/semantics
   clarification, no type change. The overlay primitives now execute (issue #109),

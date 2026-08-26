@@ -14,4 +14,4 @@
 // CHANGELOG (INV-5); `version.test.ts` pins the two together.
 
 /** The `spec_version` this build of `packages/schema` implements (§3.5). */
-export const SPEC_VERSION = "0.12.0";
+export const SPEC_VERSION = "0.13.1";
