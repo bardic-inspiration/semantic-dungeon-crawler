@@ -11,8 +11,8 @@ is closed. Phase 4 (`packages/server` + `packages/client-cli` + conformance
 fixtures, §6.5) is now active: its issues (#85–#92) were opened under the
 `Development Phase 4` milestone, sliced from the §6.5 Build list (server
 endpoints, `Logger`/`Metrics` + debug gate, conformance fixtures, `client-cli`,
-and the `INV-3` import-boundary lint rule); #85–#88 are merged, #89–#92 remain
-open, and the milestone closes after the phase's QA/QC pass, per
+and the `INV-3` import-boundary lint rule); #85–#92 are all merged (the last,
+#92, closes with this PR), and the milestone closes after the phase's QA/QC pass, per
 [The phase cycle](#the-phase-cycle). Interleaved with that queue, `Conformance
 Audit 1` (#98–#118) has run to completion and its milestone is closed; #125 is
 open follow-on code work from that pass — see
@@ -58,7 +58,7 @@ criteria — this table is a status index, not a second copy of them.
 | 1 | `packages/schema` — Section 3 types + CHANGELOG + example fixture | §6.2 | [Development Phase 1](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/3) | **Complete** — issues [#54](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/54)–[#58](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/58) merged in [#59](https://github.com/bardic-inspiration/semantic-dungeon-crawler/pull/59); §6.2 Exit checklist recorded in that PR; milestone closes per [The phase cycle](#the-phase-cycle) |
 | 2 | `packages/corpus-builder` — build-time pipeline → `graph.json` | §6.3 | [Development Phase 2](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/4) | **Complete** — issues [#60](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/60)–[#69](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/69) merged; QA/QC pass confirmed §6.3 Exit criteria hold; milestone closed |
 | 3 | `packages/rule-engine` — parser, solver, layer resolution, debug trace | §6.4 | [Development Phase 3](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/5) | **Complete** — issues [#71](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/71)–[#76](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/76) merged; QA/QC pass confirmed §6.4 Exit criteria hold; milestone closed |
-| 4 | `packages/server` + `packages/client-cli` + conformance fixtures | §6.5 | [Development Phase 4](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/6) | **Active** — issues [#85](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/85)–[#92](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/92) opened under the milestone; milestone closes after the phase's QA/QC pass |
+| 4 | `packages/server` + `packages/client-cli` + conformance fixtures | §6.5 | [Development Phase 4](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/6) | **Active** — issues [#85](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/85)–[#92](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/92) all merged (the last, [#92](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/92) `INV-3` import-boundary rule, closes with this PR); milestone closes after the phase's QA/QC pass |
 | 5 | `packages/client-threejs` — reference renderer | §6.6 | [Development Phase 5](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/7) | Not started |
 | 6 | Production-alpha hardening + README playable path | §6.7 | [Development Phase 6](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/8) | Not started |
 | 7+ | Post-alpha (rule editor, other adapters, persistence) — out of scope | §6.8 | [Development Phase 7](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/9) | Out of scope |

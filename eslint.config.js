@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
+import { clientImportBoundary } from "./eslint/client-import-boundary.js";
 
 export default tseslint.config(
   {
@@ -11,6 +12,9 @@ export default tseslint.config(
       "**/build/**",
       "**/coverage/**",
       "**/*.tsbuildinfo",
+      // INV-3 lint fixtures deliberately violate the import boundary; they are
+      // linted in isolation by import-boundary.test.ts, never in the main pass.
+      "**/test/fixtures/inv3-*.ts",
     ],
   },
   js.configs.recommended,
@@ -33,5 +37,9 @@ export default tseslint.config(
     files: ["packages/client-cli/**/*.ts"],
     languageOptions: { globals: { ...globals.node } },
   },
+  // INV-3 (SPEC §5.4/§6.5): the terminal client sees only resolved JSON — it must
+  // never import the engine packages. Phase 5 (§6.6) adds the same call for
+  // `client-threejs` via the shared, parameterized factory.
+  clientImportBoundary("client-cli"),
   prettier,
 );
