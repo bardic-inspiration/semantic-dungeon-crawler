@@ -27,5 +27,11 @@ export default tseslint.config(
     files: ["packages/server/**/*.ts"],
     languageOptions: { globals: { ...globals.node } },
   },
+  // The terminal client (§5.4) is a Node process too — it drives §5.1 over `fetch`,
+  // reads stdin via `node:readline`, and writes stdout/stderr through `process`.
+  {
+    files: ["packages/client-cli/**/*.ts"],
+    languageOptions: { globals: { ...globals.node } },
+  },
   prettier,
 );
