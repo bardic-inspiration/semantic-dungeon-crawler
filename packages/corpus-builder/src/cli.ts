@@ -25,12 +25,16 @@ import {
   VERBOSITY_LEVELS,
   type Verbosity,
 } from "./inspect";
+import { InMemoryMetrics, type Logger, type LogLevel } from "./instrumentation";
 import {
-  ConsoleLogger,
-  InMemoryMetrics,
-  type Logger,
-  type LogLevel,
-} from "./instrumentation";
+  ConfigError,
+  defaultEmbeddingProviderRegistry,
+  makeLogger,
+  makeMetrics,
+  resolveEmbeddingProvider,
+  type EnvLookup,
+} from "./config";
+import type { EmbeddingProvider } from "./embedding";
 import { parseManifest } from "./manifest";
 import {
   runBuild,
@@ -90,10 +94,24 @@ async function loadBundle(path: string): Promise<SubstrateBundle> {
 
 /** Injectable seams so tests can observe the wired logger and env without a subprocess. */
 export interface CliDeps {
-  /** Build the run's `Logger` from the resolved level. Default: a `ConsoleLogger`. */
+  /**
+   * Override the run's `Logger` construction from the resolved level. Default: the
+   * §2.1 convention (`makeLogger`, reading `SDC_LOG_SINK`); a test injects this to
+   * capture output without the env var.
+   */
   makeLogger?(level: LogLevel): Logger;
-  /** Environment lookup for `SDC_LOG_LEVEL` (§5.4). Default: `process.env`. */
-  env?: Record<string, string | undefined>;
+  /**
+   * Environment lookup for the §2.1 config convention (`SDC_LOG_LEVEL`,
+   * `SDC_LOG_SINK`, `SDC_METRICS_BACKEND`, `SDC_EMBEDDING_PROVIDER`). Default:
+   * `process.env`.
+   */
+  env?: EnvLookup;
+  /**
+   * §2.1 embedding-provider registry, keyed by `SDC_EMBEDDING_PROVIDER`. Default:
+   * `{ hashing: defaultEmbeddingProvider }`. Registering another provider makes it
+   * reachable from `build` via the env var without editing the call site.
+   */
+  embeddingProviders?: Record<string, EmbeddingProvider>;
   /**
    * §6.3.1 `CorpusSource` registry, keyed by a manifest's `source`. Retrieval is
    * the pipeline's first, pluggable stage (`docs/design/0004`), and it happens
@@ -144,20 +162,22 @@ export async function runCli(
   }
   const level = resolved.level;
 
-  // §5.4: `--verbosity` IS the `Logger`'s `minLevel`. The CLI does not reimplement
-  // filtering — it hands the level to one `ConsoleLogger` and lets it gate. So
-  // `--verbosity=debug` yields the MOST output (including every §6.3 stage event,
-  // emitted at `info`), which the old `verbose`→debug / else→Noop wiring inverted.
-  const logger: Logger = (deps.makeLogger ?? ((l) => new ConsoleLogger(l)))(
-    level,
-  );
-
   const sources = deps.sources ?? { gutendex: new GutendexSource() };
+  const providers =
+    deps.embeddingProviders ?? defaultEmbeddingProviderRegistry();
 
   try {
+    // §5.4: `--verbosity` IS the `Logger`'s `minLevel`. §2.1: `SDC_LOG_SINK` picks
+    // the sink (console vs noop) — an orthogonal knob resolved by `makeLogger`. The
+    // CLI does not reimplement filtering; it hands the level to one logger and lets
+    // it gate. `deps.makeLogger` overrides both for tests.
+    const logger: Logger = deps.makeLogger
+      ? deps.makeLogger(level)
+      : makeLogger(env, level);
+
     switch (command) {
       case "build":
-        return await cmdBuild(flags, io, logger, sources);
+        return await cmdBuild(flags, io, logger, sources, env, providers);
       case "inspect":
         return await cmdInspect(flags, io, level);
       case "eval":
@@ -169,6 +189,12 @@ export async function runCli(
         return 2;
     }
   } catch (err) {
+    // §2.1 "Config & errors": a bad config selection is a usage error (exit 2),
+    // surfaced with the accepted values — distinct from a runtime build failure (1).
+    if (err instanceof ConfigError) {
+      io.stderr(`error: ${err.message}`);
+      return 2;
+    }
     io.stderr(`error: ${(err as Error).message}`);
     return 1;
   }
@@ -179,6 +205,8 @@ async function cmdBuild(
   io: CliIO,
   logger: Logger,
   sources: Record<string, CorpusSource>,
+  env: EnvLookup,
+  providers: Record<string, EmbeddingProvider>,
 ): Promise<number> {
   const output = requireString(flags, "output");
   const trace = flags.trace === true;
@@ -210,11 +238,20 @@ async function cmdBuild(
 
   const options: BuildOptions = { documents, restructure, trace };
   if (segmentation !== undefined) options.segmentation = segmentation;
-  // §2.1 — a real `Metrics` sink, read back below. `runBuild` used to fall back
-  // to an internal one that was discarded on return, so every build-time metric
-  // the section names was recorded into an object nothing could reach.
-  const metrics = new InMemoryMetrics();
-  const result = await runBuild(options, { logger, metrics });
+  // §2.1 — the embedding provider is selected by the config convention
+  // (`SDC_EMBEDDING_PROVIDER`), not hardcoded here; default is the deterministic
+  // hashing provider. An unknown id throws `ConfigError` (surfaced as exit 2).
+  const embeddingProvider = resolveEmbeddingProvider(env, providers);
+  // §2.1 — a real `Metrics` sink, backend selected by `SDC_METRICS_BACKEND`
+  // (default in-memory), read back below. `runBuild` used to fall back to an
+  // internal one that was discarded on return, so every build-time metric the
+  // section names was recorded into an object nothing could reach.
+  const metrics = makeMetrics(env);
+  const result = await runBuild(options, {
+    logger,
+    metrics,
+    embeddingProvider,
+  });
 
   await mkdir(dirname(output), { recursive: true });
   await writeFile(output, serializeBundle(result.bundle), "utf8");
@@ -234,12 +271,14 @@ async function cmdBuild(
   // §2.1 — report the recorded metrics through the same `Logger`, so a build is
   // as inspectable as a runtime request. Durations stay OUT of stdout and out of
   // every artifact: they vary run to run and §6.3 Exit requires byte-identical
-  // output.
-  const durations = metrics.observations.get("build.duration_ms");
+  // output. Only the in-memory backend records readable counters/observations; a
+  // `noop` backend (operator opt-out) reports nulls rather than crashing.
+  const recorded = metrics instanceof InMemoryMetrics ? metrics : undefined;
+  const durations = recorded?.observations.get("build.duration_ms");
   logger.log("info", "build.metrics", {
     documents: documents.length,
     spans: result.bundle.spans.length,
-    embedding_calls: metrics.counters.get("embedding.call_count") ?? 0,
+    embedding_calls: recorded?.counters.get("embedding.call_count") ?? null,
     build_duration_ms: durations?.[durations.length - 1] ?? null,
   });
 

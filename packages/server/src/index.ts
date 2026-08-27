@@ -35,6 +35,7 @@ export {
   NoopLogger,
   CollectingLogger,
   InMemoryMetrics,
+  NoopMetrics,
   isReadableMetrics,
 } from "./instrumentation";
 export type {
@@ -44,3 +45,16 @@ export type {
   MetricsSnapshot,
   ReadableMetrics,
 } from "./instrumentation";
+// §2.1 environment-driven config convention (docs/config-conventions.md).
+export {
+  ConfigError,
+  makeLogger,
+  makeMetrics,
+  resolveLogSink,
+  resolveMetricsBackend,
+  LOG_SINKS,
+  METRICS_BACKENDS,
+  ENV_LOG_SINK,
+  ENV_METRICS_BACKEND,
+} from "./config";
+export type { EnvLookup, LogSink, MetricsBackend } from "./config";

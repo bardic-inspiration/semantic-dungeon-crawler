@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runCli, type CliDeps, type CliIO } from "./cli";
 import { ConsoleLogger, type LogLevel } from "./instrumentation";
+import { HashingEmbeddingProvider } from "./embedding";
 import type { CorpusSource, ResolvedDocument } from "./sources/types";
 
 /**
@@ -140,6 +141,61 @@ describe("corpus-builder CLI (§6.3 Exit)", () => {
   it("unknown command returns a non-zero exit code", async () => {
     const io = collectingIO();
     expect(await runCli(["frobnicate"], io)).toBe(2);
+  });
+});
+
+// ── §2.1 — the embedding provider is selected by the config convention ────────
+//
+// `SDC_EMBEDDING_PROVIDER` picks the build's provider from the registry with NO
+// code change at the call site: the same `build` argv, a different env var, yields
+// a graph built by a different provider (a different `substrate_version`).
+
+describe("corpus-builder build — SDC_EMBEDDING_PROVIDER (§2.1)", () => {
+  async function buildWith(
+    env: Record<string, string | undefined>,
+  ): Promise<{ code: number; substrateVersion?: string; err: string[] }> {
+    const graph = await tempGraphPath();
+    const io = collectingIO();
+    // Two well-formed providers under distinct ids; their ids feed
+    // `substrate_version`, so selecting one vs the other is observable in the build.
+    const deps: CliDeps = {
+      env,
+      embeddingProviders: {
+        hashing: new HashingEmbeddingProvider(256),
+        wide: new HashingEmbeddingProvider(128),
+      },
+    };
+    const code = await runCli(
+      ["build", "--input", CORPUS_DIR, "--output", graph],
+      io,
+      deps,
+    );
+    if (code !== 0) return { code, err: io.err };
+    const bundle = JSON.parse(await readFile(graph, "utf8"));
+    return {
+      code,
+      substrateVersion: bundle.header.substrate_version,
+      err: io.err,
+    };
+  }
+
+  it("the env var alone changes which provider builds the graph", async () => {
+    const defaulted = await buildWith({});
+    const wide = await buildWith({ SDC_EMBEDDING_PROVIDER: "wide" });
+    const hashing = await buildWith({ SDC_EMBEDDING_PROVIDER: "hashing" });
+
+    expect(defaulted.code).toBe(0);
+    expect(wide.code).toBe(0);
+    expect(hashing.code).toBe(0);
+    // Unset defaults to `hashing`; the explicit `wide` selection differs from it.
+    expect(hashing.substrateVersion).toBe(defaulted.substrateVersion);
+    expect(wide.substrateVersion).not.toBe(defaulted.substrateVersion);
+  });
+
+  it("an unknown provider id is surfaced as a usage error (exit 2)", async () => {
+    const { code, err } = await buildWith({ SDC_EMBEDDING_PROVIDER: "gpt" });
+    expect(code).toBe(2);
+    expect(err.join("\n")).toMatch(/SDC_EMBEDDING_PROVIDER.*registered:/s);
   });
 });
 

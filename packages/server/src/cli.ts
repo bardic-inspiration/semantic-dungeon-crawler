@@ -11,8 +11,10 @@
 //   sdc-server --graph <path> [--ruleset <path>] [--port N] [--host H]
 //              [--start-ref <id>] [--dev] [--debug] [--metrics]
 //
-// The §2.1 environment-driven config convention is Phase 6 (§6.7), so this reads
-// flags only.
+// The §2.1 environment-driven config convention (`docs/config-conventions.md`)
+// selects the `Logger` sink (`SDC_LOG_SINK`) and `Metrics` backend
+// (`SDC_METRICS_BACKEND`); the `--debug` flag still chooses the log level. Flags
+// remain the surface for everything else.
 
 import { readFile } from "node:fs/promises";
 import type { Ruleset } from "schema";
@@ -23,7 +25,8 @@ import {
 } from "schema";
 import { loadSubstrate } from "./graph-loader";
 import { createHttpServer } from "./http";
-import { ConsoleLogger, type Logger } from "./instrumentation";
+import type { Logger, Metrics } from "./instrumentation";
+import { ConfigError, makeLogger, makeMetrics, type EnvLookup } from "./config";
 
 export interface CliIo {
   stdout(line: string): void;
@@ -67,6 +70,7 @@ const NULL_RULESET: Ruleset = { spec_version: SPEC_VERSION, layers: [] };
 export async function main(
   argv: readonly string[],
   io: CliIo,
+  env: EnvLookup = process.env,
 ): Promise<{ code: number; close?: () => Promise<void> }> {
   const flags = parseFlags(argv);
 
@@ -75,9 +79,21 @@ export async function main(
     return { code: typeof flags.graph === "string" ? 0 : 2 };
   }
 
-  const logger: Logger = new ConsoleLogger(
-    flags.debug === true ? "debug" : "info",
-  );
+  // §2.1 — the `Logger` sink and `Metrics` backend come from the config convention;
+  // the `--debug` flag chooses the log level. An unrecognized env value is a usage
+  // error (exit 2), surfaced with the accepted values.
+  let logger: Logger;
+  let metrics: Metrics;
+  try {
+    logger = makeLogger(env, flags.debug === true ? "debug" : "info");
+    metrics = makeMetrics(env);
+  } catch (e) {
+    if (e instanceof ConfigError) {
+      io.stderr(e.message);
+      return { code: 2 };
+    }
+    throw e;
+  }
 
   let substrate;
   try {
@@ -151,6 +167,7 @@ export async function main(
     ruleset,
     substrate: { spans: substrate.spans, start_ref },
     logger,
+    metrics,
     ...(flags.dev === true ? { devMode: true } : {}),
     ...(flags.debug === true ? { debug: true } : {}),
     ...(flags.metrics === true ? { metricsEnabled: true } : {}),
