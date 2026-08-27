@@ -36,6 +36,28 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ### Added
 
+- **Protocol-boundary error taxonomy — `ProtocolBoundaryError` +
+  `MalformedRulesetError` / `UnknownSessionError` / `MalformedRequestError` /
+  `NetworkFailureError`, `ProtocolErrorCode`, `isProtocolBoundaryError`
+  (`errors.ts`), and `isWellFormedRuleset` (`ruleset.ts`) (§2.1, §6.7)** — the
+  one shared, typed taxonomy §2.1 ("Config & errors") calls for, replacing the
+  ad hoc throws at protocol edges. Each server-emitted member owns a stable wire
+  `code` and the HTTP status the server maps it to (`malformed_ruleset` 400,
+  `unknown_session` 404, `malformed_request` 400); `network_failure` is
+  client-only (no HTTP status — no response arrived) and both clients raise it on
+  a transport failure instead of leaking a raw `fetch` throw. Lives in `schema`
+  because every package imports it (server maps members to responses; clients
+  raise/receive them), the same reason the Section 3 types do.
+
+  Additive and **not a spec-version bump**. The §5.1 envelope shape
+  (`{ error: { code, message } }`) is unchanged — only the `code` tokens for
+  these boundary cases are now drawn from a documented taxonomy rather than an
+  ad hoc `bad_request`. §5.1 does not enumerate the `code` tokens (it types
+  `code` as "a stable machine token"), no in-repo adapter switches on the old
+  literals, and INV-4 is preserved: `isWellFormedRuleset` /
+  `MalformedRulesetError` judge SHAPE only, so a well-formed-but-incoherent
+  ruleset still runs and is never rejected.
+
 - **`Ruleset.substrate` / `SubstrateRulesetConfig` / `GradientSource` (§3.4,
   SPEC §0.10.0 B3)** — the substrate-query knobs B3 names as "ruleset config with
   engine defaults". For now the block carries `gradient_source` (`"none"` |

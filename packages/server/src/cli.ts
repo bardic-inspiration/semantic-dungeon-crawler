@@ -16,7 +16,11 @@
 
 import { readFile } from "node:fs/promises";
 import type { Ruleset } from "schema";
-import { SPEC_VERSION } from "schema";
+import {
+  SPEC_VERSION,
+  isWellFormedRuleset,
+  MalformedRulesetError,
+} from "schema";
 import { loadSubstrate } from "./graph-loader";
 import { createHttpServer } from "./http";
 import { ConsoleLogger, type Logger } from "./instrumentation";
@@ -87,14 +91,28 @@ export async function main(
 
   let ruleset = NULL_RULESET;
   if (typeof flags.ruleset === "string") {
+    let parsed: unknown;
     try {
-      ruleset = JSON.parse(await readFile(flags.ruleset, "utf8")) as Ruleset;
+      parsed = JSON.parse(await readFile(flags.ruleset, "utf8"));
     } catch (e) {
       io.stderr(
         `ruleset at "${flags.ruleset}" could not be read: ${(e as Error).message}`,
       );
       return { code: 1 };
     }
+    // §2.1 / §6.7 taxonomy — a malformed ruleset at LOAD time is a
+    // `MalformedRulesetError` (the wrong SHAPE, INV-4 — never an incoherence
+    // judgement). At startup it fails loud rather than surfacing as a confusing
+    // 500 on the first session, the same fail-loud line the graph loader draws.
+    if (!isWellFormedRuleset(parsed)) {
+      io.stderr(
+        new MalformedRulesetError(
+          `ruleset at "${flags.ruleset}" is not a well-formed ruleset (needs a string spec_version and a layers array)`,
+        ).message,
+      );
+      return { code: 1 };
+    }
+    ruleset = parsed;
   }
 
   // §0.11.0 (C5) — `authored_against` is ADVISORY. Drift against the live

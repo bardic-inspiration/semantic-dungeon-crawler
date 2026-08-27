@@ -4,6 +4,7 @@
 // package imports these types from `schema` rather than duplicating them.
 
 export * from "./version";
+export * from "./errors";
 export * from "./entity";
 export * from "./overlay";
 export * from "./ruleset";
