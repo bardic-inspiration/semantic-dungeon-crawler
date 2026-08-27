@@ -11,6 +11,7 @@ import type {
   InteractResponse,
   ResolvedRoomResponse,
 } from "schema";
+import { NetworkFailureError } from "schema";
 import {
   bootstrapSession,
   httpRoomClient,
@@ -237,6 +238,17 @@ describe("httpRoomClient (§5.1)", () => {
     await expect(client.roomCurrent("nope")).rejects.toBeInstanceOf(
       RoomApiError,
     );
+  });
+
+  it("a transport failure surfaces as a typed NetworkFailureError (§2.1 / §6.7)", async () => {
+    const fetchStub = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new TypeError("fetch failed: ECONNREFUSED"));
+    const client = httpRoomClient("http://127.0.0.1:9", { fetch: fetchStub });
+    const err = await client.newSession().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NetworkFailureError);
+    expect((err as NetworkFailureError).code).toBe("network_failure");
+    expect((err as NetworkFailureError).cause).toBeInstanceOf(TypeError);
   });
 
   it("bootstrapSession drives a full render over the HTTP client", async () => {

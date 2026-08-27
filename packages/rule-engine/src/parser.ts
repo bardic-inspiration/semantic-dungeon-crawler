@@ -134,6 +134,13 @@ export interface MatchPattern {
  * A DSL well-formedness error. `pos` is the 0-based offset into the input where
  * the problem was detected. This is a *syntax* error and never an INV-4
  * coherence judgement.
+ *
+ * §2.1 / §6.7 taxonomy: `ParseError` is deliberately OUTSIDE the protocol-boundary
+ * error taxonomy (`schema/errors.ts`). A DSL predicate is authored content parsed
+ * at rule-evaluation/build time, not a wire request — a well-formed ruleset whose
+ * expression strings are syntactically bad surfaces this at load, never as a
+ * request-time HTTP envelope. The taxonomy covers protocol edges (bad body,
+ * unknown session, unreachable server, wrong-shape ruleset), not DSL syntax.
  */
 export class ParseError extends Error {
   readonly pos: number;

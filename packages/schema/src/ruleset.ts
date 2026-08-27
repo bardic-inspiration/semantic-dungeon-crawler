@@ -89,3 +89,17 @@ export interface Ruleset {
   movement_affordances?: Affordance[]; // §0.9.0 (A4) — engine default ["enter","traverse"] (+ portal archetype)
   substrate?: SubstrateRulesetConfig; // §0.10.0 (B3) — substrate-query config (gradient source); engine defaults when omitted
 }
+
+/**
+ * §3.4 well-formedness guard (INV-4). A ruleset is a `spec_version` string plus a
+ * `layers` array — that is the entire SHAPE contract, and it is all this checks.
+ * A well-formed-but-incoherent ("bad") ruleset passes: INV-4 forbids rejecting one
+ * for its content, only for not being a ruleset at all. This is the single shape
+ * check the protocol boundary uses (server startup `--ruleset`, dev-mode
+ * `POST /session/new`) before raising a {@link ./errors!MalformedRulesetError}.
+ */
+export function isWellFormedRuleset(value: unknown): value is Ruleset {
+  if (typeof value !== "object" || value === null) return false;
+  const { spec_version, layers } = value as Record<string, unknown>;
+  return typeof spec_version === "string" && Array.isArray(layers);
+}

@@ -18,6 +18,7 @@ import type {
   InteractResponse,
   ResolvedRoomResponse,
 } from "schema";
+import { NetworkFailureError } from "schema";
 import { renderRoom } from "./scene";
 
 /** The handle `GET /session/new` returns (§5.1): an id plus the session's seed. */
@@ -74,6 +75,21 @@ export function httpRoomClient(
   const doFetch = options.fetch ?? fetch;
   const base = baseUrl.replace(/\/+$/, "");
 
+  // §2.1 / §6.7 taxonomy — the transport failed before any HTTP response arrived
+  // (server down, connection refused). Surface the shared `NetworkFailureError`
+  // rather than letting a raw `fetch` `TypeError` escape uncaught; a received
+  // non-2xx envelope is the OTHER path (`RoomApiError`), a request that completed.
+  async function send(path: string, init: RequestInit): Promise<Response> {
+    try {
+      return await doFetch(`${base}${path}`, init);
+    } catch (e) {
+      throw new NetworkFailureError(
+        `cannot reach server at ${base}: ${(e as Error).message}`,
+        { cause: e },
+      );
+    }
+  }
+
   async function parseError(res: Response): Promise<RoomApiError> {
     let code = "unknown";
     let message = `request failed with status ${res.status}`;
@@ -91,13 +107,13 @@ export function httpRoomClient(
   }
 
   async function getJson<T>(path: string): Promise<T> {
-    const res = await doFetch(`${base}${path}`, { method: "GET" });
+    const res = await send(path, { method: "GET" });
     if (!res.ok) throw await parseError(res);
     return (await res.json()) as T;
   }
 
   async function postJson<T>(path: string, body: unknown): Promise<T> {
-    const res = await doFetch(`${base}${path}`, {
+    const res = await send(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

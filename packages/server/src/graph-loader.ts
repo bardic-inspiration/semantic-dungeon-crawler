@@ -15,6 +15,12 @@
 // `Entity`. INV-4 does NOT apply to this file: a malformed `graph.json` is a
 // BUILD ARTIFACT, not authored content, so it fails loud (the same line §6.3's
 // fail-loud gate draws). INV-4 governs rulesets, which are authored.
+//
+// §2.1 / §6.7 taxonomy: `GraphLoadError` is deliberately OUTSIDE the
+// protocol-boundary error taxonomy (`schema/errors.ts`). Loading the substrate is
+// server STARTUP against a build artifact, not a request at a protocol edge — so
+// it fails loud here (the CLI prints it and exits non-zero) rather than mapping to
+// an HTTP error envelope. The taxonomy covers only the request-time boundaries.
 
 import { readFile } from "node:fs/promises";
 import type { GraphSpan } from "rule-engine";

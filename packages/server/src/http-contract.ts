@@ -7,6 +7,8 @@
 // `{ error: { code, message } }` (INV-3 — a `message` only, never ruleset text,
 // graph data, or a stack trace).
 
+import type { ProtocolBoundaryError } from "schema";
+
 /** A fully-formed HTTP response, independent of any transport (`node:http`, a test). */
 export interface ServerResponse {
   status: number;
@@ -65,4 +67,24 @@ export function errorResponse(
     headers: baseHeaders(specVersion),
     body: JSON.stringify({ error: { code, message } }),
   };
+}
+
+/**
+ * Map a {@link ProtocolBoundaryError} to its §5.1 error envelope (§2.1 / §6.7).
+ * The taxonomy member owns its HTTP status and stable `code`, so every handler
+ * that raises one produces an identical, documented response instead of an ad hoc
+ * throw. Only the server-emitted members are ever passed here — each carries a
+ * numeric `httpStatus`; the client-only `network_failure` has none and never
+ * reaches the server, so it falls back to `500` defensively (it cannot occur).
+ */
+export function protocolErrorResponse(
+  specVersion: string,
+  error: ProtocolBoundaryError,
+): ServerResponse {
+  return errorResponse(
+    specVersion,
+    error.httpStatus ?? 500,
+    error.code,
+    error.message,
+  );
 }

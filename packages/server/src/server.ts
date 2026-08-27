@@ -35,7 +35,13 @@ import type {
   Ruleset,
   SessionState,
 } from "schema";
-import { SPEC_VERSION } from "schema";
+import {
+  SPEC_VERSION,
+  isWellFormedRuleset,
+  MalformedRequestError,
+  MalformedRulesetError,
+  UnknownSessionError,
+} from "schema";
 import {
   applyPrimitives,
   createSubstrateGraph,
@@ -67,6 +73,7 @@ import {
   errorResponse,
   jsonResponse,
   noContentResponse,
+  protocolErrorResponse,
   type ServerResponse,
 } from "./http-contract";
 
@@ -283,15 +290,6 @@ export function createServer(config: ServerConfig): Server {
     });
   }
 
-  // §3.4 well-formedness (INV-4): a ruleset carries a `spec_version` string and a
-  // `layers` array. We validate SHAPE only — a well-formed-but-incoherent ruleset
-  // is legal and must run (INV-4), so no coherence check happens here.
-  function isRuleset(value: unknown): value is Ruleset {
-    if (typeof value !== "object" || value === null) return false;
-    const { spec_version, layers } = value as Record<string, unknown>;
-    return typeof spec_version === "string" && Array.isArray(layers);
-  }
-
   // §0.9.0 (A12) `POST /session/new` — DEV-MODE ONLY. Binds a per-session ruleset
   // by value (`ruleset`) or by reference (`ruleset_ref`, a server-registered
   // ruleset) and returns `{ session_id, seed }`. With dev mode off the endpoint is
@@ -310,19 +308,13 @@ export function createServer(config: ServerConfig): Server {
     try {
       parsed = JSON.parse(bodyRaw ?? "");
     } catch {
-      return errorResponse(
-        specVersion,
-        400,
-        "bad_request",
-        "malformed request body",
-      );
+      // §2.1 / §6.7 taxonomy — a body that will not parse is a malformed request.
+      return protocolErrorResponse(specVersion, new MalformedRequestError());
     }
     if (typeof parsed !== "object" || parsed === null) {
-      return errorResponse(
+      return protocolErrorResponse(
         specVersion,
-        400,
-        "bad_request",
-        "malformed session request",
+        new MalformedRequestError("malformed session request"),
       );
     }
     const {
@@ -350,13 +342,9 @@ export function createServer(config: ServerConfig): Server {
     // else `undefined` (fall back to the server-wide ruleset).
     let bound: Ruleset | undefined;
     if (rulesetInline !== undefined) {
-      if (!isRuleset(rulesetInline)) {
-        return errorResponse(
-          specVersion,
-          400,
-          "bad_request",
-          "malformed ruleset",
-        );
+      if (!isWellFormedRuleset(rulesetInline)) {
+        // §2.1 / §6.7 taxonomy — the wrong SHAPE, not incoherent content (INV-4).
+        return protocolErrorResponse(specVersion, new MalformedRulesetError());
       }
       bound = rulesetInline;
     } else if (rulesetRef !== undefined) {
@@ -480,12 +468,7 @@ export function createServer(config: ServerConfig): Server {
     }
     const session = sessions.get(sessionId);
     if (session === undefined) {
-      return errorResponse(
-        specVersion,
-        404,
-        "unknown_session",
-        "unknown session",
-      );
+      return protocolErrorResponse(specVersion, new UnknownSessionError());
     }
 
     const resolved = resolveRoom(session, debugConfig);
@@ -542,30 +525,19 @@ export function createServer(config: ServerConfig): Server {
     try {
       parsed = JSON.parse(bodyRaw ?? "");
     } catch {
-      return errorResponse(
-        specVersion,
-        400,
-        "bad_request",
-        "malformed request body",
-      );
+      // §2.1 / §6.7 taxonomy — a body that will not parse is a malformed request.
+      return protocolErrorResponse(specVersion, new MalformedRequestError());
     }
     if (!isInteractRequest(parsed)) {
-      return errorResponse(
+      return protocolErrorResponse(
         specVersion,
-        400,
-        "bad_request",
-        "malformed interact request",
+        new MalformedRequestError("malformed interact request"),
       );
     }
     const { session_id, action } = parsed;
     const session = sessions.get(session_id);
     if (session === undefined) {
-      return errorResponse(
-        specVersion,
-        404,
-        "unknown_session",
-        "unknown session",
-      );
+      return protocolErrorResponse(specVersion, new UnknownSessionError());
     }
 
     const before = resolveRoom(session);
@@ -740,12 +712,7 @@ export function createServer(config: ServerConfig): Server {
   function sessionLog(sessionId: string): ServerResponse {
     const session = sessions.get(sessionId);
     if (session === undefined) {
-      return errorResponse(
-        specVersion,
-        404,
-        "unknown_session",
-        "unknown session",
-      );
+      return protocolErrorResponse(specVersion, new UnknownSessionError());
     }
     return jsonResponse(specVersion, 200, session.input_log);
   }
@@ -764,12 +731,7 @@ export function createServer(config: ServerConfig): Server {
   function sessionRegistry(sessionId: string): ServerResponse {
     const session = sessions.get(sessionId);
     if (session === undefined) {
-      return errorResponse(
-        specVersion,
-        404,
-        "unknown_session",
-        "unknown session",
-      );
+      return protocolErrorResponse(specVersion, new UnknownSessionError());
     }
     // §3.8 (A8) — the layered read: the per-session overlay merged over the shared
     // build base. The base is empty for alpha (an emergent registry, populated
@@ -843,12 +805,7 @@ export function createServer(config: ServerConfig): Server {
       );
     }
     if (sessions.get(sessionId) === undefined) {
-      return errorResponse(
-        specVersion,
-        404,
-        "unknown_session",
-        "unknown session",
-      );
+      return protocolErrorResponse(specVersion, new UnknownSessionError());
     }
     const trace = lastTraceBySession.get(sessionId);
     if (trace === undefined) {

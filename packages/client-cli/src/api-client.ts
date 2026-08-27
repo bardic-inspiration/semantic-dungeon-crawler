@@ -16,6 +16,7 @@ import type {
   InteractResponse,
   ResolvedRoomResponse,
 } from "schema";
+import { NetworkFailureError } from "schema";
 import type { Metrics } from "./instrumentation";
 
 /** The §5.1 endpoints the terminal client drives, as returned wire types. */
@@ -35,7 +36,13 @@ export interface ApiClient {
   deleteSession(sessionId: string): Promise<void>;
 }
 
-/** An error carrying the §5.1 `{ error: { code, message } }` envelope + status. */
+/**
+ * An error carrying a RECEIVED §5.1 `{ error: { code, message } }` envelope +
+ * status — the request completed with a non-2xx response. This is the client's
+ * view of the server-emitted protocol-boundary members (its `code` is one of the
+ * taxonomy tokens, e.g. `unknown_session`); the no-response case is the taxonomy's
+ * {@link NetworkFailureError} instead (§2.1 / §6.7).
+ */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -85,7 +92,19 @@ export function httpApiClient(
     }
     try {
       return await doFetch(`${base}${path}`, init);
+    } catch (e) {
+      // §2.1 / §6.7 taxonomy — the transport failed before any HTTP response
+      // arrived (server down, connection refused, DNS failure). Surface it as the
+      // shared `NetworkFailureError` rather than letting a raw `fetch` `TypeError`
+      // escape uncaught; the REPL's top-level catch then reports it (INV-3 — a
+      // message, no internals). A received non-2xx envelope is the OTHER path
+      // (`ApiError`, below): that request completed.
+      throw new NetworkFailureError(
+        `cannot reach server at ${base}: ${(e as Error).message}`,
+        { cause: e },
+      );
     } finally {
+      // A failed request is still one attempt — count it either way (§2.1).
       metrics?.increment("cli.requests");
       metrics?.observe("cli.request.duration_ms", clock() - started);
     }
