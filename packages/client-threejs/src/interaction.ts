@@ -19,6 +19,7 @@ import type {
 } from "schema";
 import type { RoomApiClient } from "./session-bootstrap";
 import { SyncSystem } from "./sync";
+import { NOOP_INSTRUMENTATION, type Instrumentation } from "./instrumentation";
 
 /**
  * Raycast a click into `scene` and return the entity id of the nearest hit
@@ -79,6 +80,13 @@ export interface ClickContext {
   pointer: THREE.Vector2;
   /** Optional raycaster to reuse across clicks. */
   raycaster?: THREE.Raycaster;
+  /**
+   * The §2.1 `Logger`/`Metrics` side channel to report the click through. Omitted ⇒
+   * the all-noop {@link NOOP_INSTRUMENTATION}. Diagnostic only: it never changes
+   * whether a click resolves to a request or which room is rendered (INV-2), and is
+   * never serialized back to the server (INV-3).
+   */
+  instrumentation?: Instrumentation;
 }
 
 /**
@@ -90,16 +98,42 @@ export interface ClickContext {
 export async function InteractionSystem(
   ctx: ClickContext,
 ): Promise<InteractResponse | null> {
+  const { metrics, debugLog } = ctx.instrumentation ?? NOOP_INSTRUMENTATION;
+  metrics.increment("interact.clicks");
+
   const entityId = pickEntityId(
     ctx.scene,
     ctx.camera,
     ctx.pointer,
     ctx.raycaster,
   );
-  if (entityId === null) return null;
+  if (entityId === null) {
+    metrics.increment("interact.miss");
+    debugLog?.log("debug", "interact.miss", {});
+    return null;
+  }
   const action = actionForObject(ctx.room, entityId);
-  if (action === null) return null;
-  return ctx.client.interact({ session_id: ctx.sessionId, action });
+  if (action === null) {
+    metrics.increment("interact.inert");
+    debugLog?.log("debug", "interact.inert", { entity_id: entityId });
+    return null;
+  }
+
+  const response = await ctx.client.interact({
+    session_id: ctx.sessionId,
+    action,
+  });
+
+  metrics.increment("interact.count");
+  if (response.transition_occurred) metrics.increment("interact.transitions");
+  // §4.6 gate-before-construct — fields built only when debug verbosity is on.
+  debugLog?.log("debug", "interact.resolved", {
+    session_id: ctx.sessionId,
+    object_id: action.object_id,
+    affordance: action.affordance,
+    transition_occurred: response.transition_occurred,
+  });
+  return response;
 }
 
 /**
@@ -115,6 +149,6 @@ export async function handleClick(
 ): Promise<InteractResponse | null> {
   const response = await InteractionSystem(ctx);
   if (response === null) return null;
-  SyncSystem(ctx.scene, response);
+  SyncSystem(ctx.scene, response, ctx.instrumentation ?? NOOP_INSTRUMENTATION);
   return response;
 }

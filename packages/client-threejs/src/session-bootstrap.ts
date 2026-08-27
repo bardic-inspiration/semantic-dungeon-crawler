@@ -20,6 +20,7 @@ import type {
 } from "schema";
 import { NetworkFailureError } from "schema";
 import { renderRoom } from "./scene";
+import { NOOP_INSTRUMENTATION, type Instrumentation } from "./instrumentation";
 
 /** The handle `GET /session/new` returns (§5.1): an id plus the session's seed. */
 export interface SessionHandle {
@@ -143,6 +144,13 @@ export function httpRoomClient(
 export interface BootstrapOptions {
   /** Pin the session seed for a reproducible session (INV-2); omitted ⇒ server-chosen. */
   seed?: number;
+  /**
+   * The §2.1 `Logger`/`Metrics` side channel to report bootstrap through. Omitted ⇒
+   * the all-noop {@link NOOP_INSTRUMENTATION} (zero overhead). Diagnostic only: it
+   * never influences which session/room is loaded or how it renders (INV-2), and is
+   * never serialized back to the server (INV-3).
+   */
+  instrumentation?: Instrumentation;
 }
 
 /** The result of a session bootstrap: the session, its room, and the built scene. */
@@ -163,8 +171,32 @@ export async function bootstrapSession(
   client: RoomApiClient,
   options: BootstrapOptions = {},
 ): Promise<SessionBootstrap> {
+  const { logger, metrics, debugLog } =
+    options.instrumentation ?? NOOP_INSTRUMENTATION;
+
+  logger.log("info", "session.bootstrap.start", {
+    seed_pinned: options.seed !== undefined,
+  });
+
   const session = await client.newSession(options.seed);
   const room = await client.roomCurrent(session.session_id);
   const scene = renderRoom(room);
+
+  metrics.increment("session.bootstrap.count");
+  metrics.observe("room.object_count", room.objects.length);
+  metrics.observe("room.exit_count", room.exits.length);
+  logger.log("info", "session.bootstrap.ready", {
+    session_id: session.session_id,
+  });
+  // §4.6 gate-before-construct: with debug verbosity off `debugLog` is undefined,
+  // so this fields object is never built. Operator-facing counts only (INV-3).
+  debugLog?.log("debug", "session.room.rendered", {
+    session_id: session.session_id,
+    room_id: room.room.id,
+    object_count: room.objects.length,
+    exit_count: room.exits.length,
+    resolution_status: room.resolution_status,
+  });
+
   return { session, room, scene };
 }

@@ -36,3 +36,21 @@ export {
   httpRoomClient,
   RoomApiError,
 } from "./session-bootstrap";
+export type {
+  Instrumentation,
+  InstrumentationOptions,
+  Logger,
+  LogLevel,
+  Metrics,
+  MetricsSnapshot,
+  ReadableMetrics,
+} from "./instrumentation";
+export {
+  CollectingLogger,
+  ConsoleLogger,
+  InMemoryMetrics,
+  makeInstrumentation,
+  NoopLogger,
+  NoopMetrics,
+  NOOP_INSTRUMENTATION,
+} from "./instrumentation";
