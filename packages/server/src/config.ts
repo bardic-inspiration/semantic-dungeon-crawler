@@ -17,6 +17,8 @@ import {
   type LogLevel,
   type Metrics,
 } from "./instrumentation";
+import { DEFAULT_MAX_SESSIONS, DEFAULT_IDLE_TTL_MS } from "./sessions";
+import { DEFAULT_MAX_BODY_BYTES } from "./http";
 
 /** An environment lookup — injectable so tests drive it without `process.env`. */
 export type EnvLookup = Record<string, string | undefined>;
@@ -24,6 +26,10 @@ export type EnvLookup = Record<string, string | undefined>;
 /** The env vars this package reads (see `docs/config-conventions.md`). */
 export const ENV_LOG_SINK = "SDC_LOG_SINK";
 export const ENV_METRICS_BACKEND = "SDC_METRICS_BACKEND";
+// §0.11.0 (C3) operational bounds — numeric hardening knobs, not component swaps.
+export const ENV_SESSION_MAX = "SDC_SESSION_MAX";
+export const ENV_SESSION_TTL_MS = "SDC_SESSION_TTL_MS";
+export const ENV_MAX_BODY_BYTES = "SDC_MAX_BODY_BYTES";
 
 export const LOG_SINKS = ["console", "noop"] as const;
 export type LogSink = (typeof LOG_SINKS)[number];
@@ -65,6 +71,53 @@ export function resolveLogSink(env: EnvLookup): LogSink {
 /** Select the `Metrics` backend from `SDC_METRICS_BACKEND` (default `memory`). */
 export function resolveMetricsBackend(env: EnvLookup): MetricsBackend {
   return selectEnum(env, ENV_METRICS_BACKEND, METRICS_BACKENDS, "memory");
+}
+
+/**
+ * Read a positive-integer operational bound from `env[name]`, falling back to
+ * `fallback` when unset/empty. A value that is not a positive integer is
+ * surfaced — the same "never silently coerced" posture as {@link selectEnum} — so
+ * a typo'd bound fails loud at startup rather than defaulting quietly.
+ */
+function selectPositiveInt(
+  env: EnvLookup,
+  name: string,
+  fallback: number,
+): number {
+  const raw = env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new ConfigError(
+      `unrecognized ${name} "${raw}" (expected a positive integer)`,
+    );
+  }
+  return parsed;
+}
+
+/**
+ * §0.11.0 (C3) — the live-session ceiling from `SDC_SESSION_MAX` (default
+ * {@link DEFAULT_MAX_SESSIONS}). At capacity a new session evicts the oldest-idle.
+ */
+export function resolveMaxSessions(env: EnvLookup): number {
+  return selectPositiveInt(env, ENV_SESSION_MAX, DEFAULT_MAX_SESSIONS);
+}
+
+/**
+ * §0.11.0 (C3) — the idle-TTL in ms from `SDC_SESSION_TTL_MS` (default
+ * {@link DEFAULT_IDLE_TTL_MS}). A session unaccessed this long is evicted.
+ */
+export function resolveIdleTtlMs(env: EnvLookup): number {
+  return selectPositiveInt(env, ENV_SESSION_TTL_MS, DEFAULT_IDLE_TTL_MS);
+}
+
+/**
+ * §0.11.0 (C3) — the request body-size cap in bytes from `SDC_MAX_BODY_BYTES`
+ * (default {@link DEFAULT_MAX_BODY_BYTES}). The transport rejects a larger body
+ * before parsing.
+ */
+export function resolveMaxBodyBytes(env: EnvLookup): number {
+  return selectPositiveInt(env, ENV_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES);
 }
 
 /**

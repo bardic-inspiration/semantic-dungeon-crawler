@@ -26,7 +26,15 @@ import {
 import { loadSubstrate } from "./graph-loader";
 import { createHttpServer } from "./http";
 import type { Logger, Metrics } from "./instrumentation";
-import { ConfigError, makeLogger, makeMetrics, type EnvLookup } from "./config";
+import {
+  ConfigError,
+  makeLogger,
+  makeMetrics,
+  resolveMaxSessions,
+  resolveIdleTtlMs,
+  resolveMaxBodyBytes,
+  type EnvLookup,
+} from "./config";
 
 export interface CliIo {
   stdout(line: string): void;
@@ -42,7 +50,12 @@ const USAGE = `sdc-server --graph <graph.json> [options]
   --host <h>           default 127.0.0.1 (localhost only, §0.11.0 C3)
   --dev                enable per-session ruleset binding (§A12)
   --debug              enable DebugTrace + debug logging (§2.1, §4.6)
-  --metrics            expose GET /metrics (§2.1)`;
+  --metrics            expose GET /metrics (§2.1)
+
+§0.11.0 (C3) trust-model bounds — hardening, not auth (env vars, all optional):
+  SDC_SESSION_MAX      max live sessions before oldest-idle eviction (default 256)
+  SDC_SESSION_TTL_MS   idle TTL in ms; an unused session is evicted (default 1800000)
+  SDC_MAX_BODY_BYTES   request body-size cap in bytes (default 1048576)`;
 
 function parseFlags(argv: readonly string[]): Record<string, string | boolean> {
   const flags: Record<string, string | boolean> = {};
@@ -84,9 +97,17 @@ export async function main(
   // error (exit 2), surfaced with the accepted values.
   let logger: Logger;
   let metrics: Metrics;
+  // §0.11.0 (C3) — the trust-model bounds come from the same env convention; an
+  // out-of-range value is a usage error (exit 2), surfaced with what was expected.
+  let maxSessions: number;
+  let idleTtlMs: number;
+  let maxBodyBytes: number;
   try {
     logger = makeLogger(env, flags.debug === true ? "debug" : "info");
     metrics = makeMetrics(env);
+    maxSessions = resolveMaxSessions(env);
+    idleTtlMs = resolveIdleTtlMs(env);
+    maxBodyBytes = resolveMaxBodyBytes(env);
   } catch (e) {
     if (e instanceof ConfigError) {
       io.stderr(e.message);
@@ -168,6 +189,9 @@ export async function main(
     substrate: { spans: substrate.spans, start_ref },
     logger,
     metrics,
+    maxSessions,
+    idleTtlMs,
+    maxBodyBytes,
     ...(flags.dev === true ? { devMode: true } : {}),
     ...(flags.debug === true ? { debug: true } : {}),
     ...(flags.metrics === true ? { metricsEnabled: true } : {}),

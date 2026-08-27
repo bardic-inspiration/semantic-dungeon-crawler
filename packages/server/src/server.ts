@@ -158,6 +158,24 @@ export interface ServerConfig {
   newSeed?: () => number;
   /** Session-id source; injectable for tests. Defaults to a monotonic counter. */
   newSessionId?: () => string;
+  /**
+   * §0.11.0 (C3) live-session ceiling — at capacity, a new session evicts the
+   * oldest-idle one first. Defaults to `DEFAULT_MAX_SESSIONS` (`sessions.ts`).
+   * Hardening of the existing surface, not an auth system.
+   */
+  maxSessions?: number;
+  /**
+   * §0.11.0 (C3) idle TTL in ms — a session unaccessed this long is evicted.
+   * Defaults to `DEFAULT_IDLE_TTL_MS` (`sessions.ts`).
+   */
+  idleTtlMs?: number;
+  /**
+   * §0.11.0 (C3) request body-size cap in bytes. A TRANSPORT bound: read by the
+   * `node:http` transport (`http.ts`), which rejects an oversized body before it
+   * reaches the pure core's parse. The pure `handle` never streams, so it ignores
+   * this. Defaults to `DEFAULT_MAX_BODY_BYTES` (`http.ts`).
+   */
+  maxBodyBytes?: number;
 }
 
 /** A parsed inbound request — method + raw url — the transport-agnostic input. */
@@ -222,17 +240,27 @@ export function createServer(config: ServerConfig): Server {
   // to be safe to ignore"). It is also server-wide, not per-session: a dev-mode
   // session binding its own ruleset does not change the protocol.
   const specVersion = SPEC_VERSION;
-  const sessions = new SessionStore({
-    startRef: start_ref,
-    newSeed: config.newSeed ?? defaultSeedSource,
-    newSessionId: config.newSessionId ?? counterIdSource(),
-  });
 
   // §2.1 supporting systems, wired in at startup. The server reports through these
   // interfaces; it does not reimplement logging/metrics.
   const logger: Logger = config.logger ?? new NoopLogger();
   const metrics: Metrics = config.metrics ?? new InMemoryMetrics();
   const clock: () => number = config.clock ?? (() => performance.now());
+
+  // §0.11.0 (C3) — the store's eviction clock is the SAME monotonic clock the
+  // request-latency metrics use (a side channel, INV-2: it never touches resolution
+  // output), so last-activity and latency read one time source. `maxSessions`/
+  // `idleTtlMs` fall back to the store's documented defaults.
+  const sessions = new SessionStore({
+    startRef: start_ref,
+    newSeed: config.newSeed ?? defaultSeedSource,
+    newSessionId: config.newSessionId ?? counterIdSource(),
+    clock,
+    ...(config.maxSessions !== undefined
+      ? { maxSessions: config.maxSessions }
+      : {}),
+    ...(config.idleTtlMs !== undefined ? { idleTtlMs: config.idleTtlMs } : {}),
+  });
 
   if (config.ruleset.spec_version !== SPEC_VERSION) {
     // §3.4 says a ruleset's spec_version "must match packages/schema version",

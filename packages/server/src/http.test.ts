@@ -139,6 +139,69 @@ describe("createHttpServer (§5.1, C3)", () => {
     expect(typeof body.error.code).toBe("string");
   });
 
+  it("rejects a request body over the configured cap with a well-formed 413, before parsing (§0.11.0 C3)", async () => {
+    running = createHttpServer({
+      ruleset: RULESET,
+      substrate: { spans: substrate(), start_ref: "vec:origin" },
+      newSeed: () => 7,
+      // A tiny cap so a normal-looking body trips it — the cap is the point, not
+      // the size. Real defaults are documented in the CLI usage.
+      maxBodyBytes: 32,
+    });
+    const { host, port } = await running.listen(0);
+    const base = `http://${host}:${port}`;
+
+    const res = await fetch(`${base}/interact`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      // Well over 32 bytes — a valid-shaped body that is simply too large.
+      body: JSON.stringify({ session_id: "x".repeat(200), action: {} }),
+    });
+
+    expect(res.status).toBe(413);
+    expect(res.headers.get("x-spec-version")).toBe(SPEC_VERSION);
+    const body = (await res.json()) as {
+      error: { code: string; message: string };
+    };
+    // The single §5.1 error envelope — a code + message only, no engine internals.
+    expect(Object.keys(body)).toEqual(["error"]);
+    expect(body.error.code).toBe("payload_too_large");
+    expect(typeof body.error.message).toBe("string");
+  });
+
+  it("allows a body at or under the cap through to the normal contract (§0.11.0 C3)", async () => {
+    running = createHttpServer({
+      ruleset: RULESET,
+      substrate: { spans: substrate(), start_ref: "vec:origin" },
+      newSeed: () => 7,
+      maxBodyBytes: 1024,
+    });
+    const { host, port } = await running.listen(0);
+    const base = `http://${host}:${port}`;
+
+    const { session_id } = (await (
+      await fetch(`${base}/session/new?seed=42`)
+    ).json()) as { session_id: string };
+    const { exits } = (await (
+      await fetch(`${base}/room/current?session_id=${session_id}`)
+    ).json()) as {
+      exits: { via_object_id: string; affordance_required: string }[];
+    };
+
+    const res = await fetch(`${base}/interact`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        session_id,
+        action: {
+          object_id: exits[0]!.via_object_id,
+          affordance: exits[0]!.affordance_required,
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+  });
+
   it("serves /health and an idempotent DELETE over the socket (§5.1, #87)", async () => {
     running = createHttpServer({
       ruleset: RULESET,

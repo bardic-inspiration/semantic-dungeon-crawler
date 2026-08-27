@@ -12,7 +12,12 @@ import {
   makeMetrics,
   resolveLogSink,
   resolveMetricsBackend,
+  resolveMaxSessions,
+  resolveIdleTtlMs,
+  resolveMaxBodyBytes,
 } from "./config";
+import { DEFAULT_MAX_SESSIONS, DEFAULT_IDLE_TTL_MS } from "./sessions";
+import { DEFAULT_MAX_BODY_BYTES } from "./http";
 import {
   ConsoleLogger,
   InMemoryMetrics,
@@ -67,5 +72,34 @@ describe("§2.1 config convention — server metrics backend (SDC_METRICS_BACKEN
     expect(() =>
       resolveMetricsBackend({ SDC_METRICS_BACKEND: "statsd" }),
     ).toThrow(ConfigError);
+  });
+});
+
+describe("§0.11.0 (C3) operational bounds — numeric env knobs", () => {
+  it("default to their documented values when unset", () => {
+    expect(resolveMaxSessions({})).toBe(DEFAULT_MAX_SESSIONS);
+    expect(resolveIdleTtlMs({})).toBe(DEFAULT_IDLE_TTL_MS);
+    expect(resolveMaxBodyBytes({})).toBe(DEFAULT_MAX_BODY_BYTES);
+  });
+
+  it("read a positive integer from the env var (flag > env > default precedence)", () => {
+    expect(resolveMaxSessions({ SDC_SESSION_MAX: "5" })).toBe(5);
+    expect(resolveIdleTtlMs({ SDC_SESSION_TTL_MS: "60000" })).toBe(60000);
+    expect(resolveMaxBodyBytes({ SDC_MAX_BODY_BYTES: "4096" })).toBe(4096);
+  });
+
+  it("surface a non-integer or non-positive value as a ConfigError, never coerced", () => {
+    expect(() => resolveMaxSessions({ SDC_SESSION_MAX: "0" })).toThrow(
+      ConfigError,
+    );
+    expect(() => resolveMaxSessions({ SDC_SESSION_MAX: "-1" })).toThrow(
+      ConfigError,
+    );
+    expect(() => resolveIdleTtlMs({ SDC_SESSION_TTL_MS: "abc" })).toThrow(
+      ConfigError,
+    );
+    expect(() => resolveMaxBodyBytes({ SDC_MAX_BODY_BYTES: "1.5" })).toThrow(
+      ConfigError,
+    );
   });
 });

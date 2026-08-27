@@ -20,6 +20,25 @@ accepted values, never silently coerced to the default.
 | `SDC_METRICS_BACKEND` | `Metrics` backend (§2.1) | `memory` \| `noop` | `memory` | `corpus-builder`, `server`, `client-cli` |
 | `SDC_LOG_LEVEL` | `Logger` level (§5.4) | `error` \| `warn` \| `info` \| `debug` | package-specific | `corpus-builder`, `client-cli` |
 
+### Operational bounds (§0.11.0 C3)
+
+The server also reads three numeric **operational bounds** through the same
+`SDC_`-prefixed convention. Unlike the rows above these select no swappable
+_component_ — they are the §0.11.0 (C3) trust-model hardening (a bounded session
+store, a request body-size cap), read once at server startup. An out-of-range
+value (not a positive integer) is surfaced as a usage error, never coerced.
+
+| Variable | Bounds | Default | Read by |
+|---|---|---|---|
+| `SDC_SESSION_MAX` | max live sessions before oldest-idle eviction | `256` | `server` |
+| `SDC_SESSION_TTL_MS` | idle TTL (ms) after which an unused session is evicted | `1800000` (30 min) | `server` |
+| `SDC_MAX_BODY_BYTES` | request body-size cap (bytes), rejected `413` before parsing | `1048576` (1 MiB) | `server` |
+
+These are hardening of the existing surface, **not** an auth system (§0.11.0 C3):
+the alpha stays single-user, local, trusted-operator. The defaults leave generous
+headroom above the §4.4 reference budget's "single-digit concurrency" while keeping
+the in-memory store bounded.
+
 Notes:
 
 - **Sink vs. level are orthogonal.** `SDC_LOG_SINK` chooses _where_ logs go
