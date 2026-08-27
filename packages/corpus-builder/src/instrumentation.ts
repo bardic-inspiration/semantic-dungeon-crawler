@@ -83,6 +83,21 @@ export class CollectingLogger implements Logger {
 }
 
 /**
+ * Discards every metric — the §2.1 "noop" metrics backend an operator selects to
+ * pay zero instrumentation cost. Recording nothing can never influence pipeline
+ * output (INV-2), so it is always a safe swap for the in-memory default.
+ */
+export class NoopMetrics implements Metrics {
+  increment(): void {
+    /* intentionally empty */
+  }
+
+  observe(): void {
+    /* intentionally empty */
+  }
+}
+
+/**
  * In-memory metrics default (§2.1). Diagnostic only — pipeline stages MUST NOT
  * read this state back (that would let output depend on prior instrumentation,
  * violating INV-2).

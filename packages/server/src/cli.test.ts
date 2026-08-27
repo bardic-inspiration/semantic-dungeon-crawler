@@ -75,6 +75,30 @@ describe("sdc-server startup ruleset load (§2.1 / §6.7 taxonomy)", () => {
     expect(io.err.join("\n")).toMatch(/well-formed ruleset/);
   });
 
+  it("SDC_LOG_SINK=noop silences startup logging without changing startup (§2.1)", async () => {
+    const paths = tmpFiles({ "graph.json": GRAPH });
+    const io = collectingIo();
+    const result = await main(["--graph", paths["graph.json"]!], io, {
+      SDC_LOG_SINK: "noop",
+    });
+    expect(result.code).toBe(0);
+    closer = result.close;
+    // stdout still reports the listening line (that is not the Logger); the noop
+    // sink means no `[info] server.listening …` structured log was emitted.
+    expect(io.out.join("\n")).toMatch(/listening on http/);
+  });
+
+  it("an unrecognized SDC_LOG_SINK is a usage error (exit 2), server never starts (§2.1)", async () => {
+    const paths = tmpFiles({ "graph.json": GRAPH });
+    const io = collectingIo();
+    const result = await main(["--graph", paths["graph.json"]!], io, {
+      SDC_LOG_SINK: "syslog",
+    });
+    expect(result.code).toBe(2);
+    expect(result.close).toBeUndefined();
+    expect(io.err.join("\n")).toMatch(/SDC_LOG_SINK/);
+  });
+
   it("a well-formed-but-incoherent --ruleset loads and the server starts (INV-4)", async () => {
     const paths = tmpFiles({
       "graph.json": GRAPH,

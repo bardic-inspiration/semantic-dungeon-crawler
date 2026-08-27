@@ -97,6 +97,26 @@ export class CollectingLogger implements Logger {
 }
 
 /**
+ * Discards every metric — the §2.1 "noop" metrics backend an operator selects to
+ * pay zero instrumentation cost. Still a {@link ReadableMetrics}: `snapshot()`
+ * returns an empty `{ counters, gauges }`, so `GET /metrics` stays well-formed (an
+ * empty snapshot) instead of failing when metrics are switched off.
+ */
+export class NoopMetrics implements ReadableMetrics {
+  increment(): void {
+    /* intentionally empty */
+  }
+
+  observe(): void {
+    /* intentionally empty */
+  }
+
+  snapshot(): MetricsSnapshot {
+    return { counters: {}, gauges: {} };
+  }
+}
+
+/**
  * In-memory metrics default (§2.1). `increment` accumulates counters;
  * `observe(name, value)` records a gauge as its latest value — the point-in-time
  * reading `GET /metrics` reports (`{ counters, gauges }`, §5.1). Diagnostic only:

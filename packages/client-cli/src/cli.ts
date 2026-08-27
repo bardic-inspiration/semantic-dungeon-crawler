@@ -11,14 +11,16 @@
 // diffable, INV-2); without it, it reads stdin interactively. `--verbosity`
 // (or `SDC_LOG_LEVEL`) reuses the §2.1 `Logger` levels. Rendered room output goes
 // to `stdout`; operational logging goes to `stderr` (kept separate so the replay
-// diff sees only content). Env-driven config is otherwise Phase 6 (§6.7), so this
-// reads flags plus the one `SDC_LOG_LEVEL` var §5.4 names.
+// diff sees only content). The §2.1 config convention (`docs/config-conventions.md`)
+// selects the `Logger` sink (`SDC_LOG_SINK`) and `Metrics` backend
+// (`SDC_METRICS_BACKEND`); everything else is flags.
 
 import { createInterface } from "node:readline";
 import { readFile } from "node:fs/promises";
 import { httpApiClient } from "./api-client";
 import { renderRoomFixtureFile } from "./fixtures";
-import { ConsoleLogger, InMemoryMetrics, type Logger } from "./instrumentation";
+import type { Logger, ReadableMetrics } from "./instrumentation";
+import { ConfigError, makeLogger, makeMetrics } from "./config";
 import { linesFromText, runRepl } from "./repl";
 import { resolveVerbosity, type Verbosity } from "./verbosity";
 
@@ -142,8 +144,21 @@ export async function main(
     seed = parsed;
   }
 
-  const log: Logger = new ConsoleLogger(level, io.stderr);
-  const metrics = new InMemoryMetrics();
+  // §2.1 — the `Logger` sink and `Metrics` backend come from the config convention
+  // (`SDC_LOG_SINK` / `SDC_METRICS_BACKEND`); `--verbosity` still chooses the level.
+  // Operational logging stays on `stderr`, separate from rendered output on stdout.
+  let log: Logger;
+  let metrics: ReadableMetrics;
+  try {
+    log = makeLogger(env, level, io.stderr);
+    metrics = makeMetrics(env);
+  } catch (e) {
+    if (e instanceof ConfigError) {
+      io.stderr(e.message);
+      return 2;
+    }
+    throw e;
+  }
   const client = httpApiClient(flags.server, { metrics });
 
   // Scripted replay reads a file; interactive mode reads stdin lines.

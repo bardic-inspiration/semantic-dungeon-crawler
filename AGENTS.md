@@ -174,6 +174,11 @@ Changing only Markdown (`SPEC.md`, docs, `AGENTS.md`, etc.) — no code? Steps
   authoritative for identifier, file, package, and wire-field casing. SPEC.md
   pseudocode function names (`resolveMove`, `evaluateLayers`) are literal
   required identifiers, not illustrative — implement them verbatim.
+- **Config** — swappable components (embedding provider, `Logger` sink, `Metrics`
+  backend) are selected through one environment-driven convention (SPEC §2.1),
+  not hardcoded per package. Env var names, defaults, and where a new swappable
+  component hooks in are in
+  [`docs/config-conventions.md`](docs/config-conventions.md).
 
 ## 7. When in doubt
 

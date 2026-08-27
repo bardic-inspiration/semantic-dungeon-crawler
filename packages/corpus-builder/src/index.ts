@@ -6,6 +6,7 @@
 
 export * from "./types";
 export * from "./instrumentation";
+export * from "./config";
 export * from "./substrate-version";
 export * from "./tokenizer";
 export * from "./segmentation";
