@@ -41,5 +41,8 @@ export default tseslint.config(
   // never import the engine packages. Phase 5 (§6.6) adds the same call for
   // `client-threejs` via the shared, parameterized factory.
   clientImportBoundary("client-cli"),
+  // INV-3 (SPEC §5.2/§6.6): the Three.js reference client is held to the same
+  // boundary, so INV-3 holds permanently across both reference adapters.
+  clientImportBoundary("client-threejs"),
   prettier,
 );
