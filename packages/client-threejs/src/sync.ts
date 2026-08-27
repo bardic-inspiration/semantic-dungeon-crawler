@@ -15,6 +15,7 @@
 import * as THREE from "three";
 import type { InteractResponse, ResolvedRoomResponse } from "schema";
 import { clearScene, populateScene } from "./scene";
+import { NOOP_INSTRUMENTATION, type Instrumentation } from "./instrumentation";
 
 /**
  * Re-render `scene` in place from an interaction's re-resolved room (§5.2). Returns
@@ -26,8 +27,21 @@ import { clearScene, populateScene } from "./scene";
 export function SyncSystem(
   scene: THREE.Scene,
   response: InteractResponse,
+  instrumentation: Instrumentation = NOOP_INSTRUMENTATION,
 ): ResolvedRoomResponse {
   clearScene(scene);
   populateScene(scene, response.new_room);
+
+  // §2.1 side channel — records the re-rendered room's size after the transition.
+  // Diagnostic only: the scene above is already fully rebuilt regardless (INV-2).
+  const { metrics, debugLog } = instrumentation;
+  metrics.increment("sync.rerender.count");
+  metrics.observe("room.object_count", response.new_room.objects.length);
+  debugLog?.log("debug", "sync.rerendered", {
+    transition_occurred: response.transition_occurred,
+    object_count: response.new_room.objects.length,
+    exit_count: response.new_room.exits.length,
+  });
+
   return response.new_room;
 }
