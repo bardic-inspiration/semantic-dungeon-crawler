@@ -11,6 +11,11 @@ export { buildComponentStore, toComponents } from "./components";
 export { LayoutSystem } from "./layout-system";
 export { MeshResolutionSystem } from "./mesh-resolution-system";
 export { clearScene, populateScene, renderRoom } from "./scene";
+export {
+  isResolvedRoomResponse,
+  parseRoomFixture,
+  renderRoomFixtureFile,
+} from "./fixtures";
 export { SyncSystem } from "./sync";
 export type { ClickContext } from "./interaction";
 export {
