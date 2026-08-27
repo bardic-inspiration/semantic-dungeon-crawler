@@ -49,13 +49,13 @@ Stages run in order, each a swappable interface with a deterministic default
 5. **Tagging** (`Tagger`, B4) — default is a deterministic offline lexicon
    assigning `semantic_tags` (§3.6 grammar) + a default `archetype`; also seeds
    `tag-registry.yaml`.
-6. **Composition** (`restructure`, B6) — optional, after embedding + tagging.
-   Behind a `CompositionStrategy` interface handed a context (the build's
-   embedding provider + index) so a composite it emits is embedded and
-   coherence-scored like any other span. Default `null` = identity passthrough
-   (contiguous spans only).
-7. **Local-coherence precompute** (B5) — mean cosine similarity of a point to its
+6. **Local-coherence precompute** (B5) — mean cosine similarity of a point to its
    k nearest neighbors, normalized to `[0,1]`.
+7. **Composition** (`restructure`, B6) — optional, after embedding, tagging, and
+   the coherence precompute. Behind a `CompositionStrategy` interface handed a
+   context (the build's embedding provider + index + a coherence scorer) so a
+   composite it emits is embedded and coherence-scored like any other span.
+   Default `null` = identity passthrough (contiguous spans only).
 8. **`substrate_version` stamping** — a content hash of the inputs + every pinned
    stage identity.
 
