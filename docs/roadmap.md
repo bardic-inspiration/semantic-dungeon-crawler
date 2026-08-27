@@ -18,7 +18,14 @@ sweep, and extending the `INV-3` import-boundary rule to `client-threejs`) are a
 merged, and this QA/QC pass confirmed the §6.6 Exit criteria hold (checklist under
 [Development phases](#development-phases)), so the `Development Phase 5` milestone
 closes per [The phase cycle](#the-phase-cycle). Phase 6 (production-alpha
-hardening, §6.7) is next. Interleaved with the phase queue, `Conformance
+hardening, §6.7) is now **open**: its issues (#159–#167, sliced from the §6.7
+Build list — the typed error taxonomy, the environment-driven config
+convention, extending Logger/Metrics instrumentation to `client-threejs`, the
+C3 session-eviction/body-size-cap hardening, the `GRAPH_FORMAT.md`/SPEC §3–5
+drift reconciliation, the first real corpus run, C1 budget tuning and the C4
+`corpus-builder eval` run against it, and the closing README playable-path
+doc) are filed against the `Development Phase 6` milestone and ready to build.
+Interleaved with the phase queue, `Conformance
 Audit 1` (#98–#118) has run to completion and its milestone is closed; #125 is
 open follow-on code work from that pass — see
 [Conformance audit track](#conformance-audit-track) for its queue status.**
@@ -46,8 +53,9 @@ So the build order is unblocked and underway: Phases 0–5 have each opened, bui
 and passed their QA/QC pass — through Phase 4 (`packages/server` +
 `packages/client-cli` + conformance fixtures) and Phase 5
 (`packages/client-threejs`, the Three.js reference renderer). Phase 6
-(production-alpha hardening) is next and not yet opened; the later phases are
-tracked below — see [The phase cycle](#the-phase-cycle).
+(production-alpha hardening) is now open — its issues (#159–#167) are filed
+and ready to build; the later phases are tracked below — see
+[The phase cycle](#the-phase-cycle).
 
 ## Development phases
 
@@ -67,13 +75,14 @@ criteria — this table is a status index, not a second copy of them.
 | 3 | `packages/rule-engine` — parser, solver, layer resolution, debug trace | §6.4 | [Development Phase 3](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/5) | **Complete** — issues [#71](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/71)–[#76](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/76) merged; QA/QC pass confirmed §6.4 Exit criteria hold; milestone closed |
 | 4 | `packages/server` + `packages/client-cli` + conformance fixtures | §6.5 | [Development Phase 4](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/6) | **Complete** — issues [#85](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/85)–[#92](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/92) merged; QA/QC pass confirmed §6.5 Exit criteria hold; milestone closed |
 | 5 | `packages/client-threejs` — reference renderer | §6.6 | [Development Phase 5](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/7) | **Complete** — issues [#148](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/148)–[#152](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/152) merged; QA/QC pass confirmed §6.6 Exit criteria hold (checklist below); milestone closes per [The phase cycle](#the-phase-cycle) |
-| 6 | Production-alpha hardening + README playable path | §6.7 | [Development Phase 6](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/8) | Not started |
+| 6 | Production-alpha hardening + README playable path | §6.7 | [Development Phase 6](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/8) | **Open** — issues [#159](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/159)–[#167](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/167) filed, assigned to the milestone; build in progress |
 | 7+ | Post-alpha (rule editor, other adapters, persistence) — out of scope | §6.8 | [Development Phase 7](https://github.com/bardic-inspiration/semantic-dungeon-crawler/milestone/9) | Out of scope |
 
 A phase becomes **active** when its issues are opened; it (and its milestone)
 **closes** at the end of its QA/QC pass. Both transitions follow
 [The phase cycle](#the-phase-cycle) below — the single place the open/close
-conditions are defined. Phases 0–5 are complete; Phase 6 is next, not yet opened.
+conditions are defined. Phases 0–5 are complete; Phase 6 is now open (issues
+#159–#167) and being built.
 
 ### Phase 5 QA/QC pass — `SPEC.md` §6.6 Exit checklist
 
@@ -172,8 +181,8 @@ why the phase table above lists status rather than declaring a phase active: a
 queue that marks a phase active is an instruction to an agent to start, and
 starting is exactly what the design gates guard. No design entry blocks a phase
 now, so the gate is clear — Phases 0–5 have opened on that clear gate, and Phase 6
-(and each later phase) opens the same way once its predecessor finishes the cycle,
-not on a further design decision.
+has now opened the same way, its predecessor (Phase 5) having finished the cycle;
+each later phase opens the same way in turn, not on a further design decision.
 
 ## The phase cycle
 
