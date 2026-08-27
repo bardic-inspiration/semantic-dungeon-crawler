@@ -5,7 +5,12 @@
 
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
-import type { Entity, ResolvedRoomResponse } from "schema";
+import type {
+  Entity,
+  InteractRequest,
+  InteractResponse,
+  ResolvedRoomResponse,
+} from "schema";
 import {
   bootstrapSession,
   httpRoomClient,
@@ -65,6 +70,15 @@ function stubClient(): RoomApiClient & {
       calls.push("roomCurrent");
       seenSessionId = sessionId;
       return room;
+    },
+    async interact(request: InteractRequest): Promise<InteractResponse> {
+      calls.push("interact");
+      seenSessionId = request.session_id;
+      return {
+        new_room: room,
+        transition_occurred: true,
+        interaction_result: {},
+      };
     },
   };
 }
@@ -175,6 +189,35 @@ describe("httpRoomClient (§5.1)", () => {
       "http://127.0.0.1:8080/session/new",
       expect.anything(),
     );
+  });
+
+  it("POST /interact sends the InteractRequest body and returns the InteractResponse", async () => {
+    const response: InteractResponse = {
+      new_room: room,
+      transition_occurred: true,
+      interaction_result: {},
+    };
+    const fetchStub = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse(200, response));
+    const client = httpRoomClient("http://127.0.0.1:8080", {
+      fetch: fetchStub,
+    });
+    const request: InteractRequest = {
+      session_id: "sess-1",
+      action: { object_id: "resolved:door:1", affordance: "enter" },
+    };
+    const result = await client.interact(request);
+    expect(fetchStub).toHaveBeenCalledWith(
+      "http://127.0.0.1:8080/interact",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+      }),
+    );
+    expect(result.transition_occurred).toBe(true);
+    expect(result.new_room.room.id).toBe("resolved:hall:0");
   });
 
   it("raises RoomApiError from the §5.1 error envelope on a non-2xx response", async () => {

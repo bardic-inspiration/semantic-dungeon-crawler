@@ -1,19 +1,23 @@
 // packages/client-threejs/src/session-bootstrap.ts
 //
 // SPEC §5.1 / §5.2 / §6.6 — bring the Three.js adapter online against a live
-// server. The §6.6 minimum viable scene starts by loading a real session:
+// server. The §6.6 minimum viable scene loads a real session:
 // `GET /session/new` → `GET /room/current` → render the returned room through the
-// #148 systems (`renderRoom`). Click interaction and room transitions are #150;
-// the offline fixtures/rooms/*.json sweep is #151.
+// #148 systems (`renderRoom`), then `POST /interact` to drive a click transition
+// (#150). The offline fixtures/rooms/*.json sweep is #151.
 //
 // Like `client-cli`, this adapter is "just an HTTP client against" §5.1 (§5,
-// INV-3): it holds no engine state and reconstructs no graph — it calls the two
+// INV-3): it holds no engine state and reconstructs no graph — it calls the
 // endpoints and renders the resolved JSON they return. Nothing here imports
 // `rule-engine` or `corpus-builder`; the only entity data it ever touches is the
 // resolved `ResolvedRoomResponse` (INV-3).
 
 import * as THREE from "three";
-import type { ResolvedRoomResponse } from "schema";
+import type {
+  InteractRequest,
+  InteractResponse,
+  ResolvedRoomResponse,
+} from "schema";
 import { renderRoom } from "./scene";
 
 /** The handle `GET /session/new` returns (§5.1): an id plus the session's seed. */
@@ -24,16 +28,20 @@ export interface SessionHandle {
 }
 
 /**
- * The slice of the §5.1 REST surface the bootstrap drives: create a session, then
- * fetch the room it stands in. Kept to these two endpoints on purpose — click
- * interaction (`POST /interact`) is #150's scope. An interface so `bootstrapSession`
- * can run against a live server ({@link httpRoomClient}) or a stub in a test.
+ * The slice of the §5.1 REST surface the adapter drives: create a session, fetch
+ * the room it stands in, and resolve one interaction. `POST /interact` (#150) is
+ * what turns a click into a room transition — the client echoes back an
+ * `object_id` + `affordance` and re-renders the returned room (INV-3), deciding no
+ * movement itself. An interface so the flow can run against a live server
+ * ({@link httpRoomClient}) or a stub in a test.
  */
 export interface RoomApiClient {
   /** `GET /session/new?seed=` — a fresh session; `seed` pins it for replay (INV-2). */
   newSession(seed?: number): Promise<SessionHandle>;
   /** `GET /room/current` — the resolved room the session stands in. */
   roomCurrent(sessionId: string): Promise<ResolvedRoomResponse>;
+  /** `POST /interact` — resolve one action; returns the re-resolved room + result. */
+  interact(request: InteractRequest): Promise<InteractResponse>;
 }
 
 /** An error carrying the §5.1 `{ error: { code, message } }` envelope + status. */
@@ -88,6 +96,16 @@ export function httpRoomClient(
     return (await res.json()) as T;
   }
 
+  async function postJson<T>(path: string, body: unknown): Promise<T> {
+    const res = await doFetch(`${base}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw await parseError(res);
+    return (await res.json()) as T;
+  }
+
   return {
     newSession(seed) {
       const query =
@@ -98,6 +116,9 @@ export function httpRoomClient(
       return getJson<ResolvedRoomResponse>(
         `/room/current?session_id=${encodeURIComponent(sessionId)}`,
       );
+    },
+    interact(request) {
+      return postJson<InteractResponse>("/interact", request);
     },
   };
 }
