@@ -12,6 +12,7 @@
 // vocabulary, same "unknown value is surfaced, never silently defaulted" rule).
 
 import { defaultEmbeddingProvider, type EmbeddingProvider } from "./embedding";
+import { MiniLmEmbeddingProvider } from "./minilm-embedding";
 import {
   ConsoleLogger,
   InMemoryMetrics,
@@ -36,8 +37,16 @@ export type LogSink = (typeof LOG_SINKS)[number];
 export const METRICS_BACKENDS = ["memory", "noop"] as const;
 export type MetricsBackend = (typeof METRICS_BACKENDS)[number];
 
-/** The registered id of the deterministic default embedding provider. */
-export const DEFAULT_EMBEDDING_PROVIDER_ID = "hashing";
+/** The registered id of the pre-alpha default embedding provider (real, local model). */
+export const DEFAULT_EMBEDDING_PROVIDER_ID = "minilm";
+
+/**
+ * The registered id of the deterministic hashing TEST-MODE provider: model-free,
+ * offline, instant, but carrying no real semantic signal. Selected explicitly
+ * (`SDC_EMBEDDING_PROVIDER=hashing`) for build-pipeline tests that do not concern
+ * the embedding space.
+ */
+export const HASHING_EMBEDDING_PROVIDER_ID = "hashing";
 
 /**
  * A malformed config selection (an env var set to an unrecognized value). Part of
@@ -71,22 +80,26 @@ function selectEnum<T extends string>(
 }
 
 /**
- * The default embedding-provider registry: the deterministic hashing provider
- * (§6.3 / §0.10.0 B2) under its id. Fresh per call so a caller can register an
- * additional provider without mutating shared state; a real vendor provider is the
- * deferred swap-in (out of scope here — this issue ships the selection seam, not a
- * new provider).
+ * The default embedding-provider registry (§6.3 / §0.10.0 B2): the pre-alpha
+ * default `minilm` (real, local all-MiniLM-L6-v2 model) plus the `hashing`
+ * test-mode provider, each under its id. Fresh per call so a caller can register an
+ * additional provider without mutating shared state; the `minilm` instance is cheap
+ * to construct — transformers.js is loaded lazily on its first `embed()`, never at
+ * registration. Remote/API providers remain the deferred swap-in.
  */
 export function defaultEmbeddingProviderRegistry(): Record<
   string,
   EmbeddingProvider
 > {
-  return { [DEFAULT_EMBEDDING_PROVIDER_ID]: defaultEmbeddingProvider };
+  return {
+    [DEFAULT_EMBEDDING_PROVIDER_ID]: new MiniLmEmbeddingProvider(),
+    [HASHING_EMBEDDING_PROVIDER_ID]: defaultEmbeddingProvider,
+  };
 }
 
 /**
  * Select the build's embedding provider from `SDC_EMBEDDING_PROVIDER` (default
- * `hashing`). Switchable without a code change at the call site: a provider
+ * `minilm`). Switchable without a code change at the call site: a provider
  * registered in `registry` is reachable by setting the env var to its key. An
  * unknown id is surfaced with what IS registered, never silently defaulted.
  */

@@ -11,6 +11,7 @@ export * from "./substrate-version";
 export * from "./tokenizer";
 export * from "./segmentation";
 export * from "./embedding";
+export * from "./minilm-embedding";
 export * from "./index-flat";
 export * from "./coherence";
 export * from "./tagging";

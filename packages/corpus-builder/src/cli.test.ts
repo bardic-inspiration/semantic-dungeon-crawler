@@ -26,8 +26,11 @@ function capturingDeps(env?: Record<string, string | undefined>): CliDeps & {
       levels.push(level);
       return new ConsoleLogger(level, (line) => logs.push(line));
     },
+    // These logging/verbosity tests build the fixture to exercise the Logger, not
+    // the embedding space — select the model-free `hashing` test-mode provider so
+    // the build stays offline. A caller's env may still override it.
+    env: { SDC_EMBEDDING_PROVIDER: "hashing", ...env },
   };
-  if (env) deps.env = env;
   return { ...deps, logs, levels };
 }
 
@@ -52,6 +55,12 @@ afterEach(() => {
   tempDirs.length = 0; // OS reclaims tmp; nothing persistent to clean
 });
 
+// These §6.3 Exit tests exercise build/inspect/eval MECHANICS (I/O, provenance,
+// determinism of the build id) — not the embedding space itself — so they select
+// the model-free `hashing` TEST-MODE provider. The pre-alpha default is `minilm`,
+// whose weights this offline test run neither has nor needs.
+const TEST_MODE_DEPS: CliDeps = { env: { SDC_EMBEDDING_PROVIDER: "hashing" } };
+
 describe("corpus-builder CLI (§6.3 Exit)", () => {
   it("build --input DIR produces a valid graph.json + tag-registry.yaml", async () => {
     const graph = await tempGraphPath();
@@ -59,6 +68,7 @@ describe("corpus-builder CLI (§6.3 Exit)", () => {
     const code = await runCli(
       ["build", "--input", CORPUS_DIR, "--output", graph],
       io,
+      TEST_MODE_DEPS,
     );
     expect(code).toBe(0);
     expect(existsSync(graph)).toBe(true);
@@ -78,10 +88,12 @@ describe("corpus-builder CLI (§6.3 Exit)", () => {
     await runCli(
       ["build", "--input", CORPUS_DIR, "--output", graph1],
       collectingIO(),
+      TEST_MODE_DEPS,
     );
     await runCli(
       ["build", "--input", CORPUS_DIR, "--output", graph2],
       collectingIO(),
+      TEST_MODE_DEPS,
     );
     expect(await readFile(graph1, "utf8")).toBe(await readFile(graph2, "utf8"));
   });
@@ -92,10 +104,12 @@ describe("corpus-builder CLI (§6.3 Exit)", () => {
     await runCli(
       ["build", "--input", CORPUS_DIR, "--output", graph1, "--trace"],
       collectingIO(),
+      TEST_MODE_DEPS,
     );
     await runCli(
       ["build", "--input", CORPUS_DIR, "--output", graph2, "--trace"],
       collectingIO(),
+      TEST_MODE_DEPS,
     );
     const t1 = join(graph1, "..", "build-trace.json");
     const t2 = join(graph2, "..", "build-trace.json");
@@ -108,6 +122,7 @@ describe("corpus-builder CLI (§6.3 Exit)", () => {
     await runCli(
       ["build", "--input", CORPUS_DIR, "--output", graph, "--trace"],
       collectingIO(),
+      TEST_MODE_DEPS,
     );
     const bundle = JSON.parse(await readFile(graph, "utf8"));
     const nodeId: string = bundle.spans[0].id;
@@ -130,6 +145,7 @@ describe("corpus-builder CLI (§6.3 Exit)", () => {
     await runCli(
       ["build", "--input", CORPUS_DIR, "--output", graph],
       collectingIO(),
+      TEST_MODE_DEPS,
     );
     const io = collectingIO();
     expect(await runCli(["eval", "--graph", graph], io)).toBe(0);
@@ -180,16 +196,14 @@ describe("corpus-builder build — SDC_EMBEDDING_PROVIDER (§2.1)", () => {
   }
 
   it("the env var alone changes which provider builds the graph", async () => {
-    const defaulted = await buildWith({});
     const wide = await buildWith({ SDC_EMBEDDING_PROVIDER: "wide" });
     const hashing = await buildWith({ SDC_EMBEDDING_PROVIDER: "hashing" });
 
-    expect(defaulted.code).toBe(0);
     expect(wide.code).toBe(0);
     expect(hashing.code).toBe(0);
-    // Unset defaults to `hashing`; the explicit `wide` selection differs from it.
-    expect(hashing.substrateVersion).toBe(defaulted.substrateVersion);
-    expect(wide.substrateVersion).not.toBe(defaulted.substrateVersion);
+    // Same argv, a different env var ⇒ a different provider id ⇒ a different build
+    // id — the selection is observable in `substrate_version`, no call-site change.
+    expect(wide.substrateVersion).not.toBe(hashing.substrateVersion);
   });
 
   it("an unknown provider id is surfaced as a usage error (exit 2)", async () => {
@@ -238,7 +252,10 @@ describe("corpus-builder build — CorpusSource registry (§6.3.1)", () => {
     const code = await runCli(
       ["build", "--manifest", manifest, "--output", graph],
       collectingIO(),
-      { sources: { custom: fakeSource } },
+      {
+        sources: { custom: fakeSource },
+        env: { SDC_EMBEDDING_PROVIDER: "hashing" },
+      },
     );
     expect(code).toBe(0);
     const bundle = JSON.parse(await readFile(graph, "utf8"));
@@ -337,6 +354,7 @@ describe("corpus-builder --verbosity (§5.4 / §6.3.1)", () => {
     await runCli(
       ["build", "--input", CORPUS_DIR, "--output", graph],
       collectingIO(),
+      TEST_MODE_DEPS,
     );
     const deps = capturingDeps();
     const code = await runCli(

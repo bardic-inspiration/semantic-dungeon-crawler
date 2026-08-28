@@ -40,9 +40,13 @@ Stages run in order, each a swappable interface with a deterministic default
 2. **Segmentation** (`Segmenter`, B1) — partitions raw text into source spans over
    `unit` × `grouping`. Default: blank-line boundaries, overlap 0 (paragraphs).
    Line endings are normalized (CRLF→LF) first.
-3. **Embedding** (B2) — a config-selected provider (default: a deterministic,
-   offline feature-hashing provider). Vectors are **L2-normalized at build time**,
-   which fixes distance as **cosine, range `[0,2]`, smaller = nearer**.
+3. **Embedding** (B2) — a config-selected provider (`SDC_EMBEDDING_PROVIDER`). The
+   pre-alpha default is `minilm`, a local, offline `all-MiniLM-L6-v2` model
+   (transformers.js) whose pinned weights are fetched once then cached; `hashing`
+   is a model-free **test-mode** provider (deterministic, instant, no download, no
+   real semantic signal) for build-pipeline tests that do not concern the embedding
+   space. Either way vectors are **L2-normalized at build time**, which fixes
+   distance as **cosine, range `[0,2]`, smaller = nearer**.
 4. **Index construction** (`IndexFactory`, B2) — exact flat k-NN, ties broken by
    corpus order. Built once and used (B5 coherence + the B6 composition stage),
    not serialized; the header's `index` identity names which impl to rebuild.
@@ -70,10 +74,10 @@ Every stage reports through the same `Logger`/`Metrics` interfaces `server` uses
   "substrate_version": "sv_<32 hex>",     // mirror of header.substrate_version
   "header": {
     "substrate_version": "sv_<32 hex>",   // content-hash build id (§3.7.3)
-    "dimensions": 256,                    // provider-declared vector dimensionality
+    "dimensions": 384,                    // provider-declared vector dimensionality
     "distance": "cosine",
     "distance_range": [0, 2],             // cosine distance over L2-normalized vectors
-    "embedding_provider": "hashing-embed-v1-d256",  // pinned identity
+    "embedding_provider": "minilm-all-MiniLM-L6-v2-q-main",  // pinned identity (default; `hashing-embed-v1-d256` in test mode)
     "tokenizer": null,                    // tokenizer identity iff `unit: token`, else null
     "tagger": "lexicon-v1",               // pinned identity
     "index": "flat-v1",                   // §0.10.0 B2 index-stage identity; index is BUILT ON LOAD from the vectors, not serialized

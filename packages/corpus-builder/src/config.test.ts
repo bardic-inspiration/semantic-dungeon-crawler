@@ -26,20 +26,34 @@ import {
   HashingEmbeddingProvider,
   type EmbeddingProvider,
 } from "./embedding";
+import { MiniLmEmbeddingProvider } from "./minilm-embedding";
 
 describe("§2.1 config convention — embedding provider (SDC_EMBEDDING_PROVIDER)", () => {
-  it("defaults to the deterministic hashing provider when unset", () => {
-    expect(resolveEmbeddingProvider({})).toBe(defaultEmbeddingProvider);
-    expect(resolveEmbeddingProvider({ SDC_EMBEDDING_PROVIDER: "" })).toBe(
-      defaultEmbeddingProvider,
+  it("defaults to the local minilm provider when unset", () => {
+    // Pre-alpha default is the real, model-based provider; the hashing provider is
+    // the opt-in test mode. Constructing it is cheap (the model loads lazily on
+    // first embed()), so resolving the default touches no network here.
+    expect(resolveEmbeddingProvider({})).toBeInstanceOf(
+      MiniLmEmbeddingProvider,
     );
+    expect(
+      resolveEmbeddingProvider({ SDC_EMBEDDING_PROVIDER: "" }),
+    ).toBeInstanceOf(MiniLmEmbeddingProvider);
+    expect(
+      resolveEmbeddingProvider({ SDC_EMBEDDING_PROVIDER: "minilm" }),
+    ).toBeInstanceOf(MiniLmEmbeddingProvider);
+  });
+
+  it("selects the hashing test-mode provider from the env var alone", () => {
+    // `hashing` is the shared, model-free test-mode instance — reachable by the
+    // env var with no code change at the call site.
     expect(
       resolveEmbeddingProvider({ SDC_EMBEDDING_PROVIDER: "hashing" }),
     ).toBe(defaultEmbeddingProvider);
   });
 
   it("selects a different registered provider from the env var alone", () => {
-    // A fake provider registered alongside the default: the env var — no code
+    // A fake provider registered alongside the defaults: the env var — no code
     // change at the call site — decides which one is constructed/returned.
     const fake: EmbeddingProvider = {
       id: "fake-test-provider",
@@ -62,7 +76,7 @@ describe("§2.1 config convention — embedding provider (SDC_EMBEDDING_PROVIDER
     ).toThrow(ConfigError);
     expect(() =>
       resolveEmbeddingProvider({ SDC_EMBEDDING_PROVIDER: "nope" }),
-    ).toThrow(/registered: hashing/);
+    ).toThrow(/registered: minilm, hashing/);
   });
 });
 
