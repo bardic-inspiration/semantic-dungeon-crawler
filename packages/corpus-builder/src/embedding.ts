@@ -4,9 +4,14 @@
 // Vectors are L2-NORMALIZED AT BUILD TIME, which fixes `static.embedding_distance`
 // as COSINE DISTANCE, range [0, 2], smaller = nearer, provider-independent (§4.2).
 // The provider is behind an interface selected by config — NOT hardcoded to one
-// vendor. The DEFAULT is a deterministic, offline, dependency-free feature-hashing
-// provider (identical text ⇒ identical vector; INV-2 build determinism, no
-// network). Real providers (OpenAI, …) are the deferred swap-in.
+// vendor. This module ships the deterministic, offline, dependency-free
+// feature-hashing provider: a very lightweight TEST-MODE provider (identical text
+// ⇒ identical vector; INV-2 build determinism, no network, no model download). It
+// carries no real semantic signal, so it is for build-pipeline tests that do NOT
+// concern the embedding space itself (segmentation, provenance, versioning, I/O).
+// The pre-alpha DEFAULT is the real, model-based `MiniLmEmbeddingProvider`
+// (minilm-embedding.ts), selected via config (`config.ts`). Remote/API providers
+// (OpenAI, …) remain the deferred swap-in.
 //
 // The FAIL-LOUD gate (§0.11.0 C4) rejects a MALFORMED build — non-uniform
 // dimension, non-finite values, zero norms, or degenerate spread — before it is
@@ -42,10 +47,12 @@ function fnv1a(input: string, seed: number): number {
 }
 
 /**
- * Deterministic, offline default provider: hashes character n-grams and word
+ * Deterministic, offline TEST-MODE provider: hashes character n-grams and word
  * tokens into a fixed-dimension vector (the "hashing trick"). Varied text yields
  * a non-degenerate spread; identical text yields an identical vector. No model,
- * no network — the reproducible baseline the pipeline ships with.
+ * no network — a fast, reproducible provider for build-pipeline tests that do not
+ * concern the embedding space (the model-based `MiniLmEmbeddingProvider` is the
+ * pre-alpha default for real builds).
  */
 export class HashingEmbeddingProvider implements EmbeddingProvider {
   readonly id: string;
@@ -161,4 +168,9 @@ export function assertWellFormedEmbeddingSpace(
   }
 }
 
+/**
+ * The shared test-mode hashing provider instance. It backs the `hashing` registry
+ * id and is the `runBuild` fallback used by tests that inject no provider — so unit
+ * tests stay offline and fast. Real builds default to `minilm` (see `config.ts`).
+ */
 export const defaultEmbeddingProvider = new HashingEmbeddingProvider();

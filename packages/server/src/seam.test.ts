@@ -41,14 +41,14 @@ let graphPath: string;
 beforeAll(async () => {
   const dir = await mkdtemp(join(tmpdir(), "sdc-seam-"));
   graphPath = join(dir, "graph.json");
-  await run(process.execPath, [
-    BUILDER,
-    "build",
-    "--input",
-    CORPUS,
-    "--output",
-    graphPath,
-  ]);
+  await run(
+    process.execPath,
+    [BUILDER, "build", "--input", CORPUS, "--output", graphPath],
+    // This seam test exercises loading real pipeline output, not the embedding
+    // space — build with the model-free `hashing` test-mode provider so it stays
+    // offline (the pre-alpha default `minilm` fetches model weights).
+    { env: { ...process.env, SDC_EMBEDDING_PROVIDER: "hashing" } },
+  );
 }, 120_000);
 
 describe("corpus-builder output loads into the engine (§A12)", () => {

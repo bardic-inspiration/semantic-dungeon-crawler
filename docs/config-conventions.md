@@ -15,7 +15,7 @@ accepted values, never silently coerced to the default.
 
 | Variable | Selects | Values | Default | Read by |
 |---|---|---|---|---|
-| `SDC_EMBEDDING_PROVIDER` | build-time embedding provider (§6.3) | a registered provider id (`hashing` ships) | `hashing` | `corpus-builder` |
+| `SDC_EMBEDDING_PROVIDER` | build-time embedding provider (§6.3) | a registered provider id (`minilm`, `hashing`) | `minilm` | `corpus-builder` |
 | `SDC_LOG_SINK` | `Logger` sink (§2.1) | `console` \| `noop` | `console` | `corpus-builder`, `server`, `client-cli` |
 | `SDC_METRICS_BACKEND` | `Metrics` backend (§2.1) | `memory` \| `noop` | `memory` | `corpus-builder`, `server`, `client-cli` |
 | `SDC_LOG_LEVEL` | `Logger` level (§5.4) | `error` \| `warn` \| `info` \| `debug` | package-specific | `corpus-builder`, `client-cli` |
@@ -49,8 +49,13 @@ Notes:
   `GET /metrics`, `client-cli`'s §5.4 end-of-session summary), the `noop` backend
   returns an empty `{ counters, gauges }`, so those surfaces stay well-formed
   rather than failing when metrics are switched off.
-- **Defaults reproduce prior behavior.** With no `SDC_*` variable set, every
-  package constructs exactly what it did before this convention existed.
+- **Defaults reproduce prior behavior**, with one deliberate exception: the
+  pre-alpha default `SDC_EMBEDDING_PROVIDER` is now `minilm` (the local
+  all-MiniLM-L6-v2 model provider), not the original `hashing`. `hashing` is now
+  the model-free **test-mode** provider — instant, offline, no model download, but
+  no real semantic signal — selected explicitly for build-pipeline tests that do
+  not concern the embedding space. Every other knob still constructs exactly what
+  it did before this convention existed.
 
 ## Precedence
 

@@ -239,8 +239,9 @@ async function cmdBuild(
   const options: BuildOptions = { documents, restructure, trace };
   if (segmentation !== undefined) options.segmentation = segmentation;
   // §2.1 — the embedding provider is selected by the config convention
-  // (`SDC_EMBEDDING_PROVIDER`), not hardcoded here; default is the deterministic
-  // hashing provider. An unknown id throws `ConfigError` (surfaced as exit 2).
+  // (`SDC_EMBEDDING_PROVIDER`), not hardcoded here; default is the local `minilm`
+  // model provider (`hashing` is the model-free test mode). An unknown id throws
+  // `ConfigError` (surfaced as exit 2).
   const embeddingProvider = resolveEmbeddingProvider(env, providers);
   // §2.1 — a real `Metrics` sink, backend selected by `SDC_METRICS_BACKEND`
   // (default in-memory), read back below. `runBuild` used to fall back to an

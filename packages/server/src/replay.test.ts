@@ -49,14 +49,14 @@ let graphPath: string;
 beforeAll(async () => {
   const dir = await mkdtemp(join(tmpdir(), "sdc-replay-"));
   graphPath = join(dir, "graph.json");
-  await run(process.execPath, [
-    BUILDER,
-    "build",
-    "--input",
-    CORPUS,
-    "--output",
-    graphPath,
-  ]);
+  await run(
+    process.execPath,
+    [BUILDER, "build", "--input", CORPUS, "--output", graphPath],
+    // Replay determinism here rides on the build id, not the embedding space —
+    // build with the model-free `hashing` test-mode provider so it stays offline
+    // (the pre-alpha default `minilm` fetches model weights).
+    { env: { ...process.env, SDC_EMBEDDING_PROVIDER: "hashing" } },
+  );
 }, 120_000);
 
 async function bundle(name: string): Promise<Ruleset> {
