@@ -25,7 +25,7 @@ schema/protocol surface is versioned and no surface mutates silently
 
 - **`SessionState.registry` / `links` are the PER-SESSION overlay layer, not a
   player-only layer (§3.8, SPEC §0.9.0 A8)** — a documentation/semantics
-  clarification, no type change. The overlay primitives now execute (issue #109),
+  clarification, no type change. The overlay primitives now execute,
   and a rule-driven (`author_runtime`) write and an exposed player
   (`player`) write both live in this per-session layer, distinguished by their
   `provenance` field; a read merges the layer over the shared build base (empty
