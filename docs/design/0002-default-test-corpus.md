@@ -61,9 +61,15 @@ selection contract; the IDs remain candidates until that fetch confirms them.
 **They were locked into `fixtures/corpus-manifest.default.json` anyway, and
 Phase 2 closed over it.** §6.3 Exit requires the manifest be "checked in with
 **verified** Gutenberg IDs"; that criterion is outstanding. A conformance audit
-of the Phase 0–4 build surfaced it, and it is tracked as its own issue — see the
-`Conformance Audit 1` milestone. Until that issue closes, assume the register
-variety this note argues for may not actually be present in a build.
+of the Phase 0–4 build surfaced it as
+[#115](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/115)
+(`Conformance Audit 1` milestone); #115 reconfirmed the `gutendex.com` egress
+block, formally deferred verification to pre-alpha testing's first real corpus
+fetch, and closed on that basis (2026-08-25) rather than staying open past the
+milestone. That deferred verification is now tracked as
+[#164](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/164)
+(`Development Phase 6`, open). Until #164 closes, assume the register variety
+this note argues for may not actually be present in a build.
 
 ## Open questions this set does not answer
 
@@ -87,7 +93,10 @@ than forcing it.
 Accepted. Phase 2 is complete and `fixtures/corpus-manifest.default.json` is
 checked in with this set. What remains outstanding is the ID verification §6.3.1
 requires (above) — the selection is settled, its correctness is not yet
-confirmed. That verification is blocked by the environment's egress policy
+confirmed. That verification was blocked by the environment's egress policy
 (re-checked 2026-08-24, above) and is deferred to pre-alpha testing's first real
-corpus fetch; the §6.3 Exit "verified IDs" criterion stays openly unmet until
-then, rather than being closed with a silently-unverified fixture.
+corpus fetch, now tracked as
+[#164](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/164)
+on the active `Development Phase 6` queue; the §6.3 Exit "verified IDs"
+criterion stays openly unmet until that issue closes, rather than being closed
+with a silently-unverified fixture.
