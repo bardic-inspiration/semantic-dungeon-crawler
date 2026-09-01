@@ -51,11 +51,13 @@ it is the canonical guide.
 - **Language:** TypeScript (monorepo, npm workspaces — SPEC §6.1)
 - **Tests:** [Vitest](https://vitest.dev/)
 - **Lint/format:** ESLint + Prettier. The `INV-3` client import boundary is
-  **not yet enforced** — no test or lint rule asserts that a client package
-  avoids importing `rule-engine`/`corpus-builder`; the dedicated ESLint rule
-  arrives with the client packages (Phases 4–5, SPEC §6.5/§6.6). The guard that
-  does exist today is a different one: `corpus-builder`'s `boundary.test.ts`
-  keeps Gutendex/Gutenberg hosts out of the runtime packages (SPEC §6.3.1)
+  **enforced** for both reference clients: a dedicated ESLint rule
+  (`eslint/client-import-boundary.js`, applied to `packages/client-cli` and
+  `packages/client-threejs`) fails `npm run lint` on a forbidden import from
+  `rule-engine`/`corpus-builder` (added Phase 4 for `client-cli`, extended to
+  `client-threejs` in Phase 5, SPEC §6.5/§6.6). A separate guard also exists:
+  `corpus-builder`'s `boundary.test.ts` keeps Gutendex/Gutenberg hosts out of
+  the runtime packages (SPEC §6.3.1)
 - **Typecheck:** `tsc --noEmit`
 
 ## Development
