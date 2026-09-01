@@ -60,10 +60,13 @@ selection contract; the IDs remain candidates until that fetch confirms them.
 
 **They were locked into `fixtures/corpus-manifest.default.json` anyway, and
 Phase 2 closed over it.** §6.3 Exit requires the manifest be "checked in with
-**verified** Gutenberg IDs"; that criterion is outstanding. A conformance audit
-of the Phase 0–4 build surfaced it, and it is tracked as its own issue — see the
-`Conformance Audit 1` milestone. Until that issue closes, assume the register
-variety this note argues for may not actually be present in a build.
+**verified** Gutenberg IDs"; that criterion is outstanding. Conformance Audit 1
+surfaced it as issue #115, which recorded the same `gutendex.com` egress block
+and deferred verification to Phase 6's first real (non-fixture) corpus run —
+now open as issue
+[#164](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/164).
+Until that issue closes, assume the register variety this note argues for may
+not actually be present in a build.
 
 ## Open questions this set does not answer
 
@@ -87,7 +90,10 @@ than forcing it.
 Accepted. Phase 2 is complete and `fixtures/corpus-manifest.default.json` is
 checked in with this set. What remains outstanding is the ID verification §6.3.1
 requires (above) — the selection is settled, its correctness is not yet
-confirmed. That verification is blocked by the environment's egress policy
-(re-checked 2026-08-24, above) and is deferred to pre-alpha testing's first real
-corpus fetch; the §6.3 Exit "verified IDs" criterion stays openly unmet until
-then, rather than being closed with a silently-unverified fixture.
+confirmed. That verification was blocked by the environment's egress policy
+(re-checked 2026-08-24, above); it is not a loose end sitting only in this
+design note — it is the active Phase 6 queue item
+[#164](https://github.com/bardic-inspiration/semantic-dungeon-crawler/issues/164)
+("First real (non-fixture) corpus run end-to-end"), open at the time of this
+revision. The §6.3 Exit "verified IDs" criterion stays openly unmet until #164
+closes, rather than being closed with a silently-unverified fixture.
