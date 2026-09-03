@@ -66,6 +66,41 @@ Stages run in order, each a swappable interface with a deterministic default
 Every stage reports through the same `Logger`/`Metrics` interfaces `server` uses
 (SPEC §2.1) — not a parallel mechanism.
 
+## Embedding provider choice — first real corpus run (closes SPEC §7)
+
+SPEC §7 left the embedding provider deliberately unmandated: Phase 2 fixes
+*swappability*, not a *default*, and asks the first real corpus run (Phase 6) to
+pick one and record the rationale here. **The choice is `minilm`** — the local,
+offline `all-MiniLM-L6-v2` model above — and it is the corpus-builder default
+(`DEFAULT_EMBEDDING_PROVIDER_ID`). The reasoning:
+
+- **It carries the semantic signal gameplay actually depends on.** Room
+  resolution, similarity, and relativistic drift (SPEC §7, §4.4) are queries over
+  the embedding space. `minilm`'s vectors place related passages near each other;
+  the `hashing` provider is a model-free **test-mode** trick with no semantic
+  meaning — correct for build-pipeline tests that don't concern the space, wrong
+  for a run whose whole point is semantic room resolution. On the first real run
+  (below) `minilm` yielded a nearest-neighbour spread with real variance (mean
+  ≈ 0.55, not collapsed) and a thematically coherent multi-room walk.
+- **It is free and fully local.** No API key, no account, no per-request cost, and
+  no network call during `embed()` once the pinned weights are cached — so a build
+  is reproducible offline after the first fetch. Embeddings drive gameplay feel
+  (room similarity), not generated-text quality, so a paid API-backed provider
+  buys little at alpha scale.
+- **It is deterministic (INV-2) and self-describing (provenance).** Pinned weights
+  are a pure function input ⇒ output — identical text yields an identical vector,
+  and a full rebuild of one corpus is byte-identical. The pinned identity (model +
+  quantization + revision) rides in the provider `id`, which feeds
+  `substrate_version`, so a re-pin is a *visible* new build, never silent drift
+  (§3.7.3).
+
+A remote/API-key provider (OpenAI, Cohere, …) remains the deferred swap-in the
+interface exists for, not an alpha requirement — `minilm` removes the need to take
+that dependency now. The end-to-end first real corpus run that exercised this
+choice — corpus source, exact reproduce steps, build/eval output, and a played
+session — is written up in
+[`docs/first-corpus-run.md`](../../docs/first-corpus-run.md).
+
 ## `graph.json` schema
 
 ```jsonc
