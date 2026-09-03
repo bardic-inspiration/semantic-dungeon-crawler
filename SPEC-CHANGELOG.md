@@ -6,6 +6,34 @@ keeps only a one-line pointer to each entry so the read order for a
 cold-starting agent stays skimmable ([`docs/documentation-standards.md`](docs/documentation-standards.md)
 "Style"); this file is where the full amendment text lives.
 
+## 0.13.2 — embedding provider default named / §7 closed (issue #164)
+
+The first real (non-fixture) corpus run — the full pipeline against Project
+Gutenberg #1952, *The Yellow Wallpaper*, built, served, and played by hand —
+resolves §7's "Embedding provider choice" open question. It **names `minilm`
+(the local, offline `all-MiniLM-L6-v2` model via transformers.js) the alpha
+default embedding provider** — the value already shipped as
+`DEFAULT_EMBEDDING_PROVIDER_ID` — and records the choice + rationale where §7
+itself designates, `packages/corpus-builder/GRAPH_FORMAT.md`, with the
+end-to-end run write-up in `docs/first-corpus-run.md`.
+
+The reasoning: room resolution, similarity, and relativistic drift are queries
+over the embedding space, so a real model-based provider — not the model-free
+`hashing` test-mode trick — is what gameplay feel depends on. `minilm` is free,
+fully local, offline after a one-time cached fetch, and deterministic (INV-2),
+with its pinned identity riding in `substrate_version` for provenance. A
+remote/API provider stays the deferred swap-in the interface exists for, not an
+alpha requirement.
+
+No schema/protocol surface change — a documentation/decision resolution (PATCH
+under §3.5's convention), hence `0.13.2`. The only code delta is the
+`SPEC_VERSION` mirror in `packages/schema/src/version.ts` tracking this header
+(INV-5); no type in `packages/schema` changes and the conformance fixtures are
+unaffected (none embed the version literal).
+
+Cross-referenced from §7 (open questions) and
+`packages/corpus-builder/GRAPH_FORMAT.md`.
+
 ## 0.13.1 — tokenizer default named (issue #107)
 
 A conformance audit found §0.10.0 B1 (and `docs/design/0004`) naming
