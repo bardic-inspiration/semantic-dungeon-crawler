@@ -18,6 +18,7 @@
 import { createInterface } from "node:readline";
 import { readFile } from "node:fs/promises";
 import { httpApiClient } from "./api-client";
+import { isDirectRun } from "./entrypoint";
 import { renderRoomFixtureFile } from "./fixtures";
 import type { Logger, ReadableMetrics } from "./instrumentation";
 import { ConfigError, makeLogger, makeMetrics } from "./config";
@@ -195,4 +196,17 @@ export async function main(
     return 1;
   }
   return 0;
+}
+
+// Direct execution (`tsx src/cli.ts …`, the `sdc-cli` dev script). No-op when
+// imported (tests, the `bin/sdc-cli.mjs` wrapper). Robust across platforms via
+// `isDirectRun` (issue #181); mirrors the bin wrapper's `main` call — no
+// `stdinLines`, so interactive mode falls back to the real stdin line source.
+if (isDirectRun(import.meta.url, process.argv[1])) {
+  main(process.argv.slice(2), {
+    stdout: (line) => process.stdout.write(line + "\n"),
+    stderr: (line) => process.stderr.write(line + "\n"),
+  }).then((code) => {
+    process.exitCode = code;
+  });
 }
