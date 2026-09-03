@@ -70,9 +70,10 @@ Every stage reports through the same `Logger`/`Metrics` interfaces `server` uses
 
 SPEC §7 left the embedding provider deliberately unmandated: Phase 2 fixes
 *swappability*, not a *default*, and asks the first real corpus run (Phase 6) to
-pick one and record the rationale here. **The choice is `minilm`** — the local,
-offline `all-MiniLM-L6-v2` model above — and it is the corpus-builder default
-(`DEFAULT_EMBEDDING_PROVIDER_ID`). The reasoning:
+pick one and record the rationale here (ratified as SPEC amendment §0.13.2).
+**The choice is `minilm`** — the local, offline `all-MiniLM-L6-v2` model above —
+and it is the corpus-builder default (`DEFAULT_EMBEDDING_PROVIDER_ID`). The
+reasoning:
 
 - **It carries the semantic signal gameplay actually depends on.** Room
   resolution, similarity, and relativistic drift (SPEC §7, §4.4) are queries over

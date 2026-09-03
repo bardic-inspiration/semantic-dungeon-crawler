@@ -1,6 +1,6 @@
 # Semantic Dungeon Crawler Engine — Build Specification
 
-`spec-version: 0.13.1`
+`spec-version: 0.13.2`
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
@@ -43,6 +43,12 @@
 >   `approx-token-v1` as the alpha default `Tokenizer` for `unit: token`
 >   (§0.10.0 B1), recording `cl100k_base` as the deferred richer swap-in. No
 >   schema/protocol surface change.
+> - **§0.13.2 — embedding provider default named / §7 closed (issue #164).**
+>   Names `minilm` (the local, offline `all-MiniLM-L6-v2` model) the alpha
+>   default embedding provider from the first real corpus run, closing §7's
+>   "Embedding provider choice" open question; choice + rationale in
+>   `packages/corpus-builder/GRAPH_FORMAT.md`, run write-up in
+>   `docs/first-corpus-run.md`. No schema/protocol surface change.
 ## 0. Purpose and Reading Order
 
 This document is the authoritative build specification for an **authoring engine for semantic-space games** — not a single game. It is written to drive a phased, iterative Claude Code development process. Each phase in Section 6 is independently checkable: it lists file paths to create, exact schemas to implement, and pass/fail done-criteria.
@@ -1434,7 +1440,7 @@ Flagged explicitly rather than silently decided, for resolution during or after 
 - **Latency/perceived responsiveness**: request/response movement (5.1) was accepted knowingly given turn-based pacing; revisit if alpha playtesting shows it feels laggy rather than deliberate. **§0.11.0 (C1):** the move-resolution budget this is measured against is now on the record — p95 < ~200 ms server-side (§4.4, §6.7).
 - **Tagging quality**: Phase 2's heuristic auto-tagging is an alpha stand-in using the structured tag grammar (Section 3.6). The tag registry (3.6.2) and configurable modifier registry (3.6.1) provide the machinery for author-refined tagging; what does the refinement *tooling* look like? (Likely a Phase 7+ concern, possibly folded into the rule editor. See `docs/tag-system-design.md` for the full design rationale.)
 - **`graph.json` scale limits**: no sharding/pagination strategy is specified for very large corpora. Fine for alpha-scale corpora; needs design work before "production" means more than "alpha." **§0.11.0 (C1):** "alpha-scale" is now a number — ~10–50 documents / low-thousands of spans — and that is the threshold past which the deferred ANN index (B2) and sharding become due (§4.4, §6.7).
-- **Embedding provider choice**: Phase 2 mandates swappability but does not mandate a default. Pick one for the first real corpus run (Phase 6) and document the choice + rationale in `packages/corpus-builder/GRAPH_FORMAT.md`.
+- **Embedding provider choice**: Phase 2 mandates swappability but does not mandate a default. Pick one for the first real corpus run (Phase 6) and document the choice + rationale in `packages/corpus-builder/GRAPH_FORMAT.md`. **§0.13.2 — resolved (issue #164):** the first real corpus run named `minilm` (local, offline `all-MiniLM-L6-v2`) the alpha default; choice + rationale recorded in `packages/corpus-builder/GRAPH_FORMAT.md`, end-to-end run write-up in `docs/first-corpus-run.md`.
 - **Substrate re-approximation tolerance** (§0.8.0, decision D5): the `substrate.reapproximation_tolerance` parameter — "how similar is similar enough" for two re-approximations of the same query to count as "the same kind of place" — is an empirical/tunable value, deliberately not fixed at the design-doc level. Tune it against a real corpus in Phase 6. See `docs/design/0001-three-tier-data-model.md`.
 
 ---

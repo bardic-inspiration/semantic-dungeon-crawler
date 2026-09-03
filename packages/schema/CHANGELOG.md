@@ -10,6 +10,14 @@ schema/protocol surface is versioned and no surface mutates silently
 
 ### Changed
 
+- **`SPEC_VERSION` is now `0.13.2`, in step with SPEC.md's `spec-version`
+  header (§3.5, INV-5)** — SPEC.md §0.13.2 (issue #164) names `minilm` the alpha
+  default embedding provider and closes §7's "Embedding provider choice" open
+  question. It carries no schema/protocol **surface** change (the decision is
+  recorded in `packages/corpus-builder/GRAPH_FORMAT.md`, where §7 designates), so
+  no type here breaks; the constant is bumped only because it is defined to
+  mirror the document header (`version.test.ts` asserts the two agree).
+
 - **`SPEC_VERSION` is now `0.13.1`, in step with SPEC.md's `spec-version`
   header (§3.5, INV-5)** — the constant (and the `X-Spec-Version` header §5.1
   echoes from it) had been left at `0.12.0` when SPEC.md advanced to `0.13.0`
