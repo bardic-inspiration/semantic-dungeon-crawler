@@ -62,6 +62,14 @@ import type { Graph } from "./graph";
  * §0.11.0 (C1) — the alpha-scale sampling TARGET, not a hard cap: a room's object
  * count is `round(density * MAX_ROOM_OBJECTS)`. Tunable in Phase 6; per-room
  * `density` scales it down.
+ *
+ * Phase-6 review against the first real corpus run (issue #165,
+ * `docs/c1-reference-budget.md`): **kept at 12.** Under the default interpretation
+ * only `container` carries a non-zero `density` (0.5), so real rooms populate to
+ * `round(0.5 * 12) = 6` objects — legible, never approaching 12, and never
+ * pool-limited (k = 32 supplies the target). The binding factor is `density`, not
+ * this constant; there was no legibility or latency (p95 ~1.4 ms vs. the ~200 ms
+ * §4.4 budget) pressure to retune it.
  */
 export const MAX_ROOM_OBJECTS = 12;
 
