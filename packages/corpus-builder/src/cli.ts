@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { BuildTrace } from "./build-trace";
+import { isDirectRun } from "./entrypoint";
 import {
   evaluateBuild,
   formatEvalReport,
@@ -348,8 +349,11 @@ async function cmdEval(
   return 0;
 }
 
-// Direct execution (e.g. `tsx src/cli.ts build …`). No-op when imported.
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Direct execution (e.g. `tsx src/cli.ts build …`). No-op when imported (tests,
+// the `bin/*.mjs` wrapper). Robust across platforms via `isDirectRun` — a plain
+// `import.meta.url === \`file://${process.argv[1]}\`` compare silently failed on
+// Windows (issue #181).
+if (isDirectRun(import.meta.url, process.argv[1])) {
   runCli(process.argv.slice(2)).then((code) => {
     process.exitCode = code;
   });
