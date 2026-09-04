@@ -28,8 +28,10 @@ genuinely needs to change.
 
 - Bump `spec-version` in the SPEC header when the change is versioned.
 - Keep the invariants `INV-1`..`INV-5` intact; changing an invariant is a major,
-  deliberate decision — it ripples through every phase and must be reflected in
-  `AGENTS.md` §2.
+  deliberate decision — it ripples through every phase. The canonical statements
+  live in `SPEC.md` §0; amend them there, then update the one-line glosses in
+  `AGENTS.md` §2 and any mechanics in [`invariant-notes.md`](invariant-notes.md)
+  to match.
 - Preserve the section numbering that issues and docs reference; if you must
   renumber, update the cross-references (`docs/*`, `AGENTS.md`, issue templates).
 - Do not expand scope into SPEC §6.8 (post-alpha) items via the spec without an

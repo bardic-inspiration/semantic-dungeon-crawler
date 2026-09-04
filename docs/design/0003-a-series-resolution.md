@@ -53,7 +53,7 @@ and the DSL grammar may grow string tooling over time (versioned, §4.2).
 client-facing resolved output. INV-3 continues to hide graph internals —
 embedding vectors, the ANN index, rule definitions, and internal span/token ids —
 but a resolved excerpt and a public "where in the source" pointer are output, not
-internals. This is stated as an explicit carve-out, mirrored in `AGENTS.md` §2.
+internals. This is stated as an explicit carve-out in `SPEC.md` §0 (`INV-3`).
 
 **Rationale.** A player-facing engine built on a literature corpus that never
 shows text is a different, weaker product; the `readable` archetype and `read`
@@ -311,7 +311,7 @@ object types are interpretations applied via the archetype lookup.
 
 ## Cross-cutting consequences
 
-### INV-3 refinement (invariant change — reflected in `AGENTS.md` §2)
+### INV-3 refinement (invariant change — reflected in `SPEC.md` §0)
 Two classes of resolved output are now explicitly client-facing: **(A1)** source
 prose + source-position metadata, and **(A10)** overlay registry names/labels.
 INV-3 still forbids the client from receiving embeddings, the ANN index, rule
