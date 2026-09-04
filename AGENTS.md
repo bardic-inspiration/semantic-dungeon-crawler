@@ -5,8 +5,10 @@ another doc disagrees with this one, this one wins — except that
 [`SPEC.md`](SPEC.md) is the source of truth for *what to build*; this file is the
 source of truth for *how to work*.
 
-Read order for a cold start: **this file → the SPEC section your issue references
-→ your issue's acceptance criteria.** Do not range ahead into later build steps.
+This build is delegated to memoryless, scheduled cold-start sessions, each
+claiming one build-order issue. Read order for a cold start: **this file → the
+SPEC section your issue references → your issue's acceptance criteria.** Do not
+range ahead into later build steps.
 
 ---
 
@@ -96,33 +98,24 @@ issue's phase calls for.
 Work proceeds Phase 0 → 7. **Do not start phase N+1 until phase N's Exit criteria
 are all met** — verified by that phase's comprehensive **QA/QC pass**, the gate
 that closes its milestone ([`docs/roadmap.md`](docs/roadmap.md) "The phase
-cycle"). Each phase has Entry/Build/Exit conditions in the spec:
+cycle"). Each phase's Entry/Build/Exit conditions are in `SPEC.md` §6.1–§6.8.
 
-| Phase | What | SPEC |
-|---|---|---|
-| 0 | Repository scaffold (workspaces, tsconfig, empty packages) | §6.1 |
-| 1 | `packages/schema` — types + CHANGELOG + example fixture | §6.2 |
-| 2 | `packages/corpus-builder` — build-time pipeline → `graph.json` | §6.3 |
-| 3 | `packages/rule-engine` — parser, solver, layer resolution, debug trace | §6.4 |
-| 4 | `packages/server` + `packages/client-cli` + conformance fixtures | §6.5 |
-| 5 | `packages/client-threejs` — reference renderer | §6.6 |
-| 6 | Production-alpha hardening + `README` playable path | §6.7 |
-| 7+ | Post-alpha (rule editor, other adapters, persistence) — **out of scope** | §6.8 |
-
-[`docs/roadmap.md`](docs/roadmap.md) is authoritative for live build status:
-which phase is active, whether the design-track gate has suspended the phase
-queue, the status of each phase's issues, and the conformance-audit track. This
-table is the fixed plan; roadmap.md is where things currently stand.
+The phase → deliverable → SPEC-section plan **and** live build status — which
+phase is active, the status of each phase's issues, the design-track gate, and
+the conformance-audit track — both live in
+[`docs/roadmap.md`](docs/roadmap.md)'s
+[development-phases table](docs/roadmap.md#development-phases). That is the single
+place the grid lives; consult it rather than a copy here.
 
 Each phase is also tracked by a `Development Phase N` milestone — the repo owner
 creates it, agents assign the phase's issues to it, and its description points at
 the SPEC section rather than restating it
 ([`docs/milestone-practices.md`](docs/milestone-practices.md)).
 
-**When no phase is active**, the build order is gated behind the design track: a
-phase must not be declared active while an open design entry blocks it. In that
-state the active queue is the design track, not a `phase:N` queue — §5 step 1 has
-the mechanics for picking the next design issue.
+**When no phase is active**, the queue is the design track rather than a `phase:N`
+queue, and §5 step 1 has the mechanics for picking the next design issue.
+[`docs/roadmap.md`](docs/roadmap.md) "Design track & gates" records the live state
+of that gate.
 
 ## 5. Working loop (do this for every issue)
 
@@ -152,8 +145,11 @@ open questions or follow-on work that surfaces mid-issue. Summary:
    [`docs/commit-standards.md`](docs/commit-standards.md). If you touch
    `packages/schema/src/*`, append a `packages/schema/CHANGELOG.md` entry in the
    **same** commit (`INV-5`).
-6. **One issue per PR.** Fill in the PR template; link the issue with `Closes #N`.
-   Linear history — rebase, don't merge (see [`CONTRIBUTING.md`](CONTRIBUTING.md)).
+6. **One issue per PR.** When a session's work is ready, open the PR — the build
+   advances on memoryless, scheduled cold starts, so finishing work must reliably
+   produce a PR; nobody is watching to ask for one. (Exception: you're explicitly
+   told not to.) Fill in the PR template; link the issue with `Closes #N`. Linear
+   history — rebase, don't merge (see [`CONTRIBUTING.md`](CONTRIBUTING.md)).
 
 Changing only Markdown (`SPEC.md`, docs, `AGENTS.md`, etc.) — no code? Steps
 3–4 don't apply; use the leaner path in
@@ -172,10 +168,13 @@ its trigger fires — you don't need all of them for every issue:
 | [`docs/naming-conventions.md`](docs/naming-conventions.md) | Naming any identifier, file, package, or wire field. |
 | [`docs/config-conventions.md`](docs/config-conventions.md) | Adding or selecting a swappable component (embedding provider, `Logger`, `Metrics`). |
 | [`docs/milestone-practices.md`](docs/milestone-practices.md) | Assigning an issue to a `Development Phase N` milestone. |
+| [`docs/roadmap.md`](docs/roadmap.md) | Checking phase status, or the phase-cycle open/close procedure (step 1, §4). |
 | [`docs/docs-only-changes.md`](docs/docs-only-changes.md) | Your change touches only Markdown — no code (skips steps 3–4). |
 | [`docs/invariant-notes.md`](docs/invariant-notes.md) | Upholding `INV-2` / `INV-3` — seed derivation, import-boundary ESLint mechanics (§2). |
 | [`docs/scope-discipline.md`](docs/scope-discipline.md) | Tempted to fold in adjacent work — why each PR stays tight to its issue (§7). |
 | [`docs/doc-audit.md`](docs/doc-audit.md) | The docs are living artifacts — reconciling the set for staleness/consistency. |
+| [`docs/documentation-standards.md`](docs/documentation-standards.md) | Writing or editing any doc — source-of-truth, keep-in-sync, structure/routing, and style rules. |
+| [`docs/spec-guidelines.md`](docs/spec-guidelines.md) | Amending `SPEC.md` — versioning and invariant care. |
 
 ## 6. Toolchain
 
@@ -196,6 +195,15 @@ its trigger fires — you don't need all of them for every issue:
   not hardcoded per package. Env var names, defaults, and where a new swappable
   component hooks in are in
   [`docs/config-conventions.md`](docs/config-conventions.md).
+
+Common commands (available once the Phase 0 scaffold is merged):
+
+```
+npm install        # install workspace dependencies
+npm test           # run the Vitest suite
+npm run lint       # eslint + prettier --check
+npm run typecheck  # tsc --noEmit
+```
 
 ## 7. When in doubt
 

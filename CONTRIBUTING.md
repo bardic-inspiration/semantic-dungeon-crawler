@@ -40,17 +40,13 @@ work-in-progress commits (amend / interactive rebase) before requesting review.
 
 ## Development workflow (TDD — required)
 
-1. Claim the lowest-numbered open issue in the active phase (`phase:N`). See
-   [`docs/issue-standards.md`](docs/issue-standards.md) for how to pick up,
-   file, and scope issues.
-2. Read the SPEC section the issue references.
-3. Write a failing Vitest test that encodes an acceptance criterion (**red**).
-4. Write the minimal code to pass it (**green**), then **refactor**.
-5. Run `npm run lint && npm run typecheck && npm test` — all green.
-6. Commit atomically; open one PR.
-
-See [`docs/testing-standards.md`](docs/testing-standards.md) for the full testing
-contract (fixtures, determinism, import-boundary checks).
+The per-issue working loop — claim the lowest-numbered open issue in the active
+phase, read the SPEC section it references, write a failing Vitest test
+(**red**), make it pass (**green**), refactor, run
+`npm run lint && npm run typecheck && npm test`, then commit atomically and open
+one PR — is defined in [`AGENTS.md`](AGENTS.md) §5, which routes to the standards
+doc for each step. See [`docs/testing-standards.md`](docs/testing-standards.md)
+for the full testing contract (fixtures, determinism, import-boundary checks).
 
 ## Pull requests
 
@@ -71,13 +67,6 @@ protocol, the lighter issue template, and the PR checklist to use instead.
 
 ## Standards docs
 
-- [`docs/roadmap.md`](docs/roadmap.md) — phases → issues, the build process.
-- [`docs/issue-standards.md`](docs/issue-standards.md) — filing, scoping, and
-  closing issues; handling open questions and sub-issues.
-- [`docs/testing-standards.md`](docs/testing-standards.md) — TDD contract.
-- [`docs/commit-standards.md`](docs/commit-standards.md) — commit format.
-- [`docs/documentation-standards.md`](docs/documentation-standards.md) — keeping docs in sync.
-- [`docs/naming-conventions.md`](docs/naming-conventions.md) — casing rules for code, files, schema fields, and the DSL.
-- [`docs/spec-guidelines.md`](docs/spec-guidelines.md) — how to amend `SPEC.md`.
-- [`docs/docs-only-changes.md`](docs/docs-only-changes.md) — leaner protocol
-  for Markdown-only changes.
+[`AGENTS.md`](AGENTS.md) §5 "Protocol docs — read when" is the routing table for
+the standards docs under [`docs/`](docs/) — which to read and when. It is the
+canonical index; this file doesn't keep a second copy.

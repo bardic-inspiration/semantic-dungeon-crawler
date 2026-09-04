@@ -22,8 +22,8 @@ cold-start agent knows the docs are maintained and can be trusted to be current.
 - **Terminology pairing.** Synonyms stay consistent wherever they appear —
   notably **"post-alpha"** and **"out of scope"** for Phase 7+ (SPEC §6.8),
   which are treated as synonyms and should read consistently across the
-  `AGENTS.md` §3 repo-layout table, the §4 build-order table, and
-  [`roadmap.md`](roadmap.md).
+  `AGENTS.md` §3 repo-layout table and [`roadmap.md`](roadmap.md)'s
+  development-phases table.
 - **Invariant / notes split.** `AGENTS.md` §2 holds only the stable invariant
   statements; churn-prone mechanics stay in
   [`invariant-notes.md`](invariant-notes.md), not in the constitution section.
@@ -31,6 +31,11 @@ cold-start agent knows the docs are maintained and can be trusted to be current.
   content — that belongs in PR descriptions
   ([`documentation-standards.md`](documentation-standards.md) "Product docs, not
   process").
+- **Structure & routing.** Each doc opens with its purpose line, and a parent
+  doc's references to its subdocuments use the routing-table format rather than
+  loose prose or a copy of another doc's table
+  ([`documentation-standards.md`](documentation-standards.md) "Document structure
+  & routing").
 
 ## When it runs
 

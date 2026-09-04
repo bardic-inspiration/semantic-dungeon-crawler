@@ -3,7 +3,7 @@
 Full history of the `SPEC.md` §0 amendments — the complete text of each
 decision that produced a `spec-version` bump, newest first. `SPEC.md` §0
 keeps only a one-line pointer to each entry so the read order for a
-cold-starting agent stays skimmable ([`docs/documentation-standards.md`](docs/documentation-standards.md)
+cold-starting agent stays skimmable ([`documentation-standards.md`](documentation-standards.md)
 "Style"); this file is where the full amendment text lives.
 
 ## 0.13.2 — embedding provider default named / §7 closed (issue #164)

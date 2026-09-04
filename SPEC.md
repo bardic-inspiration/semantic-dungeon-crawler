@@ -4,51 +4,22 @@
 `status: draft`
 `audience: coding-agent + human-maintainer`
 
-> **Amendment history.** `SPEC.md` has been amended eight times since the
-> initial draft, each resolving a named spec gap or internal inconsistency.
-> The one-line summary below is a pointer, not the record — see
-> [`SPEC-CHANGELOG.md`](SPEC-CHANGELOG.md) for the full text of every entry
-> and each entry's `docs/design/000X-*.md` decision record where one exists.
->
-> - **§0.8.0 — three-tier data model.** Frames the world as Bedrock
->   (build-time corpus), Substrate (live-queried embedding surface), and
->   Overlay (Address Registry + primitives); §3.7, §4.5,
->   `docs/design/0001-three-tier-data-model.md` (resolves #11).
-> - **§0.9.0 — A-series resolution.** Resolves the thirteen Tier-A gaps
->   (#15–#27): address-token identity/navigation, `prose`/`source_span` as
->   client-facing output, interaction effects (write/emit), the ruleset
->   authoring bundle, and no built-in gameplay meaning;
->   `docs/design/0003-a-series-resolution.md`.
-> - **§0.10.0 — B-series resolution.** Resolves five Tier-B gaps (#28–#32)
->   plus #44 (B6): every corpus-builder stage as a swappable interface with a
->   deterministic default — segmentation, embedding/index, substrate query,
->   tagging, the `local_coherence`/`path_coherence` rename, span composition;
->   `docs/design/0004-b-series-resolution.md`.
-> - **§0.11.0 — C-series resolution.** Resolves six Tier-C gaps (#33–#38):
->   the alpha scale/latency budget, degenerate-state handling
->   (`resolution_status`), the local-trusted-operator trust model, offline
->   `corpus-builder eval`, cross-artifact compatibility, and the design-track
->   process; `docs/design/0005-c-series-resolution.md`.
-> - **§0.12.0 — conformance-audit amendment.** Fixes seven places the spec
->   contradicted itself (S1–S7, found auditing the Phase 0–4 build against
->   0.11.0), plus two additive fields: `InteractResponse.movement_blocked?`
->   (§3.3) and assigning §3.6.3 resolver ownership to `packages/rule-engine`
->   (§6.4).
-> - **§0.13.0 — turn_count decoupled from resolution (issue #118).**
->   `turn_count` is a pure runtime metric, not a seed component (§4.5) — a
->   room is a deterministic function of `(session_seed, normalized_query)`
->   alone, so A6 ("a local interaction returns the unchanged room") holds
->   structurally rather than by freezing the counter.
-> - **§0.13.1 — tokenizer default named (issue #107).** Names the shipped
->   `approx-token-v1` as the alpha default `Tokenizer` for `unit: token`
->   (§0.10.0 B1), recording `cl100k_base` as the deferred richer swap-in. No
->   schema/protocol surface change.
-> - **§0.13.2 — embedding provider default named / §7 closed (issue #164).**
->   Names `minilm` (the local, offline `all-MiniLM-L6-v2` model) the alpha
->   default embedding provider from the first real corpus run, closing §7's
->   "Embedding provider choice" open question; choice + rationale in
->   `packages/corpus-builder/GRAPH_FORMAT.md`, run write-up in
->   `docs/first-corpus-run.md`. No schema/protocol surface change.
+> **Amendment history.** `SPEC.md` has been amended eight times since the initial
+> draft. The table below is a one-line pointer index — see
+> [`docs/spec-changelog.md`](docs/spec-changelog.md) for the full text of every
+> entry, and the linked `docs/design/000X-*.md` decision record where one exists.
+
+| Amendment | Summary | Decision record |
+|---|---|---|
+| **§0.8.0** | Three-tier data model — Bedrock (build-time corpus), Substrate (live-queried surface), Overlay (registry + primitives); §3.7, §4.5 (resolves #11). | [`0001`](docs/design/0001-three-tier-data-model.md) |
+| **§0.9.0** | A-series resolution — thirteen Tier-A gaps (#15–#27): address-token identity/navigation, `prose`/`source_span` as client output, interaction effects, ruleset bundle. | [`0003`](docs/design/0003-a-series-resolution.md) |
+| **§0.10.0** | B-series resolution — five Tier-B gaps plus B6 (#28–#32, #44): every corpus-builder stage a swappable interface with a deterministic default. | [`0004`](docs/design/0004-b-series-resolution.md) |
+| **§0.11.0** | C-series resolution — six Tier-C gaps (#33–#38): scale/latency budget, degenerate-state handling, trust model, offline eval, compatibility, design-track process. | [`0005`](docs/design/0005-c-series-resolution.md) |
+| **§0.12.0** | Conformance-audit amendment — fixes seven self-contradictions (S1–S7) plus two additive fields (`InteractResponse.movement_blocked?` §3.3, §3.6.3 resolver ownership §6.4). | — |
+| **§0.13.0** | `turn_count` decoupled from resolution (#118) — a pure runtime metric, not a seed component (§4.5). | — |
+| **§0.13.1** | Tokenizer default named — `approx-token-v1` for `unit: token` (#107); no schema/protocol surface change. | — |
+| **§0.13.2** | Embedding provider default named `minilm`; §7 "embedding provider choice" closed (#164); no schema/protocol surface change. | — |
+
 ## 0. Purpose and Reading Order
 
 This document is the authoritative build specification for an **authoring engine for semantic-space games** — not a single game. It is written to drive a phased, iterative Claude Code development process. Each phase in Section 6 is independently checkable: it lists file paths to create, exact schemas to implement, and pass/fail done-criteria.
@@ -1435,13 +1406,9 @@ Listed here so a coding agent doesn't accidentally scope-creep into these during
 
 ## 7. Open Questions for Iterative Refinement
 
-Flagged explicitly rather than silently decided, for resolution during or after alpha:
-
-- **Latency/perceived responsiveness**: request/response movement (5.1) was accepted knowingly given turn-based pacing; revisit if alpha playtesting shows it feels laggy rather than deliberate. **§0.11.0 (C1):** the move-resolution budget this is measured against is now on the record — p95 < ~200 ms server-side (§4.4, §6.7).
-- **Tagging quality**: Phase 2's heuristic auto-tagging is an alpha stand-in using the structured tag grammar (Section 3.6). The tag registry (3.6.2) and configurable modifier registry (3.6.1) provide the machinery for author-refined tagging; what does the refinement *tooling* look like? (Likely a Phase 7+ concern, possibly folded into the rule editor. See `docs/tag-system-design.md` for the full design rationale.)
-- **`graph.json` scale limits**: no sharding/pagination strategy is specified for very large corpora. Fine for alpha-scale corpora; needs design work before "production" means more than "alpha." **§0.11.0 (C1):** "alpha-scale" is now a number — ~10–50 documents / low-thousands of spans — and that is the threshold past which the deferred ANN index (B2) and sharding become due (§4.4, §6.7).
-- **Embedding provider choice**: Phase 2 mandates swappability but does not mandate a default. Pick one for the first real corpus run (Phase 6) and document the choice + rationale in `packages/corpus-builder/GRAPH_FORMAT.md`. **§0.13.2 — resolved (issue #164):** the first real corpus run named `minilm` (local, offline `all-MiniLM-L6-v2`) the alpha default; choice + rationale recorded in `packages/corpus-builder/GRAPH_FORMAT.md`, end-to-end run write-up in `docs/first-corpus-run.md`.
-- **Substrate re-approximation tolerance** (§0.8.0, decision D5): the `substrate.reapproximation_tolerance` parameter — "how similar is similar enough" for two re-approximations of the same query to count as "the same kind of place" — is an empirical/tunable value, deliberately not fixed at the design-doc level. Tune it against a real corpus in Phase 6. See `docs/design/0001-three-tier-data-model.md`.
+Open questions flagged for resolution during or after alpha are tracked in
+[`docs/design/open-questions.md`](docs/design/open-questions.md), keeping this
+contract to settled decisions rather than deferred ones.
 
 ---
 

@@ -254,9 +254,10 @@ npm run typecheck   # tsc --noEmit across packages
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for branch and commit conventions
-and the TDD workflow, and [`docs/`](docs/) for issue, testing, commit,
-documentation, naming, and spec standards.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for getting started — branching,
+commits, linear history. [`AGENTS.md`](AGENTS.md) is the canonical guide for how
+to work, and its §5 routing table indexes the standards docs under
+[`docs/`](docs/).
 
 ## License
 
