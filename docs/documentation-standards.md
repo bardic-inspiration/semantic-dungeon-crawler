@@ -10,6 +10,25 @@ Keep docs truthful and in sync with behavior. Documentation drift is a defect.
   SPEC section instead of restating it.
 - [`AGENTS.md`](../AGENTS.md) is authoritative for *how to work*.
 
+## Document structure & routing
+
+- **Routing tables.** Whenever a doc references its subdocuments — the docs it
+  hands the reader off to — use the standard routing-table format: a table with a
+  name/link column and a "where and when" column, listing that doc's *own*
+  subdocuments. [`AGENTS.md`](../AGENTS.md) §5 "Protocol docs — read when" is the
+  model. Don't copy another doc's routing table (that re-introduces duplication) —
+  point to it; and don't leave subdocument references as loose prose or a bare
+  bullet list where the table is the standard.
+- **Point, don't duplicate.** A parent doc references what its subdocument owns
+  rather than restating it — the `SPEC.md` §0 ↔ [`spec-changelog.md`](spec-changelog.md)
+  index is the model (§0 keeps a one-line pointer per amendment; the changelog
+  holds the full text).
+- **Purpose line.** Every protocol doc opens with a `# Title Case` heading and a
+  one-line statement of its purpose, so a cold-start agent can tell at a glance
+  what the doc is for.
+- **Relative links.** Cross-reference other docs with relative Markdown links
+  (target `testing-standards.md`, `../SPEC.md`), not bare code spans.
+
 ## Product docs, not process
 
 - `SPEC.md`, `AGENTS.md`, `CLAUDE.md`, and everything under `docs/` describe
