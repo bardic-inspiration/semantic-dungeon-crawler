@@ -61,14 +61,13 @@ if it passes tests.
   (SPEC §3.5). Breaking changes require a version bump **and** a
   `packages/schema/CHANGELOG.md` entry in the same commit — never silent mutation.
 
-> The two easiest to break by accident: **`INV-2` (determinism)** — reach for a
-> seeded PRNG derived from `(session_seed, normalized_query)` (SPEC §0.13.0 —
-> `normalized_query` carries the position; `turn_count` is not a seed component),
-> never `Math.random()` or `Date.now()`; and **`INV-3` (import boundary)** —
-> enforced by an ESLint rule (added in Phase 4 for `client-cli`, SPEC §6.5;
-> extended to `client-threejs` in Phase 5, SPEC §6.6). That rule now guards
-> `client-cli` (a shared, parameterized factory in `eslint/`), so a forbidden
-> engine import fails `npm run lint` — respect the boundary from day one.
+> The invariants above are stable, timeless statements. The two easiest to break
+> by accident — **`INV-2` (determinism)** and **`INV-3` (the import boundary)** —
+> carry concrete, churn-prone mechanics (the seed-derivation formula, which
+> ESLint rule enforces the boundary and which phase added it). Those live in
+> [`docs/invariant-notes.md`](docs/invariant-notes.md), kept out of this section
+> so a phase update revises the mechanics without diffing the constitution — read
+> it before touching determinism or a client's imports.
 
 ## 3. Repo layout (target — SPEC §2, §6.1)
 
@@ -110,19 +109,20 @@ cycle"). Each phase has Entry/Build/Exit conditions in the spec:
 | 6 | Production-alpha hardening + `README` playable path | §6.7 |
 | 7+ | Post-alpha (rule editor, other adapters, persistence) — **out of scope** | §6.8 |
 
-The live status of each phase and its issues is in [`docs/roadmap.md`](docs/roadmap.md).
+[`docs/roadmap.md`](docs/roadmap.md) is authoritative for live build status:
+which phase is active, whether the design-track gate has suspended the phase
+queue, the status of each phase's issues, and the conformance-audit track. This
+table is the fixed plan; roadmap.md is where things currently stand.
+
 Each phase is also tracked by a `Development Phase N` milestone — the repo owner
 creates it, agents assign the phase's issues to it, and its description points at
 the SPEC section rather than restating it
 ([`docs/milestone-practices.md`](docs/milestone-practices.md)).
 
 **When no phase is active**, the build order is gated behind the design track: a
-phase must not be declared active while an open design entry blocks it
-([`docs/roadmap.md`](docs/roadmap.md) design gate). In that state the active queue
-is the design track, not a `phase:N` queue — see §5 step 1 for how an agent picks
-the next design issue (lowest-numbered open `design` issue whose dependencies are
-resolved, one tier at a time), and [`docs/design/open-scope.md`](docs/design/open-scope.md)
-for the tier ordering.
+phase must not be declared active while an open design entry blocks it. In that
+state the active queue is the design track, not a `phase:N` queue — §5 step 1 has
+the mechanics for picking the next design issue.
 
 ## 5. Working loop (do this for every issue)
 
@@ -132,8 +132,7 @@ open questions or follow-on work that surfaces mid-issue. Summary:
 
 1. **Take one issue.** When a phase is active, pick the lowest-numbered open issue
    labeled with that phase (`phase:0`, then `phase:1`, …). **When no phase is
-   active** (the build order is gated behind the design track until the phase queue
-   is repopulated, [`docs/roadmap.md`](docs/roadmap.md)), **the queue is the
+   active** (§4's design-track gate), **the queue is the
    design track**: pick
    the lowest-numbered open `design` issue whose dependencies are resolved
    (the tier ordering and "Depends on" links in
@@ -159,6 +158,24 @@ open questions or follow-on work that surfaces mid-issue. Summary:
 Changing only Markdown (`SPEC.md`, docs, `AGENTS.md`, etc.) — no code? Steps
 3–4 don't apply; use the leaner path in
 [`docs/docs-only-changes.md`](docs/docs-only-changes.md) instead.
+
+### Protocol docs — read when
+
+The working loop above and §6 route to a set of standards docs. Read each when
+its trigger fires — you don't need all of them for every issue:
+
+| Read | When |
+|---|---|
+| [`docs/issue-standards.md`](docs/issue-standards.md) | Picking up, filing, scoping, or closing an issue; something out of scope surfaces mid-work. |
+| [`docs/testing-standards.md`](docs/testing-standards.md) | Writing the failing test (step 3) — test structure, determinism / `evaluateLayers` cases. |
+| [`docs/commit-standards.md`](docs/commit-standards.md) | Writing a commit message (step 5) — Conventional Commits format. |
+| [`docs/naming-conventions.md`](docs/naming-conventions.md) | Naming any identifier, file, package, or wire field. |
+| [`docs/config-conventions.md`](docs/config-conventions.md) | Adding or selecting a swappable component (embedding provider, `Logger`, `Metrics`). |
+| [`docs/milestone-practices.md`](docs/milestone-practices.md) | Assigning an issue to a `Development Phase N` milestone. |
+| [`docs/docs-only-changes.md`](docs/docs-only-changes.md) | Your change touches only Markdown — no code (skips steps 3–4). |
+| [`docs/invariant-notes.md`](docs/invariant-notes.md) | Upholding `INV-2` / `INV-3` — seed derivation, import-boundary ESLint mechanics (§2). |
+| [`docs/scope-discipline.md`](docs/scope-discipline.md) | Tempted to fold in adjacent work — why each PR stays tight to its issue (§7). |
+| [`docs/doc-audit.md`](docs/doc-audit.md) | The docs are living artifacts — reconciling the set for staleness/consistency. |
 
 ## 6. Toolchain
 
@@ -187,14 +204,14 @@ Changing only Markdown (`SPEC.md`, docs, `AGENTS.md`, etc.) — no code? Steps
   follow [`docs/spec-guidelines.md`](docs/spec-guidelines.md) to amend `SPEC.md`
   (versioned) rather than diverging in code.
 - Stay in scope. Implement only what your issue's acceptance criteria call
-  for — nothing more. SPEC §6.8 lists things that look tempting but are
-  explicitly post-alpha; do not scope-creep into them. That same discipline
-  applies inside the current phase too: don't fold in adjacent refactors,
-  drive-by fixes, or "while I'm in here" improvements that aren't part of the
-  acceptance criteria, even when they're small and even when a later issue in
-  the same phase would clearly need them. A PR touching files or packages the
-  acceptance criteria don't call for is a sign of drift — narrow it back down
-  before committing.
+  for — nothing more; SPEC §6.8 lists the tempting-but-post-alpha items. The
+  full discipline — no adjacent refactors or drive-by fixes even when small,
+  narrowing a drifting PR back down, and why it matters across memoryless
+  sessions — is in [`docs/scope-discipline.md`](docs/scope-discipline.md).
 - Anything else that comes up mid-issue — an edge case, a follow-on idea, a
   question that isn't a spec defect — gets filed as its own issue per
   [`docs/issue-standards.md`](docs/issue-standards.md), not solved inline.
+- The docs set is living, not write-once — periodically reconciled for staleness
+  and consistency ([`docs/doc-audit.md`](docs/doc-audit.md)). If you spot drift
+  while working, fix it in a docs-only PR or file it; don't leave it or fold it
+  into an unrelated change.
