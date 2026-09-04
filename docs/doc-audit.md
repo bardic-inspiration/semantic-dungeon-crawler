@@ -24,9 +24,10 @@ cold-start agent knows the docs are maintained and can be trusted to be current.
   which are treated as synonyms and should read consistently across the
   `AGENTS.md` §3 repo-layout table and [`roadmap.md`](roadmap.md)'s
   development-phases table.
-- **Invariant / notes split.** `AGENTS.md` §2 holds only the stable invariant
-  statements; churn-prone mechanics stay in
-  [`invariant-notes.md`](invariant-notes.md), not in the constitution section.
+- **Invariant / notes split.** `SPEC.md` §0 is the canonical statement of the
+  invariants; `AGENTS.md` §2 carries only their names, a one-line gloss each, and
+  a pointer to §0 (no second copy to drift); churn-prone mechanics stay in
+  [`invariant-notes.md`](invariant-notes.md).
 - **Process narration.** No chat/conversation/session references leak into doc
   content — that belongs in PR descriptions
   ([`documentation-standards.md`](documentation-standards.md) "Product docs, not

@@ -1,10 +1,11 @@
 # Invariant Implementation Notes
 
 Implementation-level guidance for upholding the invariants `INV-1`..`INV-5`. The
-invariants themselves live in [`AGENTS.md`](../AGENTS.md) §2 and are the stable,
-timeless statements — this file holds the churn-prone mechanics (seed
-derivation, which ESLint rule enforces what, which phase added it) so a phase
-update can revise the mechanics here without diffing the constitution.
+invariants themselves are stated canonically in [`SPEC.md`](../SPEC.md) §0 (with a
+one-line gloss each in [`AGENTS.md`](../AGENTS.md) §2) — this file holds the
+churn-prone mechanics (seed derivation, which ESLint rule enforces what, which
+phase added it) so a phase update can revise the mechanics here without diffing
+the constitution.
 
 ## The two easiest to break by accident
 
@@ -22,5 +23,5 @@ update can revise the mechanics here without diffing the constitution.
   That rule guards `client-cli` via a shared, parameterized factory in
   `eslint/`, so a forbidden engine import fails `npm run lint` — respect the
   boundary from day one. The line the rule enforces is *resolved output vs.
-  engine internals* (`INV-3` in `AGENTS.md` §2, and
+  engine internals* (`INV-3` in `SPEC.md` §0, and
   `docs/design/0003-a-series-resolution.md`), not *text vs. no-text*.

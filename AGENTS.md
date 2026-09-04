@@ -31,37 +31,26 @@ movement in embedding space) — a valid mode, not a fallback.
 
 ## 2. Hard rules (non-negotiable — SPEC invariants)
 
-These hold at **every phase boundary**. A change that violates one is wrong even
-if it passes tests.
+The five invariants hold at **every phase boundary** — a change that violates one
+is wrong even if it passes tests. [`SPEC.md`](SPEC.md) §0 is the canonical, full
+statement of each (with its SPEC cross-references and the §0.9.0 INV-3 "resolved
+output" refinement); the one-line glosses here orient you — they are not a second
+copy to keep in sync.
 
-- **`INV-1` — Pure engine.** The traversal/rule engine never imports a rendering
-  library. It is headless and testable with no client attached. (SPEC §2, §4)
-- **`INV-2` — Determinism.** A session is fully reproducible from
-  `(seed, ruleset-file, input-log)`. No wall-clock, no unseeded randomness in
-  backend logic. Same inputs ⇒ **byte-identical** output. (SPEC §4.5) Under the
-  §0.8.0 three-tier model this is a *replay* guarantee: substrate queries
-  (Tier 2) are stochastic across seeds by design, but seeded from
-  `(session_seed, normalized_query)` (position carried by the query;
-  `turn_count` is not a seed component — SPEC §0.13.0), so replaying one input-log still
-  reproduces byte-identical output; overlay state (Tier 3) is deterministic
-  outright. (SPEC §3.7, §4.5)
-- **`INV-3` — Client sees only resolved JSON.** The client never receives the
-  graph, embeddings, or rule definitions — only `ResolvedRoomResponse` (SPEC §3.2).
-  `packages/client-threejs` and `packages/client-cli` must not import
-  `packages/rule-engine` or `packages/corpus-builder`. (SPEC §5.2, §5.4, §6.5, §6.6)
-  **§0.9.0 refinement (issues #15/#24):** "resolved output" explicitly includes an
-  entity's `prose` + `source_span` positional metadata (SPEC §3.1) and overlay
-  registry **names/labels** of player-provenance entries (SPEC §3.7, §5.1). Still
-  hidden: embeddings, the ANN index, rule definitions, internal ids, raw snapshot
-  payloads. The line is *resolved output vs. engine internals*, not *text vs.
-  no-text*. See `docs/design/0003-a-series-resolution.md`.
+- **`INV-1` — Pure engine.** The rule engine never imports a rendering library.
+- **`INV-2` — Determinism.** A session replays byte-for-byte from
+  `(seed, ruleset-file, input-log)`; substrate queries are stochastic across
+  seeds but replay-deterministic.
+- **`INV-3` — Client sees only resolved JSON.** The client receives
+  `ResolvedRoomResponse`, never the graph, embeddings, or rule definitions.
 - **`INV-4` — No taste-policing.** The engine validates *well-formedness*, not
-  *coherence*. Contradictory or "bad" rulesets are legal and must run, not be
-  rejected or auto-corrected. The solver must not throw on conflicting hard
-  decisions. (SPEC §4.1, §4.3)
-- **`INV-5` — Everything versioned.** Every schema/protocol surface is versioned
-  (SPEC §3.5). Breaking changes require a version bump **and** a
-  `packages/schema/CHANGELOG.md` entry in the same commit — never silent mutation.
+  *coherence*; contradictory rulesets are legal and must run.
+- **`INV-5` — Everything versioned.** Every schema/protocol surface is versioned;
+  breaking changes need a version bump.
+
+Changing an invariant is a major, deliberate amendment to `SPEC.md` §0
+([`docs/spec-guidelines.md`](docs/spec-guidelines.md)) — the glosses here update
+to match.
 
 > The invariants above are stable, timeless statements. The two easiest to break
 > by accident — **`INV-2` (determinism)** and **`INV-3` (the import boundary)** —
