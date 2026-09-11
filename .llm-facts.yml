@@ -1,0 +1,53 @@
+# .llm-facts.yml — LLM Facts label source for semantic-dungeon-crawler.
+#
+# Formatting only: this file describes a label; llm-facts does not verify it.
+# Figures are derived from the repo's git history and merged-PR count; token
+# totals are estimates. The label is left UNVERIFIED (label.verified: false).
+
+schema_version: 1
+
+serving:
+  scope: repository
+  period_start: 2026-08-24
+  period_end: ongoing
+
+summary:
+  total_sessions: 84
+  total_tokens: 17000000
+  ai_touched_files_pct: 99
+  ai_touched_lines_pct: 95
+
+models:
+  - name: Claude Opus 4.8
+    tokens: 15800000
+    sessions: 78
+    tool: Claude Code
+  - name: Claude Sonnet 5
+    tokens: 1200000
+    sessions: 6
+    tool: Claude Code
+
+tools:
+  - name: Claude Code
+    verified: false
+
+use:
+  - category: boilerplate
+    note: Scaffolded the npm-workspaces monorepo, packages, and tooling.
+  - category: design
+    note: Authored the SPEC, invariants, and per-feature design docs.
+  - category: tests
+    note: Test-first Vitest suites across every package (TDD gate).
+  - category: docs
+    note: Wrote the roadmap, agent/contributor guides, and standards docs.
+  - category: refactor
+    note: Iterated the corpus builder, rule engine, server, and clients.
+
+human:
+  reviewed_by_human: true
+  note: Every PR reviewed and merged by the maintainer; CI (tests, lint, typecheck) gates each PR.
+
+label:
+  verified: false
+  generated_by: llm-facts
+  generated_at: 2026-09-11T00:00:00Z
