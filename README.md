@@ -262,3 +262,64 @@ to work, and its §5 routing table indexes the standards docs under
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
+
+## LLM Facts
+
+A provenance label for this repo's AI-assisted development, rendered by
+[`llm-facts`](https://github.com/bardic-inspiration/llm-facts) from a
+`.llm-facts.yml`. Figures are drawn from the repo's git history and
+merged-PR count; token totals are estimates and the label is unverified.
+
+`llm-facts · schema v1`
+
+**repository**
+
+### Serving
+
+| Field | Value |
+| --- | --- |
+| Scope | repository |
+| Period | 2026-08-24 → ongoing |
+
+### Summary
+
+| Metric | Value |
+| --- | --- |
+| Sessions | 84 |
+| Tokens | 17,000,000 |
+| AI-touched files | 99% |
+| AI-touched lines | 95% |
+
+### Models
+
+| Model | Tokens | Sessions | Tool |
+| --- | --- | --- | --- |
+| Claude Opus 4.8 | 15,800,000 | 78 | Claude Code |
+| Claude Sonnet 5 | 1,200,000 | 6 | Claude Code |
+
+### Verification
+
+| Tool | Verified |
+| --- | --- |
+| Claude Code | unverified |
+
+### Use
+
+| Category | Note |
+| --- | --- |
+| boilerplate | Scaffolded the npm-workspaces monorepo, packages, and tooling. |
+| design | Authored the SPEC, invariants, and per-feature design docs. |
+| tests | Test-first Vitest suites across every package (TDD gate). |
+| docs | Wrote the roadmap, agent/contributor guides, and standards docs. |
+| refactor | Iterated the corpus builder, rule engine, server, and clients. |
+
+### Human review
+
+| Field | Value |
+| --- | --- |
+| Reviewed by a human | yes |
+| Note | Every PR reviewed and merged by the maintainer; CI (tests, lint, typecheck) gates each PR. |
+
+---
+
+**UNVERIFIED** · generated 2026-09-11T00:00:00+00:00
