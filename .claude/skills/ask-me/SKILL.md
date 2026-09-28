@@ -85,7 +85,7 @@ use this skill.
 ## Notes for this repo
 
 - This repo builds via scheduled agent tasks working one build-order step at
-  a time (see `CLAUDE.md`, "Before you start"). When `ask-me` is used ahead of
+  a time (see `AGENTS.md` §4–§5). When `ask-me` is used ahead of
   picking up an issue, keep the interview scoped to *that issue's* intent —
   it is not a license to plan ahead into later build-order steps.
 - If the interview surfaces a genuinely separate concern (a bug, a missing

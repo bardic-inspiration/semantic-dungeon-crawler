@@ -95,7 +95,7 @@ whether it survives contact with reality, use this skill.
 ## Notes for this repo
 
 - This repo builds via scheduled agent tasks working one build-order step at
-  a time (see `CLAUDE.md`, "Before you start"). Grill the plan for *that*
+  a time (see `AGENTS.md` §4–§5). Grill the plan for *that*
   issue's acceptance criteria — a grilling session is not license to expand
   scope into later build-order steps, even when the interview surfaces a
   legitimately good idea for one.
