@@ -1,9 +1,23 @@
 # CLAUDE.md
 
-Claude Code specific notes. **Read [`AGENTS.md`](AGENTS.md) first** — it is the
-canonical guide (purpose, hard rules, layout, build order, working loop, and the
-PR and scope discipline that apply to every session, cold start or not). This
-file adds only the conventions specific to Claude Code's tools and interface.
+This repo is **Throughline**, a small browser card game. See
+[`README.md`](README.md) for how it works and how to build it. The earlier
+engine, spec and phase process were removed; they are in git history only.
+
+## Layout
+
+- `src/engine.js` — the rules. Pure and deterministic; no DOM.
+- `src/game.html` — the page and its UI code.
+- `tools/build.mjs` — downloads the books, cuts and embeds the cards, and
+  writes the self-contained `index.html` (committed, so the game is playable
+  without building).
+- `tools/sim.mjs` — plays simulated games, for tuning the scoring constants.
+- `test/` — `npm test`.
+
+After changing `src/`, run `npm run build -- --page` to regenerate
+`index.html`, and `npm test`. After changing scoring constants, run
+`npm run sim` and check careful play still wins in about ten moves while
+random play mostly does not.
 
 ## Asking questions
 
@@ -15,7 +29,5 @@ file adds only the conventions specific to Claude Code's tools and interface.
 
 ## CI watch protocol
 
-- **Never watch.** Do not call `subscribe_pr_activity` on any PR you open,
-  regardless of whether it touches code or is docs-only. Cold-start sessions
-  have no memory of prior runs, so a subscription left open here has nobody
-  to act on it between agent sessions — open the PR and end the turn.
+- **Never watch.** Do not call `subscribe_pr_activity` on any PR you open.
+  Open the PR and end the turn.
