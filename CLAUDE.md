@@ -1,23 +1,32 @@
 # CLAUDE.md
 
-This repo is **Throughline**, a small browser card game. See
-[`README.md`](README.md) for how it works and how to build it. The earlier
-engine, spec and phase process were removed; they are in git history only.
+This repo is an engine for games played on embedding surfaces. Read
+[`README.md`](README.md) first: it describes every part and how a project
+configures them.
 
 ## Layout
 
-- `src/engine.js` — the rules. Pure and deterministic; no DOM.
-- `src/game.html` — the page and its UI code.
-- `tools/build.mjs` — downloads the books, cuts and embeds the cards, and
-  writes the self-contained `index.html` (committed, so the game is playable
-  without building).
-- `tools/sim.mjs` — plays simulated games, for tuning the scoring constants.
-- `test/` — `npm test`.
+- `engine/` — the generic engine. No game-specific code belongs here.
+  - `corpus.mjs`, `embed.mjs`, `surface.mjs` — the pipeline that builds a surface.
+  - `host.mjs` — the surface as a core map.
+  - `game.mjs` — compiles a ruleset with core and plays it. Must stay free of
+    Node imports: it runs in the browser.
+  - `rulesets/<base>/` — base rulesets, in core's format.
+  - `interface/<template>.html|.js` — interface templates.
+  - `build.mjs`, `sim.mjs`, `cli.mjs`, `project.mjs` — the build and tools.
+  - `vendor/` — the bundled core, written by `npm install`. Not committed.
+- `src/`, `tools/`, `index.html` — the standalone Throughline prototype, not
+  yet on the engine. It is to be ported to `projects/throughline/`.
+- `test/` — `npm test`. Engine tests use a generated toy project.
 
-After changing `src/`, run `npm run build -- --page` to regenerate
-`index.html`, and `npm test`. After changing scoring constants, run
-`npm run sim` and check careful play still wins in about ten moves while
-random play mostly does not.
+Rules are data in [core](https://github.com/bardic-inspiration/core)'s format.
+When a rule cannot be written in it, say so rather than adding code to a
+ruleset's host or interface. Core's format is in
+`node_modules/rpg-core/docs/format.md`.
+
+## After a change
+
+Run `npm test`.
 
 ## Asking questions
 
