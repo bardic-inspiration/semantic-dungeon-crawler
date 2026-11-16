@@ -6,9 +6,19 @@ words. The engine is a corpus and embeddings pipeline that produces a surface;
 the rules of a game are data, played by
 [core](https://github.com/bardic-inspiration/core).
 
-The Throughline prototype at the repo root is still standalone: open
-[`index.html`](index.html) to play it. It moves onto the engine, as the first
-project and the test fixture, in the change after this one.
+One game is included, as the worked example and the test fixture:
+**Throughline**.
+
+## Play Throughline
+
+Open [`projects/throughline/index.html`](projects/throughline/index.html) in a
+browser. It is one self-contained file: no server, no install.
+
+You are dealt five fragments from nine classic fantasy, adventure and horror
+novels. Your first card sets a thread; after that, play the card that best
+continues the meaning of your last few. Cards that fit raise harmony, cards
+that break the thread lower it, and a run of good cards multiplies the gain.
+Reach 100 in as few moves as you can.
 
 ## How it fits together
 
@@ -38,7 +48,8 @@ project and the test fixture, in the change after this one.
 | Interface templates | [`engine/interface/`](engine/interface) | Pages that draw any game on a given base ruleset. A project configures one. |
 | Projects | [`projects/`](projects) | One directory per game: its configuration of all of the above. |
 
-The engine has no game-specific code.
+The engine has no game-specific code. Everything that makes Throughline
+Throughline is in [`projects/throughline/`](projects/throughline).
 
 ## The surface as a core map
 
@@ -109,9 +120,9 @@ projects/<name>/
   index.html      built
 ```
 
-A source is `{ gutenberg: <id> }` or `{ file: <path> }`, with a `title` and an
-optional `group`. The toy project the tests build
-([`test/helpers.mjs`](test/helpers.mjs)) is a complete small example.
+[`projects/throughline/project.mjs`](projects/throughline/project.mjs) is the
+example to copy. A source is `{ gutenberg: <id> }` or `{ file: <path> }`, with
+a `title` and an optional `group`.
 
 ## Development
 
@@ -126,19 +137,19 @@ npm install
 Build a project (downloads its books, and the embedding model once, about 90 MB):
 
 ```bash
-npm run build -- projects/<name>
+npm run build -- projects/throughline
 ```
 
 Rebuild only the page, reusing the surface, after changing rules or interface:
 
 ```bash
-npm run build -- projects/<name> --page
+npm run build -- projects/throughline --page
 ```
 
 Play simulated games to tune a project's tables:
 
 ```bash
-npm run sim -- projects/<name>
+npm run sim -- projects/throughline
 ```
 
 ```bash
@@ -146,7 +157,7 @@ npm test
 ```
 
 The tests need no network or model: the engine's run on a small generated
-corpus with the `hashing` embedder.
+corpus with the `hashing` embedder, and Throughline's on its committed surface.
 
 ### Core
 
@@ -165,4 +176,5 @@ history.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT — see [`LICENSE`](LICENSE). The texts in Throughline are from
+[Project Gutenberg](https://www.gutenberg.org/) and in the US public domain.

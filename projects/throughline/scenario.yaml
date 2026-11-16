@@ -1,0 +1,17 @@
+# One player, played on the Throughline surface until harmony reaches the goal.
+format: 2
+scenario: { id: standard, title: Throughline }
+ruleset: { id: sdc-hand, version: 0.1.0 }
+
+seats:
+  player: {}
+
+map: surface
+
+end:
+  - when: "game.meter >= tables.goal"
+    outcome:
+      result: "'win'"
+      moves: "game.trail.size()"
+
+limits: { maxDecisions: 500 }
