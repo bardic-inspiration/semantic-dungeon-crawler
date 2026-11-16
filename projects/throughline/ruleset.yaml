@@ -1,0 +1,15 @@
+# Throughline's rules: the engine's `hand` base ruleset, configured. The base
+# (engine/rulesets/hand/ruleset.yaml) holds the rules themselves; this
+# supplies the two tables it leaves to the project and sets the numbers,
+# which were tuned with `npm run sim -- projects/throughline`.
+format: 2
+extension: { id: throughline, version: 0.1.0, title: Throughline }
+extends: { id: sdc-hand, version: 0.1.0 }
+
+tables:
+  # A hand of five: one near neighbour, then progressively farther.
+  bands: [[0, 5], [5, 20], [20, 80], [80, 400], [400, 100000]]
+  # The thread is the last four cards, the latest counting most.
+  weights: [100, 60, 36, 20]
+  pivot: 330
+  gain: 60
