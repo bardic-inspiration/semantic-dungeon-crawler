@@ -1,16 +1,25 @@
 {
-  "name": "throughline",
+  "name": "semantic-dungeon-crawler",
   "version": "0.1.0",
   "private": true,
-  "description": "A browser card game about following a thread of meaning through classic fantasy, adventure and horror.",
+  "description": "An engine for games played on embedding surfaces: a corpus and embeddings pipeline, rules in core, and Throughline as the included game.",
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "build": "node tools/build.mjs",
-    "sim": "node tools/sim.mjs",
-    "test": "node --test test/*.mjs"
+    "postinstall": "node engine/vendor.mjs",
+    "build": "node engine/cli.mjs build",
+    "sim": "node engine/cli.mjs sim",
+    "test": "node --test \"test/**/*.test.mjs\""
   },
-  "devDependencies": {
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "rpg-core": "github:bardic-inspiration/core#3d0e3f4",
+    "yaml": "^2.9.1"
+  },
+  "optionalDependencies": {
     "@xenova/transformers": "2.17.2"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

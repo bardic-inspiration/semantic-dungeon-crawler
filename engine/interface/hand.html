@@ -1,0 +1,226 @@
+<!--SDC:HEAD-->
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* The "hand" interface template: a meter across the top, the hand of
+     passages, then the trail played so far beside a map of the surface.
+     A project sets the title, copy, fonts, and the colour tokens below. */
+  :root {
+    color-scheme: dark;
+    --ink: #15171c;
+    --ink-raised: #1e2128;
+    --ink-sunk: #0f1115;
+    --line: #353a45;
+    --bone: #e8e9ec;
+    --dim: #9aa0ac;
+    --accent: #e0b050;
+    --up: #a9d48a;
+    --down: #e68372;
+    --display: Georgia, "Iowan Old Style", serif;
+    --ui: system-ui, "Segoe UI", sans-serif;
+  }
+  /*SDC:THEME*/
+  [hidden] { display: none !important; }
+  html, body { background: var(--ink); }
+  body {
+    color: var(--bone);
+    font-family: var(--ui);
+    font-size: 16px;
+    line-height: 1.45;
+  }
+  .app {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding-block: 1.25rem 2.5rem;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Header */
+  .top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 1.25rem; }
+  h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 2.1rem;
+    line-height: 1;
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+  .tagline { color: var(--dim); margin: 0; flex: 1 1 14rem; min-width: 0; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+  .seed { color: var(--dim); font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ghost {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 0.3rem 0.75rem;
+  }
+  .ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Meter */
+  .meter { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.4rem 1rem; }
+  .meter-label { font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+  .meter-value { font-family: var(--ui); font-weight: 700; font-size: 1.8rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .meter-value small { font-size: 1rem; font-weight: 400; color: var(--dim); }
+  .bar {
+    position: relative;
+    height: 0.7rem;
+    background: var(--ink-sunk);
+    border: 1px solid var(--line);
+    border-radius: 1px;
+    background-image: linear-gradient(90deg, transparent calc(100% - 1px), var(--line) 0);
+    background-size: 25% 100%;
+  }
+  .bar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    background: var(--accent);
+    transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .stats { display: flex; align-items: center; gap: 1rem; font-size: 0.9rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .pips { display: inline-flex; gap: 3px; vertical-align: middle; margin-right: 0.35rem; }
+  .pip { width: 7px; height: 7px; transform: rotate(45deg); border: 1px solid var(--line); }
+  .pip.lit { background: var(--accent); border-color: var(--accent); }
+
+  /* Board */
+  .board { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 1.1rem; }
+  .panel { background: var(--ink-raised); border: 1px solid var(--line); border-radius: 3px; min-width: 0; }
+  .panel h2 {
+    font-family: var(--ui);
+    font-weight: 500;
+    font-size: 0.8rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin: 0;
+    padding: 0.7rem 1rem 0;
+  }
+  .thread-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.6rem 1rem 1rem;
+    max-height: 21rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .thread-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.1rem 0.8rem; align-items: baseline; }
+  .line { font-family: var(--display); font-size: 1.12rem; line-height: 1.3; }
+  .src { grid-column: 1; font-size: 0.78rem; color: var(--dim); }
+  .delta { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.95rem; }
+  .delta.up { color: var(--up); }
+  .delta.down { color: var(--down); }
+  .delta.zero { color: var(--dim); font-weight: 400; }
+  .empty { color: var(--dim); font-family: var(--display); font-style: italic; font-size: 1.1rem; padding: 0.6rem 1rem 1rem; margin: 0; }
+  .map { display: flex; flex-direction: column; }
+  .map canvas { width: 100%; aspect-ratio: 16 / 10; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; padding: 0 1rem 0.7rem; font-size: 0.8rem; color: var(--dim); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.35rem; }
+
+  /* Hand */
+  .prompt { margin: 0; color: var(--dim); min-height: 1.5em; }
+  .prompt strong { color: var(--bone); font-weight: 500; }
+  .hand { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.7rem; }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    text-align: left;
+    min-height: 12.5rem;
+    padding: 0.8rem 0.9rem;
+    background: var(--ink-raised);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    transition: transform 0.15s, border-color 0.15s, opacity 0.3s;
+  }
+  .card:not(:disabled):hover { transform: translateY(-4px); border-color: var(--accent); }
+  .card-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8rem; color: var(--dim); }
+  .key { font-weight: 700; font-size: 0.9rem; color: var(--accent); }
+  .card-text { font-family: var(--display); font-style: italic; font-size: 1.2rem; line-height: 1.28; flex: 1; overflow-wrap: anywhere; }
+  .card-src { font-size: 0.78rem; color: var(--dim); line-height: 1.25; }
+  .card:disabled { cursor: default; }
+  .card.left { opacity: 0.5; }
+  .card.chosen { border-color: var(--accent); background: var(--ink-sunk); }
+
+  /* Rules and result */
+  details { color: var(--dim); max-width: 46rem; }
+  details summary { cursor: pointer; color: var(--bone); }
+  details p { margin: 0.5rem 0 0; }
+  .result { padding: 1.2rem 1.2rem 1.4rem; display: flex; flex-direction: column; gap: 0.9rem; }
+  .result h2 { font-family: var(--display); font-size: 1.8rem; letter-spacing: 0; text-transform: none; color: var(--bone); padding: 0; text-wrap: balance; }
+  .result h2 .num { font-family: var(--ui); font-weight: 700; }
+  .result p { margin: 0; color: var(--dim); }
+  .poem { font-family: var(--display); font-style: italic; font-size: 1.15rem; line-height: 1.5; color: var(--bone); max-width: 40rem; }
+  .poem span { display: block; }
+  .result .controls .primary { background: var(--accent); color: var(--ink); border-color: var(--accent); font-weight: 700; }
+  .result .controls .primary:hover { color: var(--ink); filter: brightness(1.1); }
+
+  @media (max-width: 760px) {
+    .board { grid-template-columns: minmax(0, 1fr); }
+    .hand { grid-template-columns: minmax(0, 1fr); }
+    .card { min-height: 0; gap: 0.45rem; }
+    .thread-list { max-height: 12rem; }
+    .meter { grid-template-columns: auto 1fr; }
+    .stats { grid-column: 1 / -1; }
+    .board { order: 3; }
+    details { order: 4; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bar-fill, .card { transition: none; }
+  }
+</style>
+<!--SDC:BODY-->
+<div class="app">
+  <header class="top">
+    <h1 id="title"></h1>
+    <p class="tagline" id="tagline"></p>
+    <div class="controls">
+      <span class="seed" id="seed"></span>
+      <button class="ghost" id="daily" type="button"></button>
+      <button class="ghost" id="fresh" type="button"></button>
+    </div>
+  </header>
+
+  <section class="meter" id="meter-section">
+    <div>
+      <div class="meter-label" id="meter-label"></div>
+      <div class="meter-value"><span id="meter">0</span><small id="goal"></small></div>
+    </div>
+    <div class="bar" role="progressbar" aria-valuemin="0" id="bar"><div class="bar-fill" id="fill"></div></div>
+    <div class="stats">
+      <span><span class="pips" id="pips"></span><span id="streak"></span></span>
+      <span><span id="moves">0</span> <span id="moves-label"></span></span>
+    </div>
+  </section>
+
+  <p class="prompt" id="prompt"></p>
+  <section class="hand" id="hand"></section>
+  <section class="panel result" id="result" hidden></section>
+
+  <main class="board">
+    <section class="panel">
+      <h2 id="trail-title"></h2>
+      <p class="empty" id="empty"></p>
+      <ol class="thread-list" id="trail" hidden></ol>
+    </section>
+    <section class="panel map">
+      <h2 id="map-title"></h2>
+      <canvas id="map"></canvas>
+      <div class="legend" id="legend"></div>
+    </section>
+  </main>
+
+  <details id="rules" hidden>
+    <summary id="rules-title"></summary>
+  </details>
+  <p class="prompt" id="failure" hidden></p>
+</div>
+
+<script>/*SDC:DATA*/</script>
+<script>/*SDC:APP*/</script>

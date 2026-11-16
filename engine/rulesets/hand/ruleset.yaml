@@ -1,0 +1,153 @@
+# A base ruleset for games played with a hand of passages from an embedding
+# surface. It is a template: a project extends it, supplies the two tables it
+# leaves out, and may replace any of the numbers below.
+#
+# A project's extension must add:
+#   tables.bands    One card is dealt from each band of the room: the open
+#                   passages ranked by closeness to the last one played.
+#                   Each band is [from, to) in that ranking, so the number of
+#                   bands is the size of the hand.
+#   tables.weights  How much each of the last passages played counts toward
+#                   the thread, the latest first.
+#
+# The surface is the map (engine/host.mjs). A passage is a cell, and
+# `distance` is how unalike two passages are, from 0 to 2000; `1000 -
+# distance` is their similarity. A passage that has been dealt is blocked, so
+# it is never dealt again.
+#
+# Each turn the one seat holds a hand and plays one passage from it. The
+# passages already played are the trail. A played passage moves the meter by
+# what it was worth, which the deal works out against the trail. The scenario
+# declares the end.
+format: 2
+ruleset: { id: sdc-hand, version: 0.1.0, title: A hand of passages }
+
+seats: [player]
+
+# A project may replace or add tables, and add to the rest. Lists only ever
+# grow under core's layering, which is why the list-valued tables are left
+# for the project to supply.
+open:
+  - tables
+  - globals.+
+  - signals.+
+  - reactions.+
+  - procedures.+
+  - intents.+
+
+space:
+  grid: square
+  adjacency: 8
+  layers:
+    source: { type: int, default: 0 }
+    dealt: { type: bool, default: false, mutable: true }
+  blocksMove: "cell.dealt"
+
+tables:
+  # The meter value a scenario plays to.
+  goal: 100
+  # The similarity to the thread, out of 1000, at which a passage is worth
+  # nothing, and the points per 1000 of similarity above or below it.
+  pivot: 420
+  gain: 60
+  # Each good move in a row adds this many percent to a gain, up to the cap.
+  streakStep: 25
+  streakCap: 4
+  maxGain: 20
+  maxLoss: -20
+
+globals:
+  hand: { type: list<cell>, default: [], doc: The passages on offer. }
+  worth: { type: list<int>, default: [], doc: "What each passage in the hand would move the meter by, in the same order." }
+  trail: { type: list<cell>, default: [], doc: "The passages played, in order." }
+  moved: { type: list<int>, default: [], doc: "What each passage on the trail moved the meter by." }
+  meter: { type: int, default: 0 }
+  streak: { type: int, default: 0, doc: Good moves in a row. }
+
+signals:
+  played: { params: { card: cell, worth: int }, doc: A passage was played. }
+
+procedures:
+  score:
+    doc: What a passage is worth against the trail as it stands.
+    params: { card: cell }
+    returns: { points: int }
+    do:
+      - let: { points: 0 }
+      - if: "game.trail.size() > 0"
+        then:
+          - let:
+              points: >-
+                cel.bind(t, game.trail, cel.bind(k, range(min(t.size(), tables.weights.size())),
+                cel.bind(sim, k.map(i, tables.weights[i] * (1000 - distance(card, t[t.size() - 1 - i]))).sum() / k.map(i, tables.weights[i]).sum(),
+                cel.bind(raw, (sim - tables.pivot) * tables.gain / 1000,
+                clamp(raw > 0 ? raw * (100 + tables.streakStep * min(game.streak, tables.streakCap)) / 100 : raw,
+                  tables.maxLoss, tables.maxGain)))))
+
+  deal:
+    doc: Deals a new hand and works out what each passage in it is worth.
+    do:
+      - let: { hand: "game.hand.filter(c, false)" }
+      - if: "game.trail.size() == 0"
+        then:
+          # The opening hand: passages from different sources, anywhere on the surface.
+          - while: "hand.size() < tables.bands.size()"
+            do:
+              - roll: { as: pick, d: space.width }
+              - let: { drawn: "cell(pick - 1, 0)" }
+              - if: "inBounds(drawn) && !hand.exists(h, h == drawn || cellAt(h).source == cellAt(drawn).source)"
+                then:
+                  - let: { hand: "hand + [drawn]" }
+        else:
+          - let: { here: "game.trail[game.trail.size() - 1]" }
+          - let: { room: "cellsWithin(here, 2000)" }
+          - let: { ranked: "sortBy(room, room.map(c, distance(here, c)))" }
+          - each: band
+            in: tables.bands
+            do:
+              - let: { to: "min(band[1], ranked.size())" }
+              - let: { from: "min(band[0], to - 1)" }
+              - roll: { as: pick, d: "to - from" }
+              - let: { drawn: "ranked[from + pick - 1]" }
+              # Each card goes in at a random place, so position says nothing about closeness.
+              - roll: { as: place, d: "hand.size() + 1" }
+              - let: { hand: "range(hand.size() + 1).map(i, i < place - 1 ? hand[i] : i == place - 1 ? drawn : hand[i - 1])" }
+      - let: { worth: "game.worth.filter(w, false)" }
+      - each: card
+        in: hand
+        do:
+          - at: card
+            set: { dealt: true }
+          - call: score
+            with: { card: card }
+            as: { points: points }
+          - let: { worth: "worth + [points]" }
+      - set: { game.hand: hand, game.worth: worth }
+
+intents:
+  play:
+    doc: Play one passage from the hand.
+    params:
+      slot: { type: int, in: "range(game.hand.size())" }
+    effects:
+      - let: { card: "game.hand[slot]" }
+      - let: { points: "game.worth[slot]" }
+      - set:
+          game.streak: "game.trail.size() > 0 && points > 0 ? game.streak + 1 : 0"
+          game.trail: "game.trail + [card]"
+          game.moved: "game.moved + [points]"
+          game.hand: "game.hand.filter(c, false)"
+          game.worth: "game.worth.filter(w, false)"
+      - emit: played
+        with: { card: card, worth: points }
+      - set: { game.meter: "clamp(game.meter + points, 0, tables.goal)" }
+      - call: deal
+
+flow:
+  - call: deal
+  - while: true
+    do:
+      - each: who
+        in: seats
+        do:
+          - prompt: { seat: who, offer: [play] }

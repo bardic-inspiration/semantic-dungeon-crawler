@@ -37,3 +37,6 @@ npm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# The bundled copy of core (written by npm install)
+engine/vendor/
